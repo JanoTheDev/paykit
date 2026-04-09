@@ -1,13 +1,8 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+// Re-export the better-auth user table as "users" for backwards compatibility
+// All other schemas import { users } from "./users" — this alias keeps them working
+import { user } from "./auth";
 
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
-  name: text("name").notNull(),
-  walletAddress: text("wallet_address"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+export const users = user;
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
