@@ -7,7 +7,8 @@
     "dev": "next dev --turbopack --port 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@paykit/db": "workspace:*",
@@ -28,6 +29,7 @@
     "@types/react-dom": "^19",
     "postcss": "^8",
     "tailwindcss": "^4",
-    "typescript": "^5.5"
+    "typescript": "^5.5",
+    "vitest": "^4.1.4"
   }
 }
