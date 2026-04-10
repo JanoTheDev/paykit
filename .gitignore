@@ -5,7 +5,9 @@ out/
 .turbo/
 .env
 .env.local
+.env.bak.*
 *.log
+*.tsbuildinfo
 .DS_Store
 coverage/
 cache/
