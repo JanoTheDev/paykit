@@ -1,0 +1,36 @@
+import { pgTable, uuid, text, integer, timestamp, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { users } from "./users";
+import { products } from "./products";
+
+export const checkoutStatusEnum = pgEnum("checkout_status", [
+  "active",     // link created, not yet opened
+  "viewed",     // user opened the checkout page
+  "abandoned",  // user saw it but left without paying
+  "completed",  // payment confirmed
+  "expired",    // session expired (30 min default)
+]);
+
+export const checkoutSessions = pgTable("checkout_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  productId: uuid("product_id").notNull().references(() => products.id),
+  customerId: text("customer_id"),
+  merchantWallet: text("merchant_wallet").notNull(),
+  amount: integer("amount").notNull(),
+  currency: text("currency").notNull().default("USDC"),
+  chain: text("chain").notNull().default("base"),
+  type: text("type").notNull().default("one_time"),
+  status: checkoutStatusEnum("status").notNull().default("active"),
+  successUrl: text("success_url"),
+  cancelUrl: text("cancel_url"),
+  metadata: jsonb("metadata").$type<Record<string, string>>().default({}),
+  paymentId: uuid("payment_id"),
+  subscriptionId: uuid("subscription_id"),
+  viewedAt: timestamp("viewed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CheckoutSession = typeof checkoutSessions.$inferSelect;
+export type NewCheckoutSession = typeof checkoutSessions.$inferInsert;
