@@ -1,0 +1,134 @@
+/**
+ * Pure validation for the relay route. Extracted so the business rules
+ * are unit-testable without mocking Next.js request/response.
+ */
+
+export interface RelayRequestBody {
+  buyer?: unknown;
+  deadline?: unknown;
+  v?: unknown;
+  r?: unknown;
+  s?: unknown;
+  permitValue?: unknown;
+}
+
+export interface ValidatedRelayInput {
+  buyer: `0x${string}`;
+  deadline: bigint;
+  v: number;
+  r: `0x${string}`;
+  s: `0x${string}`;
+  permitValue: bigint;
+}
+
+export type ValidationError =
+  | { code: "invalid_body"; message: string }
+  | { code: "session_not_found" }
+  | { code: "session_expired" }
+  | { code: "session_not_payable"; status: string }
+  | { code: "session_already_relayed" }
+  | { code: "deadline_passed" };
+
+const HEX_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+const HEX_BYTES32_RE = /^0x[0-9a-fA-F]{64}$/;
+
+/**
+ * Normalize the permit signature recovery parameter. Some wallets return
+ * v as 0 or 1 (EIP-155); OpenZeppelin's ERC20Permit ecrecover expects 27 or
+ * 28. The client already normalizes, but we do it server-side too as a
+ * belt-and-braces check against third-party SDKs posting raw signatures.
+ */
+export function normalizePermitV(v: number): number {
+  if (v === 0 || v === 1) return v + 27;
+  return v;
+}
+
+export function parseRelayBody(
+  body: RelayRequestBody,
+): { ok: true; value: ValidatedRelayInput } | { ok: false; error: ValidationError } {
+  const { buyer, deadline, v, r, s, permitValue } = body;
+
+  if (typeof buyer !== "string" || !HEX_ADDRESS_RE.test(buyer)) {
+    return { ok: false, error: { code: "invalid_body", message: "buyer must be a 0x-prefixed 20-byte hex address" } };
+  }
+  if (typeof deadline !== "string" && typeof deadline !== "number") {
+    return { ok: false, error: { code: "invalid_body", message: "deadline must be a string or number" } };
+  }
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 255) {
+    return { ok: false, error: { code: "invalid_body", message: "v must be a uint8 (0-255)" } };
+  }
+  if (typeof r !== "string" || !HEX_BYTES32_RE.test(r)) {
+    return { ok: false, error: { code: "invalid_body", message: "r must be a 0x-prefixed 32-byte hex string" } };
+  }
+  if (typeof s !== "string" || !HEX_BYTES32_RE.test(s)) {
+    return { ok: false, error: { code: "invalid_body", message: "s must be a 0x-prefixed 32-byte hex string" } };
+  }
+  if (typeof permitValue !== "string" && typeof permitValue !== "number") {
+    return { ok: false, error: { code: "invalid_body", message: "permitValue must be a string or number" } };
+  }
+
+  let deadlineBig: bigint;
+  let permitValueBig: bigint;
+  try {
+    deadlineBig = BigInt(deadline as string | number);
+    permitValueBig = BigInt(permitValue as string | number);
+  } catch {
+    return { ok: false, error: { code: "invalid_body", message: "deadline/permitValue must be representable as bigint" } };
+  }
+
+  if (deadlineBig <= BigInt(0)) {
+    return { ok: false, error: { code: "invalid_body", message: "deadline must be positive" } };
+  }
+  if (permitValueBig <= BigInt(0)) {
+    return { ok: false, error: { code: "invalid_body", message: "permitValue must be positive" } };
+  }
+
+  return {
+    ok: true,
+    value: {
+      buyer: buyer as `0x${string}`,
+      deadline: deadlineBig,
+      v: normalizePermitV(v),
+      r: r as `0x${string}`,
+      s: s as `0x${string}`,
+      permitValue: permitValueBig,
+    },
+  };
+}
+
+export interface SessionSnapshot {
+  status: string;
+  expiresAt: Date;
+  paymentId: string | null;
+  subscriptionId: string | null;
+}
+
+export function validateSessionForRelay(
+  session: SessionSnapshot | null,
+  now: Date = new Date(),
+): { ok: true } | { ok: false; error: ValidationError } {
+  if (!session) {
+    return { ok: false, error: { code: "session_not_found" } };
+  }
+  if (session.expiresAt < now) {
+    return { ok: false, error: { code: "session_expired" } };
+  }
+  if (session.status !== "active" && session.status !== "viewed") {
+    return { ok: false, error: { code: "session_not_payable", status: session.status } };
+  }
+  if (session.paymentId !== null || session.subscriptionId !== null) {
+    return { ok: false, error: { code: "session_already_relayed" } };
+  }
+  return { ok: true };
+}
+
+export function validateDeadline(
+  deadline: bigint,
+  now: Date = new Date(),
+): { ok: true } | { ok: false; error: ValidationError } {
+  const nowSeconds = BigInt(Math.floor(now.getTime() / 1000));
+  if (deadline <= nowSeconds) {
+    return { ok: false, error: { code: "deadline_passed" } };
+  }
+  return { ok: true };
+}

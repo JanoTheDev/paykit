@@ -35,10 +35,21 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [indexerOnline, setIndexerOnline] = useState<boolean | null>(null);
+  const [relayerStatus, setRelayerStatus] = useState<{
+    configured: boolean;
+    low: boolean;
+    balanceEth: string | null;
+  } | null>(null);
+  const [keeperStatus, setKeeperStatus] = useState<{
+    configured: boolean;
+    low: boolean;
+    balanceEth: string | null;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    async function check() {
+
+    async function checkIndexer() {
       try {
         const res = await fetch("/api/system/indexer-status", {
           cache: "no-store",
@@ -50,8 +61,54 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         // ignore
       }
     }
-    check();
-    const id = setInterval(check, 30 * 1000);
+
+    async function checkRelayer() {
+      try {
+        const res = await fetch("/api/system/relayer-status", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setRelayerStatus({
+            configured: Boolean(data.configured),
+            low: Boolean(data.low),
+            balanceEth: data.balanceEth ?? null,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    async function checkKeeper() {
+      try {
+        const res = await fetch("/api/system/keeper-status", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setKeeperStatus({
+            configured: Boolean(data.configured),
+            low: Boolean(data.low),
+            balanceEth: data.balanceEth ?? null,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    checkIndexer();
+    checkRelayer();
+    checkKeeper();
+    const id = setInterval(() => {
+      checkIndexer();
+      checkRelayer();
+      checkKeeper();
+    }, 30 * 1000);
+
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -117,6 +174,40 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 : "Indexer offline"}
           </span>
         </div>
+        {relayerStatus && relayerStatus.configured && (
+          <div className="flex h-9 items-center gap-2.5 px-3 text-xs text-foreground-dim">
+            <span
+              className={cn(
+                "inline-block h-2 w-2 rounded-full",
+                relayerStatus.low ? "bg-warning" : "bg-success",
+              )}
+            />
+            <span>
+              Relayer{" "}
+              {relayerStatus.balanceEth
+                ? `${Number(relayerStatus.balanceEth).toFixed(4)} ETH`
+                : "ok"}
+              {relayerStatus.low && " (low)"}
+            </span>
+          </div>
+        )}
+        {keeperStatus && keeperStatus.configured && (
+          <div className="flex h-9 items-center gap-2.5 px-3 text-xs text-foreground-dim">
+            <span
+              className={cn(
+                "inline-block h-2 w-2 rounded-full",
+                keeperStatus.low ? "bg-warning" : "bg-success",
+              )}
+            />
+            <span>
+              Keeper{" "}
+              {keeperStatus.balanceEth
+                ? `${Number(keeperStatus.balanceEth).toFixed(4)} ETH`
+                : "ok"}
+              {keeperStatus.low && " (low)"}
+            </span>
+          </div>
+        )}
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 px-3 text-foreground-muted hover:text-foreground"

@@ -10,14 +10,32 @@ export async function GET() {
     .where(eq(systemStatus.key, "indexer_heartbeat"));
 
   if (!row) {
-    return NextResponse.json({ online: false, lastSeen: null });
+    return NextResponse.json({
+      online: false,
+      ready: false,
+      status: "offline",
+      lastSeen: null,
+    });
   }
 
   const ageSeconds = (Date.now() - new Date(row.updatedAt).getTime()) / 1000;
-  const online = ageSeconds < 120;
+  const alive = ageSeconds < 120;
+  const ready = row.value === "ok";
+
+  // Three-state report:
+  //   "offline"  — heartbeat stale, indexer is not running
+  //   "starting" — heartbeat fresh but listener still backfilling
+  //   "online"   — heartbeat fresh AND listener watching live events
+  const status: "offline" | "starting" | "online" = !alive
+    ? "offline"
+    : ready
+      ? "online"
+      : "starting";
 
   return NextResponse.json({
-    online,
+    online: alive && ready,
+    ready,
+    status,
     lastSeen: row.updatedAt.toISOString(),
     ageSeconds: Math.floor(ageSeconds),
   });

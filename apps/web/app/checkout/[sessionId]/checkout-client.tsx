@@ -2,10 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
-import { useWriteContract, useWaitForTransactionReceipt, useChainId, useSwitchChain, usePublicClient } from "wagmi";
-import { keccak256, stringToBytes } from "viem";
+import { useWaitForTransactionReceipt, useChainId, useSwitchChain, usePublicClient, useSignTypedData } from "wagmi";
 import { CheckCircle2, Clock } from "lucide-react";
-import { CONTRACTS, ERC20_ABI, PAYMENT_VAULT_ABI, SUBSCRIPTION_MANAGER_ABI } from "@/lib/contracts";
+import { CONTRACTS, ERC20_PERMIT_ABI } from "@/lib/contracts";
 import { intervalToSeconds, formatInterval } from "@/lib/billing-intervals";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -179,9 +178,9 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
   const [payStep, setPayStep] = useState<"idle" | "approving" | "paying" | "confirming">("idle");
   const [payError, setPayError] = useState<string | null>(null);
 
-  const { writeContractAsync } = useWriteContract();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
+  const { signTypedDataAsync } = useSignTypedData();
   const publicClient = usePublicClient({ chainId: 84532 });
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const {
@@ -261,91 +260,131 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
       }
 
       // Convert USDC amount (cents → 6 decimals)
-      // session.amount is in cents (100 = $1.00)
-      // USDC has 6 decimals, so $1.00 = 1,000,000 units
-      const usdcAmount = BigInt(session.amount) * BigInt(10_000); // cents * 10^4 = 10^6 units per dollar
-
-      // Convert IDs to bytes32
-      const productIdBytes = keccak256(stringToBytes(session.productId));
-      // Use the checkout session UUID as the on-chain customerId. This avoids
-      // collisions between concurrent checkouts for the same merchant+amount
-      // and between anonymous customers. The developer-provided customerId is
-      // still stored on the session row and used for downstream customer
-      // identification.
-      const customerIdBytes = keccak256(stringToBytes(session.id));
+      const usdcAmount = BigInt(session.amount) * BigInt(10_000);
 
       const isSubscription = session.type === "subscription";
       const spender = isSubscription
         ? CONTRACTS.subscriptionManager
         : CONTRACTS.paymentVault;
 
-      // For subscriptions, approve a large allowance (1000x amount = 1000 charges).
-      // For one-time, approve exactly the amount.
-      const approvalAmount = isSubscription
+      // Gasless flow: buyer signs an EIP-2612 permit (no gas, no transaction),
+      // backend relayer submits createPaymentWithPermit/createSubscriptionWithPermit.
+      // For subscriptions, permitValue is 1000x amount so the long-standing
+      // allowance covers future keeper charges without re-prompting the user.
+      const permitValue = isSubscription
         ? usdcAmount * BigInt(1000)
         : usdcAmount;
 
-      // Step 1: Approve USDC spending
-      setPayStep("approving");
-      const approveHash = await writeContractAsync({
-        address: CONTRACTS.usdc,
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [spender, approvalAmount],
-        chainId: 84532, // Base Sepolia
-      });
-      console.log("Approve tx:", approveHash);
+      // Deadline: 30 minutes from now. Long enough for the user to confirm,
+      // short enough that stale signatures can't be replayed indefinitely.
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 30 * 60);
 
-      // Wait for the approval tx to be mined on-chain before calling the
-      // payment contract. Avoids a race where the payment call sees stale
-      // allowance and reverts.
-      if (publicClient) {
-        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      if (!publicClient) {
+        throw new Error("Public client not available");
       }
 
-      // Step 2: Call createPayment or createSubscription
-      setPayStep("paying");
-      let payHash: `0x${string}`;
-
+      // Validate subscription interval up front so we don't ask the user to
+      // sign a permit that the backend will just reject.
       if (isSubscription) {
         const intervalSeconds = intervalToSeconds(session.billingInterval);
         if (intervalSeconds <= 0) {
           throw new Error("Invalid billing interval for subscription");
         }
-
-        payHash = await writeContractAsync({
-          address: CONTRACTS.subscriptionManager,
-          abi: SUBSCRIPTION_MANAGER_ABI,
-          functionName: "createSubscription",
-          args: [
-            CONTRACTS.usdc,
-            session.merchantWallet as `0x${string}`,
-            usdcAmount,
-            BigInt(intervalSeconds),
-            productIdBytes,
-            customerIdBytes,
-          ],
-          chainId: 84532, // Base Sepolia
-        });
-        console.log("Subscription tx:", payHash);
-      } else {
-        payHash = await writeContractAsync({
-          address: CONTRACTS.paymentVault,
-          abi: PAYMENT_VAULT_ABI,
-          functionName: "createPayment",
-          args: [
-            CONTRACTS.usdc,
-            session.merchantWallet as `0x${string}`,
-            usdcAmount,
-            productIdBytes,
-            customerIdBytes,
-          ],
-          chainId: 84532, // Base Sepolia
-        });
-        console.log("Payment tx:", payHash);
       }
 
-      setTxHash(payHash);
+      // Fetch the current on-chain permit nonce and the token name (used in
+      // the EIP-712 domain separator).
+      // EIP-712 domain version: MockUSDC uses "1"; real Circle USDC on Base
+      // mainnet uses "2"; some tokens don't expose the view at all. Read it
+      // dynamically with a fallback to "1" so signatures work across all
+      // permit-compatible tokens.
+      const [nonce, tokenName, tokenVersion] = await Promise.all([
+        publicClient.readContract({
+          address: CONTRACTS.usdc,
+          abi: ERC20_PERMIT_ABI,
+          functionName: "nonces",
+          args: [address as `0x${string}`],
+        }),
+        publicClient.readContract({
+          address: CONTRACTS.usdc,
+          abi: ERC20_PERMIT_ABI,
+          functionName: "name",
+        }),
+        publicClient
+          .readContract({
+            address: CONTRACTS.usdc,
+            abi: ERC20_PERMIT_ABI,
+            functionName: "version",
+          })
+          .catch(() => "1" as string),
+      ]);
+
+      setPayStep("approving"); // reuse "approving" step for the signing prompt
+
+      const signature = await signTypedDataAsync({
+        domain: {
+          name: tokenName as string,
+          version: tokenVersion as string,
+          chainId: 84532, // Base Sepolia
+          verifyingContract: CONTRACTS.usdc,
+        },
+        types: {
+          Permit: [
+            { name: "owner", type: "address" },
+            { name: "spender", type: "address" },
+            { name: "value", type: "uint256" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        primaryType: "Permit",
+        message: {
+          owner: address as `0x${string}`,
+          spender: spender as `0x${string}`,
+          value: permitValue,
+          nonce: nonce as bigint,
+          deadline,
+        },
+      });
+
+      // Split the 65-byte signature into v, r, s
+      const sigHex = signature.slice(2); // strip 0x
+      const r = `0x${sigHex.slice(0, 64)}` as `0x${string}`;
+      const s = `0x${sigHex.slice(64, 128)}` as `0x${string}`;
+      const rawV = parseInt(sigHex.slice(128, 130), 16);
+      // Normalize: some wallets return v as 0/1 (EIP-155), ecrecover expects 27/28.
+      const v = rawV < 27 ? rawV + 27 : rawV;
+
+      setPayStep("paying");
+
+      // Submit to the backend relay endpoint — it will call the contract
+      // via the whitelisted relayer wallet and return the tx hash.
+      const relayRes = await fetch(`/api/checkout/${session.id}/relay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          buyer: address,
+          deadline: deadline.toString(),
+          permitValue: permitValue.toString(),
+          v,
+          r,
+          s,
+        }),
+      });
+
+      if (!relayRes.ok) {
+        const errBody = await relayRes.json().catch(() => ({}));
+        const errMsg =
+          errBody?.error?.message ||
+          errBody?.error?.code ||
+          `Relay failed (${relayRes.status})`;
+        throw new Error(errMsg);
+      }
+
+      const { txHash: relayedTxHash } = (await relayRes.json()) as {
+        txHash: `0x${string}`;
+      };
+      setTxHash(relayedTxHash);
       setPayStep("confirming");
     } catch (err) {
       console.error("Payment failed:", err);

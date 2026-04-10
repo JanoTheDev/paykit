@@ -58,6 +58,24 @@ export const PAYMENT_VAULT_ABI = [
     ],
     outputs: [],
   },
+  {
+    name: "createPaymentWithPermit",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "buyer", type: "address" },
+      { name: "merchant", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "productId", type: "bytes32" },
+      { name: "customerId", type: "bytes32" },
+      { name: "deadline", type: "uint256" },
+      { name: "v", type: "uint8" },
+      { name: "r", type: "bytes32" },
+      { name: "s", type: "bytes32" },
+    ],
+    outputs: [],
+  },
 ] as const;
 
 // SubscriptionManager ABI (createSubscription + cancelSubscription)
@@ -77,10 +95,83 @@ export const SUBSCRIPTION_MANAGER_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    name: "createSubscriptionWithPermit",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "buyer", type: "address" },
+      { name: "merchant", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "interval", type: "uint256" },
+      { name: "productId", type: "bytes32" },
+      { name: "customerId", type: "bytes32" },
+      { name: "permitValue", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+      { name: "v", type: "uint8" },
+      { name: "r", type: "bytes32" },
+      { name: "s", type: "bytes32" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     name: "cancelSubscription",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [{ name: "subscriptionId", type: "uint256" }],
     outputs: [],
+  },
+  {
+    name: "cancelSubscriptionByRelayerForSubscriber",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "subscriptionId", type: "uint256" },
+      { name: "subscriber", type: "address" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "cancelSubscriptionByRelayerForMerchant",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "subscriptionId", type: "uint256" },
+      { name: "merchant", type: "address" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+// ERC20Permit extension — for reading nonces and domain separator when
+// building EIP-712 permit signatures client-side.
+export const ERC20_PERMIT_ABI = [
+  {
+    name: "nonces",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "DOMAIN_SEPARATOR",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
+  {
+    name: "name",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    name: "version",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
   },
 ] as const;
