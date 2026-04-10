@@ -364,53 +364,10 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
         </div>
       )}
 
-      {/* OR divider */}
-      <div className="my-6 flex items-center gap-4">
-        <div className="h-px flex-1 bg-[rgba(148,163,184,0.08)]" />
-        <span className="text-[12px] tracking-[0.2px] text-[#64748b]">or</span>
-        <div className="h-px flex-1 bg-[rgba(148,163,184,0.08)]" />
-      </div>
-
-      {/* Manual Payment */}
-      <div>
-        <p className="mb-2 text-[14px] text-[#94a3b8]">
-          Send {session.currency} to:
-        </p>
-        <div className="flex items-center gap-2 rounded-[8px] border border-[rgba(148,163,184,0.12)] bg-[#07070a] px-3.5 py-2.5">
-          <span
-            className="min-w-0 flex-1 truncate text-[13px] text-[#f0f0f3]"
-            style={{ fontFamily: '"Geist Mono", ui-monospace, monospace' }}
-            title={session.merchantWallet}
-          >
-            {truncateAddress(session.merchantWallet)}
-          </span>
-          <button
-            onClick={handleCopyAddress}
-            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[8px] text-[#94a3b8] transition-colors duration-150 hover:bg-[#111116] hover:text-[#f0f0f3]"
-            title="Copy address"
-          >
-            {copied ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
-          </button>
-        </div>
-        <p className="mt-2 text-[14px] text-[#94a3b8]">
-          Amount:{" "}
-          <span
-            className="font-medium text-[#f0f0f3]"
-            style={{ fontFamily: '"Geist Mono", ui-monospace, monospace', fontVariantNumeric: "tabular-nums" }}
-          >
-            {displayAmount} {session.currency}
-          </span>
-        </p>
-      </div>
+      {/* Info note */}
+      <p className="mt-4 text-center text-[12px] text-[#64748b]">
+        Connect a wallet with {session.currency} on Base Sepolia to pay securely through our payment contract.
+      </p>
 
       {/* Polling Status */}
       {pollRef.current !== null || status === "viewed" ? (
