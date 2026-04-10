@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -31,6 +32,27 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [indexerOnline, setIndexerOnline] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      try {
+        const res = await fetch("/api/system/indexer-status", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setIndexerOnline(Boolean(data.online));
+      } catch {
+        // ignore
+      }
+    }
+    check();
+    const id = setInterval(check, 30 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   async function handleSignOut() {
     await signOut();
@@ -64,6 +86,24 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-[rgba(148,163,184,0.08)] px-2 py-2">
+        <div className="flex h-9 items-center gap-2.5 px-3 text-[12px] text-[#94a3b8]">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${
+              indexerOnline === null
+                ? "bg-[#64748b]"
+                : indexerOnline
+                ? "bg-[#22c55e]"
+                : "bg-[#ef4444]"
+            }`}
+          />
+          <span>
+            {indexerOnline === null
+              ? "Checking indexer..."
+              : indexerOnline
+              ? "Indexer online"
+              : "Indexer offline"}
+          </span>
+        </div>
         <button
           onClick={handleSignOut}
           className="flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-sm text-[#94a3b8] transition-colors hover:bg-[#111116] hover:text-[#f0f0f3]"

@@ -55,6 +55,28 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
   });
   const markedViewed = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [indexerOnline, setIndexerOnline] = useState<boolean>(true);
+
+  // Check indexer status on mount and every 30s
+  useEffect(() => {
+    let cancelled = false;
+    async function checkStatus() {
+      try {
+        const res = await fetch("/api/system/indexer-status", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setIndexerOnline(Boolean(data.online));
+      } catch {
+        // ignore
+      }
+    }
+    checkStatus();
+    const id = setInterval(checkStatus, 30 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const hasCheckoutFields =
     session.checkoutFields &&
@@ -234,6 +256,16 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
         </div>
       </div>
 
+      {/* Indexer Offline Warning */}
+      {!indexerOnline && (
+        <div className="mt-6 rounded-lg border border-[#fbbf2430] bg-[#fbbf2412] p-4">
+          <p className="text-sm font-medium text-[#fbbf24]">Payment processing unavailable</p>
+          <p className="mt-1 text-[13px] text-[#94a3b8]">
+            Our payment system is temporarily down. Please try again in a few minutes.
+          </p>
+        </div>
+      )}
+
       {/* Customer Fields */}
       {hasCheckoutFields && (
         <>
@@ -305,16 +337,27 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
       {/* Connect Wallet */}
       {!isConnected ? (
         <div className="flex flex-col items-center">
-          <ConnectButton label="Connect Wallet &amp; Pay" />
+          <div
+            className={indexerOnline ? "" : "pointer-events-none opacity-50"}
+            aria-disabled={!indexerOnline}
+          >
+            <ConnectButton label="Connect Wallet &amp; Pay" />
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center">
           <div className="mb-4 w-full">
-            <ConnectButton showBalance={false} />
+            <div
+              className={indexerOnline ? "" : "pointer-events-none opacity-50"}
+              aria-disabled={!indexerOnline}
+            >
+              <ConnectButton showBalance={false} />
+            </div>
           </div>
           <button
             onClick={handleShowPaymentDetails}
-            className="h-10 w-full rounded-[8px] bg-[#06d6a0] px-[18px] text-[14px] font-medium text-[#07070a] transition-[background,box-shadow] duration-150 hover:bg-[#05bf8e] active:bg-[#04a87b] focus:outline-none focus:ring-[3px] focus:ring-[#06d6a060] focus:ring-offset-2 focus:ring-offset-[#18181e]"
+            disabled={!indexerOnline}
+            className="h-10 w-full rounded-[8px] bg-[#06d6a0] px-[18px] text-[14px] font-medium text-[#07070a] transition-[background,box-shadow] duration-150 hover:bg-[#05bf8e] active:bg-[#04a87b] focus:outline-none focus:ring-[3px] focus:ring-[#06d6a060] focus:ring-offset-2 focus:ring-offset-[#18181e] disabled:cursor-not-allowed disabled:bg-[#1f1f26] disabled:text-[#64748b] disabled:hover:bg-[#1f1f26]"
           >
             Pay ${displayAmount} {session.currency}
           </button>
