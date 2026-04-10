@@ -1,5 +1,10 @@
 {
   "name": "@paylix/config",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.node.json": "./tsconfig.node.json",
+    "./tsconfig.nextjs.json": "./tsconfig.nextjs.json"
+  }
 }
