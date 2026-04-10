@@ -5,6 +5,7 @@ import { createDb } from "@paylix/db/client";
 import { systemStatus } from "@paylix/db/schema";
 import { retryFailedWebhooks } from "./webhook-dispatch";
 import { retryUnmatchedEvents } from "./handlers";
+import { startAlertsLoop } from "./alerts";
 
 async function main() {
   console.log("=================================");
@@ -12,19 +13,27 @@ async function main() {
   console.log(`  Network: ${config.network}`);
   console.log("=================================");
 
-  await startListener();
-  await runKeeper();
-
+  // Heartbeat must start BEFORE the listener — startListener() blocks on a
+  // potentially long backfill (up to MAX_BACKFILL_BLOCKS / chunk_size chunks
+  // per contract with throttle delays), and we want the dashboard to show
+  // "online" for the entire duration the process is alive and working.
   const db = createDb(config.databaseUrl);
+
+  // Indexer lifecycle has two states:
+  //   "starting" — process alive and backfilling; can't yet receive new events
+  //   "ok"       — listener watchers installed; ready for live events
+  // The sidebar distinguishes these so users don't try to pay through a
+  // still-warming-up indexer.
+  let indexerStatus: "starting" | "ok" = "starting";
 
   async function sendHeartbeat() {
     try {
       await db
         .insert(systemStatus)
-        .values({ key: "indexer_heartbeat", value: "ok" })
+        .values({ key: "indexer_heartbeat", value: indexerStatus })
         .onConflictDoUpdate({
           target: systemStatus.key,
-          set: { value: "ok", updatedAt: new Date() },
+          set: { value: indexerStatus, updatedAt: new Date() },
         });
     } catch (err) {
       console.error("[Heartbeat] Failed:", err);
@@ -33,7 +42,16 @@ async function main() {
 
   await sendHeartbeat();
   setInterval(sendHeartbeat, 30 * 1000);
-  console.log("[Heartbeat] Sending every 30 seconds.");
+  console.log("[Heartbeat] Sending every 30 seconds (status: starting).");
+
+  await startListener();
+  await runKeeper();
+
+  // Listener backfill + watchers are up — flip to ok and push a heartbeat
+  // immediately so the dashboard turns green without waiting 30 seconds.
+  indexerStatus = "ok";
+  await sendHeartbeat();
+  console.log("[Heartbeat] Status: ok (listener ready).");
 
   // Keeper interval: prefer KEEPER_INTERVAL_MS (millisecond override) for
   // short intervals (e.g. testing with the "minutely" billing interval),
@@ -85,6 +103,10 @@ async function main() {
     );
   }, 30 * 1000);
   console.log("[Unmatched Retry] Scheduled every 30s");
+
+  // Balance monitoring for relayer + keeper wallets. Fires system.* webhook
+  // events when either drops below the low-balance threshold.
+  startAlertsLoop();
 
   console.log("[Indexer] Running. Press Ctrl+C to stop.");
 }

@@ -11,6 +11,10 @@ import { keccak256, stringToBytes, type Log } from "viem";
 import { config } from "./config";
 import { dispatchWebhooks } from "./webhook-dispatch";
 
+function currentSubscriptionManagerAddress(): string {
+  return config.subscriptionManagerAddress.toLowerCase();
+}
+
 async function recordUnmatched(
   eventType: string,
   log: Log,
@@ -117,79 +121,87 @@ export async function handlePaymentReceived(log: Log, args: {
 
   console.log(`[Handler] Matched checkout session ${session.id}`);
 
-  // Create or find customer record
-  const customerIdentifier = session.customerId || `anon_${args.payer}`;
-  let [customer] = await db
-    .select()
-    .from(customers)
-    .where(
-      and(
-        eq(customers.userId, session.userId),
-        eq(customers.customerId, customerIdentifier)
-      )
-    );
+  // Perform all writes atomically. A crash mid-handler must not leave
+  // partial state (half-upserted customer, orphaned payment, unlinked
+  // checkout session). Webhook dispatch stays OUTSIDE the transaction.
+  const result = await db.transaction(async (tx) => {
+    // Create or find customer record
+    const customerIdentifier = session.customerId || `anon_${args.payer}`;
+    let [customer] = await tx
+      .select()
+      .from(customers)
+      .where(
+        and(
+          eq(customers.userId, session.userId),
+          eq(customers.customerId, customerIdentifier)
+        )
+      );
 
-  if (!customer) {
-    const [created] = await db
-      .insert(customers)
+    if (!customer) {
+      const [created] = await tx
+        .insert(customers)
+        .values({
+          userId: session.userId,
+          customerId: customerIdentifier,
+          walletAddress: args.payer,
+        })
+        .returning();
+      customer = created;
+      console.log(`[Handler] Created customer ${customer.id}`);
+    } else if (!customer.walletAddress) {
+      await tx
+        .update(customers)
+        .set({ walletAddress: args.payer })
+        .where(eq(customers.id, customer.id));
+    }
+
+    // Create payment record
+    const [payment] = await tx
+      .insert(payments)
       .values({
+        productId: session.productId,
         userId: session.userId,
-        customerId: customerIdentifier,
-        walletAddress: args.payer,
+        customerId: customer.id,
+        amount: amountCents,
+        fee: Number(args.fee) / 10_000,
+        status: "confirmed",
+        txHash: log.transactionHash,
+        chain: session.chain,
+        token: session.currency,
+        fromAddress: args.payer,
+        toAddress: args.merchant,
+        blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
       })
       .returning();
-    customer = created;
-    console.log(`[Handler] Created customer ${customer.id}`);
-  } else if (!customer.walletAddress) {
-    await db
-      .update(customers)
-      .set({ walletAddress: args.payer })
-      .where(eq(customers.id, customer.id));
-  }
 
-  // Create payment record
-  const [payment] = await db
-    .insert(payments)
-    .values({
-      productId: session.productId,
-      userId: session.userId,
-      customerId: customer.id,
-      amount: amountCents,
-      fee: Number(args.fee) / 10_000,
-      status: "confirmed",
-      txHash: log.transactionHash,
-      chain: session.chain,
-      token: session.currency,
-      fromAddress: args.payer,
-      toAddress: args.merchant,
-      blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
-    })
-    .returning();
+    console.log(`[Handler] Created payment ${payment.id}`);
 
-  console.log(`[Handler] Created payment ${payment.id}`);
+    // Update checkout session to completed
+    await tx
+      .update(checkoutSessions)
+      .set({
+        status: "completed",
+        completedAt: new Date(),
+        paymentId: payment.id,
+      })
+      .where(eq(checkoutSessions.id, session.id));
 
-  // Update checkout session to completed
-  await db
-    .update(checkoutSessions)
-    .set({
-      status: "completed",
-      completedAt: new Date(),
-      paymentId: payment.id,
-    })
-    .where(eq(checkoutSessions.id, session.id));
+    console.log(`[Handler] Checkout session ${session.id} marked completed`);
 
-  console.log(`[Handler] Checkout session ${session.id} marked completed`);
+    return { customer, payment };
+  });
 
-  // Dispatch webhook
+  // Dispatch webhook AFTER the tx commits — webhook HTTP calls can be slow
+  // and must not hold a DB transaction open.
   await dispatchWebhooks(session.userId, "payment.confirmed", {
-    paymentId: payment.id,
+    paymentId: result.payment.id,
     checkoutId: session.id,
     productId: session.productId,
-    customerId: customer.customerId,
-    amount: payment.amount,
-    fee: payment.fee,
-    currency: payment.token,
-    chain: payment.chain,
+    customerId: result.customer.customerId,
+    amount: result.payment.amount,
+    fee: result.payment.fee,
+    currency: result.payment.token,
+    chain: result.payment.chain,
     txHash: log.transactionHash,
     fromAddress: args.payer,
     toAddress: args.merchant,
@@ -224,10 +236,16 @@ export async function handleSubscriptionCreated(log: Log, args: {
   const onChainId = args.subscriptionId.toString();
 
   // Idempotency: if we already have a subscription for this onChainId, skip
+  const contractAddr = currentSubscriptionManagerAddress();
   const [existing] = await db
     .select()
     .from(subscriptions)
-    .where(eq(subscriptions.onChainId, onChainId))
+    .where(
+      and(
+        eq(subscriptions.onChainId, onChainId),
+        eq(subscriptions.contractAddress, contractAddr),
+      )
+    )
     .limit(1);
 
   if (existing) {
@@ -271,100 +289,107 @@ export async function handleSubscriptionCreated(log: Log, args: {
 
   console.log(`[Handler] Matched subscription checkout session ${session.id}`);
 
-  // Create or find customer
-  const customerIdentifier = session.customerId || `anon_${args.subscriber}`;
-  let [customer] = await db
-    .select()
-    .from(customers)
-    .where(
-      and(
-        eq(customers.userId, session.userId),
-        eq(customers.customerId, customerIdentifier)
-      )
-    );
+  // Atomic: customer upsert + initial payment + subscription row +
+  // checkout session completion. Webhook dispatch stays OUTSIDE.
+  const result = await db.transaction(async (tx) => {
+    // Create or find customer
+    const customerIdentifier = session.customerId || `anon_${args.subscriber}`;
+    let [customer] = await tx
+      .select()
+      .from(customers)
+      .where(
+        and(
+          eq(customers.userId, session.userId),
+          eq(customers.customerId, customerIdentifier)
+        )
+      );
 
-  if (!customer) {
-    const [created] = await db
-      .insert(customers)
+    if (!customer) {
+      const [created] = await tx
+        .insert(customers)
+        .values({
+          userId: session.userId,
+          customerId: customerIdentifier,
+          walletAddress: args.subscriber,
+        })
+        .returning();
+      customer = created;
+      console.log(`[Handler] Created customer ${customer.id}`);
+    } else if (!customer.walletAddress) {
+      await tx
+        .update(customers)
+        .set({ walletAddress: args.subscriber })
+        .where(eq(customers.id, customer.id));
+    }
+
+    // Create first payment (the initial charge happens atomically with createSubscription)
+    const [payment] = await tx
+      .insert(payments)
       .values({
+        productId: session.productId,
         userId: session.userId,
-        customerId: customerIdentifier,
-        walletAddress: args.subscriber,
+        customerId: customer.id,
+        amount: amountCents,
+        fee: 0, // fee is tracked per-charge in PaymentReceived; creation doesn't include it here
+        status: "confirmed",
+        txHash: log.transactionHash,
+        chain: session.chain,
+        token: session.currency,
+        fromAddress: args.subscriber,
+        toAddress: args.merchant,
+        blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
       })
       .returning();
-    customer = created;
-    console.log(`[Handler] Created customer ${customer.id}`);
-  } else if (!customer.walletAddress) {
-    await db
-      .update(customers)
-      .set({ walletAddress: args.subscriber })
-      .where(eq(customers.id, customer.id));
-  }
 
-  // Create first payment (the initial charge happens atomically with createSubscription)
-  const [payment] = await db
-    .insert(payments)
-    .values({
-      productId: session.productId,
-      userId: session.userId,
-      customerId: customer.id,
-      amount: amountCents,
-      fee: 0, // fee is tracked per-charge in PaymentReceived; creation doesn't include it here
-      status: "confirmed",
-      txHash: log.transactionHash,
-      chain: session.chain,
-      token: session.currency,
-      fromAddress: args.subscriber,
-      toAddress: args.merchant,
-      blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
-    })
-    .returning();
+    console.log(`[Handler] Created initial subscription payment ${payment.id}`);
 
-  console.log(`[Handler] Created initial subscription payment ${payment.id}`);
+    const now = new Date();
+    const nextCharge = new Date(now.getTime() + intervalSeconds * 1000);
 
-  const now = new Date();
-  const nextCharge = new Date(now.getTime() + intervalSeconds * 1000);
+    // Create subscription row
+    const [subscription] = await tx
+      .insert(subscriptions)
+      .values({
+        productId: session.productId,
+        userId: session.userId,
+        customerId: customer.id,
+        subscriberAddress: args.subscriber,
+        status: "active",
+        currentPeriodStart: now,
+        currentPeriodEnd: nextCharge,
+        nextChargeDate: nextCharge,
+        lastPaymentId: payment.id,
+        onChainId,
+        contractAddress: contractAddr,
+        intervalSeconds,
+        metadata: session.metadata ?? {},
+      })
+      .returning();
 
-  // Create subscription row
-  const [subscription] = await db
-    .insert(subscriptions)
-    .values({
-      productId: session.productId,
-      userId: session.userId,
-      customerId: customer.id,
-      subscriberAddress: args.subscriber,
-      status: "active",
-      currentPeriodStart: now,
-      currentPeriodEnd: nextCharge,
-      nextChargeDate: nextCharge,
-      lastPaymentId: payment.id,
-      onChainId,
-      intervalSeconds,
-      metadata: session.metadata ?? {},
-    })
-    .returning();
+    console.log(`[Handler] Created subscription ${subscription.id} (onChainId: ${onChainId})`);
 
-  console.log(`[Handler] Created subscription ${subscription.id} (onChainId: ${onChainId})`);
+    // Mark checkout session completed and link to subscription
+    await tx
+      .update(checkoutSessions)
+      .set({
+        status: "completed",
+        completedAt: new Date(),
+        paymentId: payment.id,
+      })
+      .where(eq(checkoutSessions.id, session.id));
 
-  // Mark checkout session completed and link to subscription
-  await db
-    .update(checkoutSessions)
-    .set({
-      status: "completed",
-      completedAt: new Date(),
-      paymentId: payment.id,
-    })
-    .where(eq(checkoutSessions.id, session.id));
+    console.log(`[Handler] Checkout session ${session.id} marked completed`);
 
-  console.log(`[Handler] Checkout session ${session.id} marked completed`);
+    return { customer, payment, subscription };
+  });
 
-  // Dispatch webhook
+  // Dispatch webhook AFTER the tx commits.
   await dispatchWebhooks(session.userId, "subscription.created", {
-    subscriptionId: subscription.id,
+    subscriptionId: result.subscription.id,
     onChainId,
     checkoutId: session.id,
     productId: session.productId,
-    customerId: customer.customerId,
+    customerId: result.customer.customerId,
     amount: amountCents,
     currency: session.currency,
     chain: session.chain,
@@ -372,7 +397,7 @@ export async function handleSubscriptionCreated(log: Log, args: {
     subscriberAddress: args.subscriber,
     merchantAddress: args.merchant,
     txHash: log.transactionHash,
-    metadata: subscription.metadata ?? {},
+    metadata: result.subscription.metadata ?? {},
   });
 }
 
@@ -395,10 +420,16 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
 
   const onChainId = args.subscriptionId.toString();
 
+  const contractAddr = currentSubscriptionManagerAddress();
   const [subscription] = await db
     .select()
     .from(subscriptions)
-    .where(eq(subscriptions.onChainId, onChainId))
+    .where(
+      and(
+        eq(subscriptions.onChainId, onChainId),
+        eq(subscriptions.contractAddress, contractAddr),
+      )
+    )
     .limit(1);
 
   if (!subscription) {
@@ -427,84 +458,90 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
   const amountCents = Number(args.amount) / 10_000;
   const feeCents = Number(args.fee) / 10_000;
 
-  // Derive chain/token from the subscription's initial payment (falling back
-  // to schema defaults) rather than hardcoding "base"/"USDC".
-  let chain = "base";
-  let token = "USDC";
-  if (subscription.lastPaymentId) {
-    const [prior] = await db
-      .select()
-      .from(payments)
-      .where(eq(payments.id, subscription.lastPaymentId))
-      .limit(1);
-    if (prior) {
-      chain = prior.chain;
-      token = prior.token;
+  // Atomic: insert recurring payment + advance subscription period.
+  // Webhook dispatch stays OUTSIDE the transaction.
+  const result = await db.transaction(async (tx) => {
+    // Derive chain/token from the subscription's initial payment (falling back
+    // to schema defaults) rather than hardcoding "base"/"USDC".
+    let chain = "base";
+    let token = "USDC";
+    if (subscription.lastPaymentId) {
+      const [prior] = await tx
+        .select()
+        .from(payments)
+        .where(eq(payments.id, subscription.lastPaymentId))
+        .limit(1);
+      if (prior) {
+        chain = prior.chain;
+        token = prior.token;
+      }
     }
-  }
 
-  // Create payment record for recurring charge
-  const [payment] = await db
-    .insert(payments)
-    .values({
-      productId: subscription.productId,
-      userId: subscription.userId,
-      customerId: subscription.customerId,
-      amount: amountCents,
-      fee: feeCents,
-      status: "confirmed",
-      txHash: log.transactionHash,
-      chain,
-      token,
-      fromAddress: args.subscriber,
-      toAddress: args.merchant,
-      blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
-    })
-    .returning();
+    // Create payment record for recurring charge
+    const [payment] = await tx
+      .insert(payments)
+      .values({
+        productId: subscription.productId,
+        userId: subscription.userId,
+        customerId: subscription.customerId,
+        amount: amountCents,
+        fee: feeCents,
+        status: "confirmed",
+        txHash: log.transactionHash,
+        chain,
+        token,
+        fromAddress: args.subscriber,
+        toAddress: args.merchant,
+        blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
+      })
+      .returning();
 
-  console.log(`[Handler] Created recurring subscription payment ${payment.id}`);
+    console.log(`[Handler] Created recurring subscription payment ${payment.id}`);
 
-  // Update subscription: advance nextChargeDate by interval
-  // We compute the new nextChargeDate from the existing one if possible (so
-  // schedules don't drift), else from now.
-  const base = subscription.nextChargeDate
-    ? new Date(subscription.nextChargeDate)
-    : new Date();
-  // We need the interval; read from the previous period length if available.
-  const periodMs =
-    subscription.currentPeriodEnd && subscription.currentPeriodStart
-      ? new Date(subscription.currentPeriodEnd).getTime() -
-        new Date(subscription.currentPeriodStart).getTime()
-      : 0;
+    // Update subscription: advance nextChargeDate by interval
+    // We compute the new nextChargeDate from the existing one if possible (so
+    // schedules don't drift), else from now.
+    const base = subscription.nextChargeDate
+      ? new Date(subscription.nextChargeDate)
+      : new Date();
+    // We need the interval; read from the previous period length if available.
+    const periodMs =
+      subscription.currentPeriodEnd && subscription.currentPeriodStart
+        ? new Date(subscription.currentPeriodEnd).getTime() -
+          new Date(subscription.currentPeriodStart).getTime()
+        : 0;
 
-  const nextCharge =
-    periodMs > 0
-      ? new Date(base.getTime() + periodMs)
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const nextCharge =
+      periodMs > 0
+        ? new Date(base.getTime() + periodMs)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-  await db
-    .update(subscriptions)
-    .set({
-      status: "active",
-      currentPeriodStart: base,
-      currentPeriodEnd: nextCharge,
-      nextChargeDate: nextCharge,
-      lastPaymentId: payment.id,
-    })
-    .where(eq(subscriptions.id, subscription.id));
+    await tx
+      .update(subscriptions)
+      .set({
+        status: "active",
+        currentPeriodStart: base,
+        currentPeriodEnd: nextCharge,
+        nextChargeDate: nextCharge,
+        lastPaymentId: payment.id,
+      })
+      .where(eq(subscriptions.id, subscription.id));
 
-  console.log(
-    `[Handler] Subscription ${subscription.id} advanced to next charge ${nextCharge.toISOString()}`
-  );
+    console.log(
+      `[Handler] Subscription ${subscription.id} advanced to next charge ${nextCharge.toISOString()}`
+    );
+
+    return { payment, nextCharge };
+  });
 
   await dispatchWebhooks(subscription.userId, "subscription.charged", {
     subscriptionId: subscription.id,
     onChainId,
-    paymentId: payment.id,
+    paymentId: result.payment.id,
     amount: amountCents,
     fee: feeCents,
     txHash: log.transactionHash,
-    nextChargeDate: nextCharge.toISOString(),
+    nextChargeDate: result.nextCharge.toISOString(),
     metadata: subscription.metadata ?? {},
   });
 }
@@ -518,12 +555,21 @@ export async function handleSubscriptionPastDue(log: Log, args: {
   });
 
   const onChainId = args.subscriptionId.toString();
+  const contractAddr = currentSubscriptionManagerAddress();
 
-  const [updated] = await db
-    .update(subscriptions)
-    .set({ status: "past_due" })
-    .where(eq(subscriptions.onChainId, onChainId))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(subscriptions)
+      .set({ status: "past_due" })
+      .where(
+        and(
+          eq(subscriptions.onChainId, onChainId),
+          eq(subscriptions.contractAddress, contractAddr),
+        )
+      )
+      .returning();
+    return row ?? null;
+  });
 
   if (updated) {
     console.log(`[Handler] Subscription ${updated.id} marked past_due`);
@@ -545,12 +591,21 @@ export async function handleSubscriptionCancelled(log: Log, args: {
   });
 
   const onChainId = args.subscriptionId.toString();
+  const contractAddr = currentSubscriptionManagerAddress();
 
-  const [updated] = await db
-    .update(subscriptions)
-    .set({ status: "cancelled" })
-    .where(eq(subscriptions.onChainId, onChainId))
-    .returning();
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(subscriptions)
+      .set({ status: "cancelled" })
+      .where(
+        and(
+          eq(subscriptions.onChainId, onChainId),
+          eq(subscriptions.contractAddress, contractAddr),
+        )
+      )
+      .returning();
+    return row ?? null;
+  });
 
   if (updated) {
     console.log(`[Handler] Subscription ${updated.id} cancelled`);

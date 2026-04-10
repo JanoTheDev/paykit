@@ -16,6 +16,10 @@ export const subscriptions = pgTable(
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     customerId: uuid("customer_id").notNull().references(() => customers.id),
     subscriberAddress: text("subscriber_address").notNull(),
+    // The SubscriptionManager contract instance that emitted the
+    // SubscriptionCreated event this row tracks. Required so redeployed
+    // contracts don't collide with stale rows on their onChainId sequences.
+    contractAddress: text("contract_address").notNull(),
     status: subscriptionStatusEnum("status").notNull().default("active"),
     currentPeriodStart: timestamp("current_period_start", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
@@ -28,7 +32,14 @@ export const subscriptions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
-  (table) => [uniqueIndex("subscriptions_on_chain_id_idx").on(table.onChainId)]
+  (table) => [
+    // Composite unique: onChainId is only unique per SubscriptionManager
+    // deployment. After a redeploy the counter resets to 0.
+    uniqueIndex("subscriptions_contract_on_chain_id_idx").on(
+      table.contractAddress,
+      table.onChainId,
+    ),
+  ]
 );
 
 export type Subscription = typeof subscriptions.$inferSelect;

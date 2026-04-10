@@ -40,12 +40,14 @@ export async function runKeeper() {
 
   const now = new Date();
 
+  const currentContract = config.subscriptionManagerAddress.toLowerCase();
   const dueSubscriptions = await db
     .select()
     .from(subscriptions)
     .where(
       and(
         eq(subscriptions.status, "active"),
+        eq(subscriptions.contractAddress, currentContract),
         lte(subscriptions.nextChargeDate, now)
       )
     );
