@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { checkoutSessions, products, payments } from "@paylix/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { signPortalToken } from "@/lib/portal-tokens";
 
 export async function GET(
   _request: Request,
@@ -47,7 +48,11 @@ export async function GET(
     return NextResponse.json({ ...session, status: "expired" });
   }
 
-  return NextResponse.json(session);
+  const portalToken = session.customerUuid
+    ? signPortalToken(session.customerUuid)
+    : null;
+
+  return NextResponse.json({ ...session, portalToken });
 }
 
 export async function PATCH(
@@ -65,12 +70,9 @@ export async function PATCH(
     allowedUpdates.viewedAt = new Date();
   }
 
-  // Mark as completed
-  if (body.status === "completed") {
-    allowedUpdates.status = "completed";
-    allowedUpdates.completedAt = new Date();
-    if (body.txHash) allowedUpdates.paymentId = body.txHash;
-  }
+  // Note: "completed" status is intentionally NOT accepted here.
+  // Only the indexer may mark sessions completed via direct DB writes,
+  // since that change reflects on-chain financial state.
 
   // Mark as abandoned
   if (body.status === "abandoned") {

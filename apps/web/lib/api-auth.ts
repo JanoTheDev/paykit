@@ -3,7 +3,10 @@ import { apiKeys, users } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
 import { hashApiKey } from "./api-key-utils";
 
-export async function authenticateApiKey(request: Request): Promise<{
+export async function authenticateApiKey(
+  request: Request,
+  requiredType?: "publishable" | "secret"
+): Promise<{
   user: typeof users.$inferSelect;
   keyType: "publishable" | "secret";
 } | null> {
@@ -24,11 +27,14 @@ export async function authenticateApiKey(request: Request): Promise<{
 
   if (!found) return null;
 
-  // Update lastUsedAt
-  await db
+  if (requiredType && found.key.type !== requiredType) return null;
+
+  // Fire-and-forget lastUsedAt update; don't block the request on it.
+  void db
     .update(apiKeys)
     .set({ lastUsedAt: new Date() })
-    .where(eq(apiKeys.id, found.key.id));
+    .where(eq(apiKeys.id, found.key.id))
+    .catch(() => {});
 
   return { user: found.user, keyType: found.key.type };
 }

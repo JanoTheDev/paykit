@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { webhooks, webhookDeliveries } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createHmac } from "crypto";
+import { validateWebhookUrl } from "@/lib/url-safety";
 
 export async function POST(
   _request: Request,
@@ -24,6 +25,11 @@ export async function POST(
 
   if (!webhook) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const urlError = await validateWebhookUrl(webhook.url);
+  if (urlError) {
+    return NextResponse.json({ error: urlError }, { status: 400 });
   }
 
   const payload = {

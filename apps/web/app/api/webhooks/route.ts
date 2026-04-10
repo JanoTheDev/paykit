@@ -6,6 +6,7 @@ import { webhooks } from "@paylix/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { randomBytes } from "crypto";
+import { validateWebhookUrl } from "@/lib/url-safety";
 
 const VALID_EVENTS = [
   "payment.confirmed",
@@ -27,7 +28,15 @@ export async function GET() {
   }
 
   const rows = await db
-    .select()
+    .select({
+      id: webhooks.id,
+      userId: webhooks.userId,
+      url: webhooks.url,
+      events: webhooks.events,
+      isActive: webhooks.isActive,
+      createdAt: webhooks.createdAt,
+      // secret intentionally excluded — only returned once on creation.
+    })
     .from(webhooks)
     .where(eq(webhooks.userId, session.user.id))
     .orderBy(desc(webhooks.createdAt));
@@ -51,6 +60,12 @@ export async function POST(request: Request) {
   }
 
   const { url, events } = parsed.data;
+
+  const urlError = await validateWebhookUrl(url);
+  if (urlError) {
+    return NextResponse.json({ error: urlError }, { status: 400 });
+  }
+
   const secret = `whsec_${randomBytes(32).toString("hex")}`;
 
   const [row] = await db

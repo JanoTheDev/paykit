@@ -7,15 +7,22 @@ import {
 } from "@paylix/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { verifyPortalToken } from "@/lib/portal-tokens";
 
-// Public endpoint: no auth required. Looks up a customer by their UUID
-// (customers.id) — which is globally unique — and returns their subscriptions
-// and recent payments. This matches the SDK's `getCustomerPortal` method.
+// Token-protected endpoint. The caller must pass `?token=` signed by
+// `signPortalToken(customerId)`. Dashboard users mint these via the
+// `/api/customers/[id]/portal-url` helper.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
   const { customerId } = await params;
+
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token");
+  if (!token || !verifyPortalToken(token, customerId)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const [customer] = await db
     .select({

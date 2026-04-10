@@ -6,22 +6,29 @@ import { products } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
-const createProductSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().optional(),
-  type: z.enum(["one_time", "subscription"]),
-  price: z.number().int().positive(),
-  billingInterval: z.enum(["minutely", "weekly", "biweekly", "monthly", "quarterly", "yearly"]).optional(),
-  metadata: z.record(z.string()).optional(),
-  checkoutFields: z
-    .object({
-      firstName: z.boolean().optional(),
-      lastName: z.boolean().optional(),
-      email: z.boolean().optional(),
-      phone: z.boolean().optional(),
-    })
-    .optional(),
-});
+const createProductSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    description: z.string().optional(),
+    type: z.enum(["one_time", "subscription"]),
+    price: z.number().int().positive(),
+    billingInterval: z
+      .enum(["minutely", "weekly", "biweekly", "monthly", "quarterly", "yearly"])
+      .optional(),
+    metadata: z.record(z.string()).optional(),
+    checkoutFields: z
+      .object({
+        firstName: z.boolean().optional(),
+        lastName: z.boolean().optional(),
+        email: z.boolean().optional(),
+        phone: z.boolean().optional(),
+      })
+      .optional(),
+  })
+  .refine((d) => d.type !== "subscription" || !!d.billingInterval, {
+    message: "billingInterval is required for subscription products",
+    path: ["billingInterval"],
+  });
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });

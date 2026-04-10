@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { webhooks } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { validateWebhookUrl } from "@/lib/url-safety";
 
 const VALID_EVENTS = [
   "payment.confirmed",
@@ -41,11 +42,26 @@ export async function PATCH(
 
   const data = parsed.data;
 
+  if (data.url) {
+    const urlError = await validateWebhookUrl(data.url);
+    if (urlError) {
+      return NextResponse.json({ error: urlError }, { status: 400 });
+    }
+  }
+
   const [updated] = await db
     .update(webhooks)
     .set(data)
     .where(and(eq(webhooks.id, id), eq(webhooks.userId, session.user.id)))
-    .returning();
+    .returning({
+      id: webhooks.id,
+      userId: webhooks.userId,
+      url: webhooks.url,
+      events: webhooks.events,
+      isActive: webhooks.isActive,
+      createdAt: webhooks.createdAt,
+      // secret intentionally excluded.
+    });
 
   if (!updated) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

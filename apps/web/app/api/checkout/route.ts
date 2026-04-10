@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { checkoutSessions, products } from "@paylix/db/schema";
+import { checkoutSessions, products, users } from "@paylix/db/schema";
 import { authenticateApiKey } from "@/lib/api-auth";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -8,7 +8,6 @@ import { z } from "zod";
 const createCheckoutSchema = z.object({
   productId: z.string().uuid(),
   customerId: z.string().optional(),
-  merchantWallet: z.string().startsWith("0x"),
   successUrl: z.string().url().optional(),
   cancelUrl: z.string().url().optional(),
   type: z.enum(["one_time", "subscription"]).optional(),
@@ -16,7 +15,7 @@ const createCheckoutSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const auth = await authenticateApiKey(request);
+  const auth = await authenticateApiKey(request, "secret");
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
@@ -38,13 +37,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Product is inactive" }, { status: 400 });
   }
 
+  // Look up merchant wallet from the authenticated user, never trust the client.
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, auth.user.id));
+
+  if (!user?.walletAddress) {
+    return NextResponse.json(
+      { error: "Merchant wallet not configured" },
+      { status: 400 }
+    );
+  }
+
   const [session] = await db
     .insert(checkoutSessions)
     .values({
       userId: auth.user.id,
       productId: product.id,
       customerId: parsed.data.customerId ?? null,
-      merchantWallet: parsed.data.merchantWallet,
+      merchantWallet: user.walletAddress,
       amount: product.price,
       currency: product.currency,
       chain: product.chain,

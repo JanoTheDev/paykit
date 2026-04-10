@@ -8,16 +8,39 @@ import {
 import { eq, desc } from "drizzle-orm";
 import { Web3Providers } from "@/components/providers";
 import { PortalClient, type PortalSubscription, type PortalPayment } from "./portal-client";
+import { verifyPortalToken } from "@/lib/portal-tokens";
 
 interface PortalPageProps {
   // Note: this is the customers.id (UUID), not the developer-provided
   // customers.customerId string. UUIDs are globally unique so this makes
   // portal links unambiguous.
   params: Promise<{ customerId: string }>;
+  searchParams: Promise<{ token?: string }>;
 }
 
-export default async function PortalPage({ params }: PortalPageProps) {
+function PortalError({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="mx-auto max-w-[480px] rounded-xl border border-[rgba(148,163,184,0.12)] bg-[#111116] p-8 text-center">
+      <h1 className="mb-2 text-[20px] font-semibold tracking-[-0.4px] text-[#f0f0f3]">
+        {title}
+      </h1>
+      <p className="text-[14px] leading-[1.55] text-[#94a3b8]">{message}</p>
+    </div>
+  );
+}
+
+export default async function PortalPage({ params, searchParams }: PortalPageProps) {
   const { customerId } = await params;
+  const { token } = await searchParams;
+
+  if (!token || !verifyPortalToken(token, customerId)) {
+    return (
+      <PortalError
+        title="Portal link expired"
+        message="This portal link is invalid or has expired. Please ask the merchant for a new link."
+      />
+    );
+  }
 
   const [customer] = await db
     .select()
@@ -26,16 +49,10 @@ export default async function PortalPage({ params }: PortalPageProps) {
 
   if (!customer) {
     return (
-      <div
-        className="mx-auto max-w-[480px] rounded-xl border border-[rgba(148,163,184,0.12)] bg-[#111116] p-8 text-center"
-      >
-        <h1 className="mb-2 text-[20px] font-semibold tracking-[-0.4px] text-[#f0f0f3]">
-          Customer not found
-        </h1>
-        <p className="text-[14px] leading-[1.55] text-[#94a3b8]">
-          This portal link is invalid or the customer no longer exists.
-        </p>
-      </div>
+      <PortalError
+        title="Customer not found"
+        message="This portal link is invalid or the customer no longer exists."
+      />
     );
   }
 

@@ -4,18 +4,25 @@ import { useState } from "react";
 
 export default function PortalLinkButton({ customerUuid }: { customerUuid: string }) {
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleCopy(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const base = typeof window !== "undefined" ? window.location.origin : "";
-    const url = `${base}/portal/${customerUuid}`;
+    if (loading) return;
+    setLoading(true);
     try {
-      await navigator.clipboard.writeText(url);
+      const res = await fetch(`/api/customers/${customerUuid}/portal-url`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { url?: string };
+      if (!data.url) return;
+      await navigator.clipboard.writeText(data.url);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
       // ignore
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -37,7 +44,7 @@ export default function PortalLinkButton({ customerUuid }: { customerUuid: strin
         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
       </svg>
-      {copied ? "Copied" : "Copy link"}
+      {copied ? "Copied" : loading ? "Copying..." : "Copy link"}
     </button>
   );
 }
