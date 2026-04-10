@@ -10,7 +10,7 @@ interface ProductFormData {
   description: string;
   type: "one_time" | "subscription";
   price: number;
-  interval: "monthly" | "yearly" | "";
+  billingInterval: "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | "";
   metadata: Record<string, string>;
   checkoutFields: {
     firstName: boolean;
@@ -46,8 +46,8 @@ export function ProductForm({
     initialData?.type ?? "one_time"
   );
   const [price, setPrice] = useState(initialData?.price ? String(initialData.price) : "");
-  const [interval, setInterval] = useState<"monthly" | "yearly" | "">(
-    initialData?.interval ?? ""
+  const [billingInterval, setBillingInterval] = useState<"weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | "">(
+    initialData?.billingInterval ?? ""
   );
 
   const [metadataRows, setMetadataRows] = useState<{ key: string; value: string }[]>(
@@ -104,8 +104,8 @@ export function ProductForm({
       checkoutFields,
     };
 
-    if (type === "subscription" && interval) {
-      payload.interval = interval;
+    if (type === "subscription" && billingInterval) {
+      payload.billingInterval = billingInterval;
     }
 
     try {
@@ -205,14 +205,17 @@ export function ProductForm({
           <div className="mt-4">
             <label className={labelClass}>Billing Interval</label>
             <select
-              value={interval}
+              value={billingInterval}
               onChange={(e) =>
-                setInterval(e.target.value as "monthly" | "yearly" | "")
+                setBillingInterval(e.target.value as typeof billingInterval)
               }
               className={`mt-2 ${selectClass}`}
             >
               <option value="">Select interval</option>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 Weeks</option>
               <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
               <option value="yearly">Yearly</option>
             </select>
           </div>
@@ -241,7 +244,7 @@ export function ProductForm({
                 <button
                   type="button"
                   onClick={() => removeMetadataRow(i)}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#94a3b8] transition-colors hover:bg-[#111116] hover:text-[#f0f0f3]"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[#94a3b8] transition-colors hover:bg-[#1f1f26] hover:text-[#f87171]"
                 >
                   <Trash2 size={16} strokeWidth={1.5} />
                 </button>

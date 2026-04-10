@@ -6,7 +6,7 @@ const createProductSchema = z.object({
   description: z.string().optional(),
   type: z.enum(["one_time", "subscription"]),
   price: z.number().int().positive(),
-  interval: z.enum(["monthly", "yearly"]).optional(),
+  billingInterval: z.enum(["weekly", "biweekly", "monthly", "quarterly", "yearly"]).optional(),
   metadata: z.record(z.string()).optional(),
   checkoutFields: z.object({
     firstName: z.boolean().optional(),
@@ -31,7 +31,7 @@ describe("Product API validation", () => {
       name: "Pro Plan",
       type: "subscription",
       price: 1000,
-      interval: "monthly",
+      billingInterval: "monthly",
       checkoutFields: { email: true, firstName: true },
     });
     expect(result.success).toBe(true);

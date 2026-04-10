@@ -117,9 +117,9 @@ export default async function ProductsPage() {
                       {formatAmount(product.price)}
                     </td>
                     <td className="h-[52px] px-4 text-[13px] text-[#94a3b8]">
-                      {product.interval
-                        ? product.interval.charAt(0).toUpperCase() +
-                          product.interval.slice(1)
+                      {product.billingInterval
+                        ? product.billingInterval.charAt(0).toUpperCase() +
+                          product.billingInterval.slice(1)
                         : "—"}
                     </td>
                     <td className="h-[52px] px-4">

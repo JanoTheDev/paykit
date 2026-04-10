@@ -11,7 +11,7 @@ const createProductSchema = z.object({
   description: z.string().optional(),
   type: z.enum(["one_time", "subscription"]),
   price: z.number().int().positive(),
-  interval: z.enum(["monthly", "yearly"]).optional(),
+  billingInterval: z.enum(["weekly", "biweekly", "monthly", "quarterly", "yearly"]).optional(),
   metadata: z.record(z.string()).optional(),
   checkoutFields: z
     .object({
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       description: data.description ?? null,
       type: data.type,
       price: data.price,
-      interval: data.type === "subscription" ? (data.interval ?? null) : null,
+      billingInterval: data.type === "subscription" ? (data.billingInterval ?? null) : null,
       metadata: data.metadata ?? {},
       checkoutFields: data.checkoutFields ?? {},
     })

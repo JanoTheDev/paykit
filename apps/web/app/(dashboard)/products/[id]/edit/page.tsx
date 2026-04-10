@@ -32,7 +32,7 @@ export default async function EditProductPage({
         description: product.description ?? "",
         type: product.type,
         price: product.price,
-        interval: product.interval ?? "",
+        billingInterval: product.billingInterval ?? "",
         metadata: (product.metadata as Record<string, string>) ?? {},
         checkoutFields: {
           firstName: (product.checkoutFields as Record<string, boolean>)?.firstName ?? false,

@@ -11,7 +11,7 @@ const updateProductSchema = z.object({
   description: z.string().optional(),
   type: z.enum(["one_time", "subscription"]).optional(),
   price: z.number().int().positive().optional(),
-  interval: z.enum(["monthly", "yearly"]).nullish(),
+  billingInterval: z.enum(["weekly", "biweekly", "monthly", "quarterly", "yearly"]).nullish(),
   metadata: z.record(z.string()).optional(),
   checkoutFields: z
     .object({
