@@ -193,6 +193,7 @@ export async function handlePaymentReceived(log: Log, args: {
     txHash: log.transactionHash,
     fromAddress: args.payer,
     toAddress: args.merchant,
+    metadata: session.metadata ?? {},
   });
 }
 

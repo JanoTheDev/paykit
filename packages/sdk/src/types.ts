@@ -61,6 +61,7 @@ export interface VerifyPaymentResult {
   customerId: string;
   productId: string;
   status: "pending" | "confirmed" | "failed";
+  metadata: Record<string, string>;
 }
 
 export interface CustomerPortalParams {
