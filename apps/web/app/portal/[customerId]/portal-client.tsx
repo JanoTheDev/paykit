@@ -260,6 +260,7 @@ export function PortalClient({
         onChainId={cancelTarget?.onChainId ?? null}
         productName={cancelTarget?.productName ?? null}
         onConfirmed={handleConfirmed}
+        context="subscriber"
       />
     </div>
   );

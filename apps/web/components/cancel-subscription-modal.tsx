@@ -19,6 +19,17 @@ interface CancelSubscriptionModalProps {
   onForceCancel?: () => Promise<void> | void;
   /** Called once the cancel tx is confirmed on-chain. */
   onConfirmed?: () => void;
+  /**
+   * Which side of the flow this modal is shown on. Tailors the explanatory
+   * copy ("merchant wallet" vs "your wallet"). Defaults to "merchant".
+   */
+  context?: "merchant" | "subscriber";
+  /**
+   * The expected signer address (the merchant wallet, for the merchant
+   * dashboard). Shown truncated in the info banner so merchants know which
+   * wallet to connect.
+   */
+  expectedWallet?: string | null;
 }
 
 type Step = "idle" | "switching" | "signing" | "confirming" | "confirmed" | "error";
@@ -30,6 +41,8 @@ export default function CancelSubscriptionModal({
   productName,
   onForceCancel,
   onConfirmed,
+  context = "merchant",
+  expectedWallet,
 }: CancelSubscriptionModalProps) {
   const { open: openAppKit } = useAppKit();
   const { isConnected, address } = useAppKitAccount();
@@ -106,6 +119,13 @@ export default function CancelSubscriptionModal({
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : "";
 
+  const truncatedExpected = expectedWallet
+    ? `${expectedWallet.slice(0, 6)}...${expectedWallet.slice(-4)}`
+    : null;
+
+  const walletLabel =
+    context === "subscriber" ? "your wallet" : "the merchant wallet";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -170,6 +190,31 @@ export default function CancelSubscriptionModal({
                 ? "Sign the cancel transaction with your connected wallet. The subscription will stop billing once the transaction is confirmed on Base Sepolia."
                 : "Connect your wallet to sign the on-chain cancel transaction."}
             </p>
+
+            <div className="mt-4 rounded-lg border border-[#60a5fa30] bg-[#60a5fa12] p-4">
+              <p className="text-[13px] font-medium text-[#60a5fa]">
+                Why do I need to connect a wallet?
+              </p>
+              <p className="mt-1 text-[12px] leading-[1.55] text-[#94a3b8]">
+                Subscriptions live on the blockchain, not just in the database.
+                Cancelling requires an on-chain transaction signed by{" "}
+                {walletLabel}
+                {truncatedExpected && context === "merchant" ? (
+                  <>
+                    {" "}(
+                    <span
+                      className="text-[#f0f0f3]"
+                      style={{ fontFamily: '"Geist Mono", monospace' }}
+                    >
+                      {truncatedExpected}
+                    </span>
+                    )
+                  </>
+                ) : null}
+                {" "}to permanently stop future charges. A database-only update
+                wouldn&apos;t stop the on-chain keeper from pulling USDC.
+              </p>
+            </div>
 
             {!onChainId && (
               <div className="mt-4 rounded-lg border border-[#fbbf2430] bg-[#fbbf2412] p-3 text-[12px] text-[#fbbf24]">

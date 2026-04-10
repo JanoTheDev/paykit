@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 const navItems = [
   { href: "/", label: "Getting Started" },
   { href: "/sdk-reference", label: "SDK Reference" },
+  { href: "/subscriptions", label: "Subscriptions" },
   { href: "/webhooks", label: "Webhooks" },
   { href: "/self-hosting", label: "Self-Hosting" },
   { href: "/testnet", label: "Testnet Setup" },

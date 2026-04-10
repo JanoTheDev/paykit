@@ -158,7 +158,8 @@ const paylix = new Paylix({
         paylix.cancelSubscription()
       </h2>
       <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
-        Cancels an active subscription. The subscription will not renew.
+        Marks a subscription as cancelled in the Paylix database so it stops
+        appearing in active lists.
       </p>
       <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
 {`paylix.cancelSubscription(params: { subscriptionId: string }): Promise<void>`}
@@ -168,6 +169,27 @@ const paylix = new Paylix({
   subscriptionId: "sub_abc123",
 });`}
       </pre>
+      <div className="mb-6 rounded-lg border border-[#fbbf2430] bg-[#fbbf2412] p-4">
+        <p className="text-[13px] font-medium text-[#fbbf24]">
+          This does not stop on-chain charges
+        </p>
+        <p className="mt-1 text-[13px] leading-[1.55] text-[#94a3b8]">
+          Subscriptions live on the blockchain. This SDK method only updates
+          the Paylix database — it does not terminate the on-chain schedule.
+          The smart contract only allows the{" "}
+          <span className="text-[#f0f0f3]">subscriber&apos;s wallet</span> or the{" "}
+          <span className="text-[#f0f0f3]">merchant wallet</span> to call{" "}
+          <code className="bg-[#111116] px-1 py-0.5 rounded font-mono text-[12px] text-[#06d6a0]">
+            cancelSubscription()
+          </code>
+          , so to actually stop future charges someone must sign the cancel
+          transaction via the merchant dashboard or the customer portal. See{" "}
+          <a href="/subscriptions" className="text-[#06d6a0] hover:underline">
+            Subscriptions
+          </a>{" "}
+          for the full flow.
+        </p>
+      </div>
 
       {/* ── updateSubscriptionWallet ───────────────────── */}
       <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">

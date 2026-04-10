@@ -64,7 +64,7 @@ const { checkoutUrl, subscriptionId } = await paylix.createSubscription({
 
 ### paylix.cancelSubscription(params)
 
-Cancels an active subscription.
+Marks a subscription as cancelled in the Paylix database.
 
 ```typescript
 await paylix.cancelSubscription({
@@ -72,6 +72,12 @@ await paylix.cancelSubscription({
 });
 // Returns: void
 ```
+
+IMPORTANT: This SDK method only updates the database. It does NOT cancel
+the on-chain subscription. To actually stop future charges, the merchant
+wallet or the subscriber wallet must sign an on-chain cancel transaction
+via the merchant dashboard or the customer portal. See the "Subscription
+Cancellation" section below for the full two-layer model.
 
 ### paylix.updateSubscriptionWallet(params)
 
@@ -245,6 +251,64 @@ Sent when a subscription is cancelled.
   }
 }
 ```
+
+## Subscription Cancellation
+
+Paylix subscriptions are a two-layer system:
+
+1. A row in the Paylix database (status, next charge date, metadata).
+2. An on-chain record inside the SubscriptionManager smart contract on Base
+   that authorizes the keeper to pull USDC from the subscriber's wallet on
+   a schedule.
+
+Both layers must be cancelled. Updating only the database does NOT stop
+charges — the keeper will keep calling the contract until the on-chain
+record is terminated.
+
+### Who can cancel on-chain
+
+The SubscriptionManager contract enforces a strict access check on
+`cancelSubscription(subscriptionId)`. Only two addresses are allowed to
+call it for any given subscription:
+
+- The subscriber's wallet (the address that signed the original approval).
+- The merchant wallet (the wallet configured to receive charges).
+
+Neither the Paylix backend nor an API key can cancel on-chain on a user's
+behalf. The subscriber's funds are protected by the same self-custody
+model as any other EOA.
+
+### Cancellation flow
+
+1. User clicks Cancel in the merchant dashboard or the customer portal.
+2. A modal prompts them to connect the merchant or subscriber wallet.
+3. They sign a `cancelSubscription(onChainId)` transaction on Base.
+4. The contract emits a `SubscriptionCancelled` event.
+5. The Paylix indexer picks up the event and updates the DB row to
+   status `cancelled`.
+6. The keeper skips the subscription on its next tick.
+7. A `subscription.cancelled` webhook is delivered.
+
+### Two cancellation paths in the product
+
+- Merchant dashboard → Subscribers → Cancel. Requires the merchant wallet
+  to be connected. Signs on-chain as the merchant.
+- Customer portal → Cancel on an active subscription. Requires the
+  subscriber to connect their own wallet and sign on-chain as themselves.
+
+### Billing intervals
+
+Subscription products support these intervals:
+`minutely` (testing only), `weekly`, `biweekly`, `monthly`, `quarterly`,
+`yearly`.
+
+### Past due
+
+If a recurring charge reverts (insufficient USDC balance or the subscriber
+revoked the approval), the subscription becomes `past_due` and a
+`subscription.past_due` webhook fires. The keeper retries on the next
+tick. A past-due subscription still has an active on-chain record, so to
+fully end it someone must still sign an on-chain cancel.
 
 ## Webhook Handler Examples
 

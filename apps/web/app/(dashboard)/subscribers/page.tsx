@@ -77,6 +77,18 @@ export default async function SubscribersPage() {
       <h1 className="text-[30px] font-semibold leading-[1.15] tracking-[-0.6px] text-[#f0f0f3]">
         Subscribers
       </h1>
+      <p className="mt-2 text-[12px] leading-[1.4] tracking-[0.2px] text-[#64748b]">
+        Cancelling a subscription requires signing an on-chain transaction
+        with the merchant wallet.{" "}
+        <a
+          href="https://docs.paylix.dev/subscriptions"
+          target="_blank"
+          rel="noreferrer"
+          className="text-[#06d6a0] hover:underline"
+        >
+          Learn more
+        </a>
+      </p>
 
       <div className="mt-8 rounded-xl border border-[rgba(148,163,184,0.12)] bg-[#111116]">
         {rows.length === 0 ? (
