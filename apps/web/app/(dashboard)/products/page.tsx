@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { products } from "@paylix/db/schema";
 import { eq, sql } from "drizzle-orm";
 import Link from "next/link";
+import { GenerateLinkButton } from "./generate-link-button";
 
 function formatAmount(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -126,12 +127,15 @@ export default async function ProductsPage() {
                       <ActiveBadge active={product.isActive} />
                     </td>
                     <td className="h-[52px] px-4 text-right">
-                      <Link
-                        href={`/products/${product.id}/edit`}
-                        className="inline-flex items-center rounded-lg bg-transparent px-3 py-1.5 text-[13px] text-[#94a3b8] transition-colors hover:bg-[#111116] hover:text-[#f0f0f3]"
-                      >
-                        Edit
-                      </Link>
+                      <div className="flex items-center justify-end gap-1">
+                        <GenerateLinkButton productId={product.id} />
+                        <Link
+                          href={`/products/${product.id}/edit`}
+                          className="inline-flex items-center rounded-lg bg-transparent px-3 py-1.5 text-[13px] text-[#94a3b8] transition-colors hover:bg-[#111116] hover:text-[#f0f0f3]"
+                        >
+                          Edit
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
