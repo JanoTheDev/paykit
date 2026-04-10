@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
-contract PaymentVault is Ownable, ReentrancyGuard {
+contract PaymentVault is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     address public platformWallet;
@@ -39,7 +40,7 @@ contract PaymentVault is Ownable, ReentrancyGuard {
         uint256 amount,
         bytes32 productId,
         bytes32 customerId
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         require(acceptedTokens[token], "Token not accepted");
         require(amount > 0, "Amount must be > 0");
         require(merchant != address(0), "Invalid merchant");
@@ -70,7 +71,11 @@ contract PaymentVault is Ownable, ReentrancyGuard {
     }
 
     function setPlatformWallet(address _wallet) external onlyOwner {
+        require(_wallet != address(0), "Invalid wallet");
         platformWallet = _wallet;
         emit PlatformWalletUpdated(_wallet);
     }
+
+    function pause() external onlyOwner { _pause(); }
+    function unpause() external onlyOwner { _unpause(); }
 }

@@ -104,17 +104,97 @@ contract SubscriptionManagerTest is Test {
         subs.cancelSubscription(subId);
     }
 
-    function test_updateSubscriptionWallet() public {
+    function test_requestAndAcceptSubscriptionWalletUpdate() public {
         vm.prank(subscriber);
         uint256 subId = subs.createSubscription(address(usdc), merchant, AMOUNT, MONTHLY, productId, customerId);
         address newWallet = makeAddr("newWallet");
         usdc.mint(newWallet, 10000e6);
         vm.prank(newWallet);
         usdc.approve(address(subs), type(uint256).max);
+
         vm.prank(subscriber);
-        subs.updateSubscriptionWallet(subId, newWallet);
+        subs.requestSubscriptionWalletUpdate(subId, newWallet);
+        assertEq(subs.pendingWalletUpdates(subId), newWallet);
+
+        vm.prank(newWallet);
+        subs.acceptSubscriptionWalletUpdate(subId);
+
         (address storedSubscriber,,,,,,,,,,) = subs.subscriptions(subId);
         assertEq(storedSubscriber, newWallet);
+        assertEq(subs.pendingWalletUpdates(subId), address(0));
+    }
+
+    function test_requestSubscriptionWalletUpdate_unauthorized() public {
+        vm.prank(subscriber);
+        uint256 subId = subs.createSubscription(address(usdc), merchant, AMOUNT, MONTHLY, productId, customerId);
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
+        vm.expectRevert("Not subscriber");
+        subs.requestSubscriptionWalletUpdate(subId, attacker);
+    }
+
+    function test_acceptSubscriptionWalletUpdate_unauthorized() public {
+        vm.prank(subscriber);
+        uint256 subId = subs.createSubscription(address(usdc), merchant, AMOUNT, MONTHLY, productId, customerId);
+        address newWallet = makeAddr("newWallet");
+        vm.prank(subscriber);
+        subs.requestSubscriptionWalletUpdate(subId, newWallet);
+
+        address attacker = makeAddr("attacker");
+        vm.prank(attacker);
+        vm.expectRevert("Not pending for caller");
+        subs.acceptSubscriptionWalletUpdate(subId);
+    }
+
+    function test_chargeSubscription_late_anchors_to_nextChargeDate() public {
+        vm.prank(subscriber);
+        uint256 subId = subs.createSubscription(address(usdc), merchant, AMOUNT, MONTHLY, productId, customerId);
+
+        // nextChargeDate was set to block.timestamp + MONTHLY at creation
+        uint256 expectedFirstCharge = block.timestamp + MONTHLY;
+
+        // Warp well past the due time (late charge)
+        vm.warp(expectedFirstCharge + 5 days);
+        subs.chargeSubscription(subId);
+
+        (,,,,, uint256 nextChargeDate,,,,,) = subs.subscriptions(subId);
+        // Should be anchored: previous nextChargeDate + interval, NOT block.timestamp + interval
+        assertEq(nextChargeDate, expectedFirstCharge + MONTHLY);
+        // Sanity: not equal to block.timestamp + interval
+        assertTrue(nextChargeDate != block.timestamp + MONTHLY);
+    }
+
+    function test_setPlatformWallet_zero_reverts() public {
+        vm.prank(owner);
+        vm.expectRevert("Invalid wallet");
+        subs.setPlatformWallet(address(0));
+    }
+
+    function test_pause_blocks_createSubscription() public {
+        vm.prank(owner);
+        subs.pause();
+        vm.prank(subscriber);
+        vm.expectRevert();
+        subs.createSubscription(address(usdc), merchant, AMOUNT, MONTHLY, productId, customerId);
+    }
+
+    function test_pause_blocks_chargeSubscription() public {
+        vm.prank(subscriber);
+        uint256 subId = subs.createSubscription(address(usdc), merchant, AMOUNT, MONTHLY, productId, customerId);
+        vm.warp(block.timestamp + MONTHLY);
+        vm.prank(owner);
+        subs.pause();
+        vm.expectRevert();
+        subs.chargeSubscription(subId);
+    }
+
+    function test_unpause_allows_createSubscription() public {
+        vm.startPrank(owner);
+        subs.pause();
+        subs.unpause();
+        vm.stopPrank();
+        vm.prank(subscriber);
+        subs.createSubscription(address(usdc), merchant, AMOUNT, MONTHLY, productId, customerId);
     }
 
     function test_charge_cancelled_subscription_reverts() public {

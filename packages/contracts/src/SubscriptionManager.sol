@@ -5,8 +5,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
-contract SubscriptionManager is Ownable, ReentrancyGuard {
+contract SubscriptionManager is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     enum Status { Active, PastDue, Cancelled, Expired }
@@ -30,13 +31,17 @@ contract SubscriptionManager is Ownable, ReentrancyGuard {
     mapping(address => bool) public acceptedTokens;
     uint256 public nextSubscriptionId;
     mapping(uint256 => Subscription) public subscriptions;
+    mapping(uint256 => address) public pendingWalletUpdates;
 
     event SubscriptionCreated(uint256 indexed subscriptionId, address indexed subscriber, address indexed merchant, address token, uint256 amount, uint256 interval, bytes32 productId, bytes32 customerId);
     event PaymentReceived(uint256 indexed subscriptionId, address indexed subscriber, address indexed merchant, address token, uint256 amount, uint256 fee, uint256 timestamp);
     event SubscriptionPastDue(uint256 indexed subscriptionId, address indexed subscriber, address indexed merchant);
     event SubscriptionCancelled(uint256 indexed subscriptionId);
+    event SubscriptionWalletUpdateRequested(uint256 indexed subscriptionId, address indexed oldSubscriber, address indexed newSubscriber);
     event SubscriptionWalletUpdated(uint256 indexed subscriptionId, address indexed oldSubscriber, address indexed newSubscriber);
     event AcceptedTokenUpdated(address indexed token, bool accepted);
+    event PlatformFeeUpdated(uint256 newFee);
+    event PlatformWalletUpdated(address newWallet);
 
     constructor(address _platformWallet, uint256 _platformFee) Ownable(msg.sender) {
         require(_platformFee <= 1000, "Fee too high");
@@ -44,7 +49,7 @@ contract SubscriptionManager is Ownable, ReentrancyGuard {
         platformFee = _platformFee;
     }
 
-    function createSubscription(address token, address merchant, uint256 amount, uint256 interval, bytes32 productId, bytes32 customerId) external nonReentrant returns (uint256) {
+    function createSubscription(address token, address merchant, uint256 amount, uint256 interval, bytes32 productId, bytes32 customerId) external nonReentrant whenNotPaused returns (uint256) {
         require(acceptedTokens[token], "Token not accepted");
         require(amount > 0, "Amount must be > 0");
         require(merchant != address(0), "Invalid merchant");
@@ -63,14 +68,14 @@ contract SubscriptionManager is Ownable, ReentrancyGuard {
         return subId;
     }
 
-    function chargeSubscription(uint256 subscriptionId) external nonReentrant {
+    function chargeSubscription(uint256 subscriptionId) external nonReentrant whenNotPaused {
         Subscription storage sub = subscriptions[subscriptionId];
         require(sub.status == Status.Active, "Not active");
         require(block.timestamp >= sub.nextChargeDate, "Not due yet");
 
         bool success = _tryProcessPayment(subscriptionId);
         if (success) {
-            sub.nextChargeDate = block.timestamp + sub.interval;
+            sub.nextChargeDate = sub.nextChargeDate + sub.interval;
         } else {
             sub.status = Status.PastDue;
             emit SubscriptionPastDue(subscriptionId, sub.subscriber, sub.merchant);
@@ -85,14 +90,27 @@ contract SubscriptionManager is Ownable, ReentrancyGuard {
         emit SubscriptionCancelled(subscriptionId);
     }
 
-    function updateSubscriptionWallet(uint256 subscriptionId, address newSubscriber) external {
+    function requestSubscriptionWalletUpdate(uint256 subscriptionId, address newSubscriber) external {
         Subscription storage sub = subscriptions[subscriptionId];
         require(msg.sender == sub.subscriber, "Not subscriber");
         require(newSubscriber != address(0), "Invalid address");
         require(sub.status == Status.Active, "Not active");
+
+        pendingWalletUpdates[subscriptionId] = newSubscriber;
+        emit SubscriptionWalletUpdateRequested(subscriptionId, sub.subscriber, newSubscriber);
+    }
+
+    function acceptSubscriptionWalletUpdate(uint256 subscriptionId) external {
+        require(pendingWalletUpdates[subscriptionId] == msg.sender, "Not pending for caller");
+
+        Subscription storage sub = subscriptions[subscriptionId];
+        require(sub.status == Status.Active, "Not active");
+
         address oldSubscriber = sub.subscriber;
-        sub.subscriber = newSubscriber;
-        emit SubscriptionWalletUpdated(subscriptionId, oldSubscriber, newSubscriber);
+        sub.subscriber = msg.sender;
+        delete pendingWalletUpdates[subscriptionId];
+
+        emit SubscriptionWalletUpdated(subscriptionId, oldSubscriber, msg.sender);
     }
 
     function setAcceptedToken(address token, bool accepted) external onlyOwner {
@@ -103,11 +121,17 @@ contract SubscriptionManager is Ownable, ReentrancyGuard {
     function setPlatformFee(uint256 _fee) external onlyOwner {
         require(_fee <= 1000, "Fee too high");
         platformFee = _fee;
+        emit PlatformFeeUpdated(_fee);
     }
 
     function setPlatformWallet(address _wallet) external onlyOwner {
+        require(_wallet != address(0), "Invalid wallet");
         platformWallet = _wallet;
+        emit PlatformWalletUpdated(_wallet);
     }
+
+    function pause() external onlyOwner { _pause(); }
+    function unpause() external onlyOwner { _unpause(); }
 
     function _processPayment(uint256 subscriptionId) internal {
         Subscription storage sub = subscriptions[subscriptionId];

@@ -113,4 +113,36 @@ contract PaymentVaultTest is Test {
         vm.expectRevert();
         vault.setPlatformFee(100);
     }
+
+    function test_setPlatformWallet_zero_reverts() public {
+        vm.prank(owner);
+        vm.expectRevert("Invalid wallet");
+        vault.setPlatformWallet(address(0));
+    }
+
+    function test_pause_blocks_createPayment() public {
+        vm.prank(owner);
+        vault.pause();
+
+        vm.startPrank(payer);
+        usdc.approve(address(vault), 100e6);
+        vm.expectRevert();
+        vault.createPayment(address(usdc), merchant, 100e6, productId, customerId);
+        vm.stopPrank();
+    }
+
+    function test_unpause_allows_createPayment() public {
+        vm.startPrank(owner);
+        vault.pause();
+        vault.unpause();
+        vm.stopPrank();
+
+        vm.startPrank(payer);
+        usdc.approve(address(vault), 100e6);
+        vault.createPayment(address(usdc), merchant, 100e6, productId, customerId);
+        vm.stopPrank();
+
+        uint256 fee = (100e6 * 50) / 10000;
+        assertEq(usdc.balanceOf(merchant), 100e6 - fee);
+    }
 }
