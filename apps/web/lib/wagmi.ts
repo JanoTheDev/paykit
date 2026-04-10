@@ -7,7 +7,7 @@ export const projectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
   "b56e18d47c72ab683b10814fe9495694"; // public fallback for localhost testing
 
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [base, baseSepolia];
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [baseSepolia, base];
 
 export const wagmiAdapter = new WagmiAdapter({
   networks,

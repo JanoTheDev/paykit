@@ -212,6 +212,7 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
         abi: ERC20_ABI,
         functionName: "approve",
         args: [CONTRACTS.paymentVault, usdcAmount],
+        chainId: 84532, // Base Sepolia
       });
       console.log("Approve tx:", approveHash);
 
@@ -231,6 +232,7 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
           productIdBytes,
           customerIdBytes,
         ],
+        chainId: 84532, // Base Sepolia
       });
       console.log("Payment tx:", payHash);
       setTxHash(payHash);
