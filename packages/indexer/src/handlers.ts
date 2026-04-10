@@ -1,6 +1,6 @@
 import { createDb } from "@paylix/db/client";
-import { payments, subscriptions, checkoutSessions } from "@paylix/db/schema";
-import { eq } from "drizzle-orm";
+import { payments, subscriptions, checkoutSessions, customers } from "@paylix/db/schema";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import { config } from "./config";
 import { dispatchWebhooks } from "./webhook-dispatch";
 import type { Log } from "viem";
@@ -25,29 +25,118 @@ export async function handlePaymentReceived(log: Log, args: {
     blockNumber: log.blockNumber?.toString(),
   });
 
-  // Try to find and update a pending payment by txHash
-  if (log.transactionHash) {
-    const [updated] = await db
-      .update(payments)
-      .set({
-        status: "confirmed",
-        blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
-      })
-      .where(eq(payments.txHash, log.transactionHash))
-      .returning();
-
-    if (updated) {
-      console.log(`[Handler] Payment ${updated.id} confirmed`);
-      await dispatchWebhooks(updated.userId, "payment.confirmed", {
-        paymentId: updated.id,
-        txHash: log.transactionHash,
-        amount: updated.amount,
-        status: "confirmed",
-      });
-    } else {
-      console.log("[Handler] No pending payment found for txHash:", log.transactionHash);
-    }
+  if (!log.transactionHash) {
+    console.log("[Handler] No transaction hash, skipping");
+    return;
   }
+
+  // Convert on-chain amount (USDC 6 decimals) back to cents
+  // 1 USDC = 1,000,000 units = 100 cents
+  const amountCents = Number(args.amount) / 10_000;
+
+  // Find the most recent viewed checkout session matching this merchant + amount that isn't completed yet
+  const [session] = await db
+    .select()
+    .from(checkoutSessions)
+    .where(
+      and(
+        sql`lower(${checkoutSessions.merchantWallet}) = lower(${args.merchant})`,
+        eq(checkoutSessions.amount, amountCents),
+        or(
+          eq(checkoutSessions.status, "viewed"),
+          eq(checkoutSessions.status, "active")
+        )
+      )
+    )
+    .orderBy(desc(checkoutSessions.createdAt))
+    .limit(1);
+
+  if (!session) {
+    console.log(
+      `[Handler] No matching checkout session for merchant=${args.merchant} amount=${amountCents} cents`
+    );
+    return;
+  }
+
+  console.log(`[Handler] Matched checkout session ${session.id}`);
+
+  // Create or find customer record
+  const customerIdentifier = session.customerId || `anon_${args.payer}`;
+  let [customer] = await db
+    .select()
+    .from(customers)
+    .where(
+      and(
+        eq(customers.userId, session.userId),
+        eq(customers.customerId, customerIdentifier)
+      )
+    );
+
+  if (!customer) {
+    const [created] = await db
+      .insert(customers)
+      .values({
+        userId: session.userId,
+        customerId: customerIdentifier,
+        walletAddress: args.payer,
+      })
+      .returning();
+    customer = created;
+    console.log(`[Handler] Created customer ${customer.id}`);
+  } else if (!customer.walletAddress) {
+    await db
+      .update(customers)
+      .set({ walletAddress: args.payer })
+      .where(eq(customers.id, customer.id));
+  }
+
+  // Create payment record
+  const [payment] = await db
+    .insert(payments)
+    .values({
+      productId: session.productId,
+      userId: session.userId,
+      customerId: customer.id,
+      amount: amountCents,
+      fee: Number(args.fee) / 10_000,
+      status: "confirmed",
+      txHash: log.transactionHash,
+      chain: session.chain,
+      token: session.currency,
+      fromAddress: args.payer,
+      toAddress: args.merchant,
+      blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
+    })
+    .returning();
+
+  console.log(`[Handler] Created payment ${payment.id}`);
+
+  // Update checkout session to completed
+  await db
+    .update(checkoutSessions)
+    .set({
+      status: "completed",
+      completedAt: new Date(),
+      paymentId: payment.id,
+    })
+    .where(eq(checkoutSessions.id, session.id));
+
+  console.log(`[Handler] Checkout session ${session.id} marked completed`);
+
+  // Dispatch webhook
+  await dispatchWebhooks(session.userId, "payment.confirmed", {
+    paymentId: payment.id,
+    checkoutId: session.id,
+    productId: session.productId,
+    customerId: customer.customerId,
+    amount: payment.amount,
+    fee: payment.fee,
+    currency: payment.token,
+    chain: payment.chain,
+    txHash: log.transactionHash,
+    fromAddress: args.payer,
+    toAddress: args.merchant,
+  });
 }
 
 export async function handleSubscriptionCreated(log: Log, args: {
