@@ -213,9 +213,12 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
 
       // Convert IDs to bytes32
       const productIdBytes = keccak256(stringToBytes(session.productId));
-      const customerIdBytes = keccak256(
-        stringToBytes(session.customerId || "anonymous")
-      );
+      // Use the checkout session UUID as the on-chain customerId. This avoids
+      // collisions between concurrent checkouts for the same merchant+amount
+      // and between anonymous customers. The developer-provided customerId is
+      // still stored on the session row and used for downstream customer
+      // identification.
+      const customerIdBytes = keccak256(stringToBytes(session.id));
 
       const isSubscription = session.type === "subscription";
       const spender = isSubscription

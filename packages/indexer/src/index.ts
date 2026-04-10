@@ -3,6 +3,8 @@ import { runKeeper } from "./keeper";
 import { config } from "./config";
 import { createDb } from "@paylix/db/client";
 import { systemStatus } from "@paylix/db/schema";
+import { retryFailedWebhooks } from "./webhook-dispatch";
+import { retryUnmatchedEvents } from "./handlers";
 
 async function main() {
   console.log("=================================");
@@ -36,24 +38,54 @@ async function main() {
   // Keeper interval: prefer KEEPER_INTERVAL_MS (millisecond override) for
   // short intervals (e.g. testing with the "minutely" billing interval),
   // otherwise fall back to KEEPER_INTERVAL_MINUTES.
-  // Default: 30 seconds, overridable via KEEPER_INTERVAL_MS.
-  // (config.keeperIntervalMinutes is retained for backwards-compat but no longer
-  // used as the default — short intervals are needed for the "minutely" billing
-  // interval used in testing.)
   const keeperIntervalMs = parseInt(
     process.env.KEEPER_INTERVAL_MS ?? "30000",
     10
   );
 
-  setInterval(async () => {
+  // Recursive setTimeout + running flag prevents overlapping keeper runs
+  // from double-charging subscriptions when a run takes longer than the
+  // interval.
+  let keeperRunning = false;
+
+  async function scheduleKeeper() {
+    if (keeperRunning) {
+      setTimeout(scheduleKeeper, keeperIntervalMs);
+      return;
+    }
+    keeperRunning = true;
     try {
       await runKeeper();
-    } catch (error) {
-      console.error("[Keeper] Unhandled error:", error);
+    } catch (err) {
+      console.error("[Keeper] Unhandled error:", err);
+    } finally {
+      keeperRunning = false;
+      setTimeout(scheduleKeeper, keeperIntervalMs);
     }
-  }, keeperIntervalMs);
+  }
 
+  setTimeout(scheduleKeeper, keeperIntervalMs);
   console.log(`[Keeper] Scheduled every ${keeperIntervalMs}ms`);
+
+  // Webhook retry sweep: re-deliver failed webhook deliveries whose
+  // nextRetryAt has elapsed (bounded to 5 attempts total).
+  setInterval(() => {
+    retryFailedWebhooks().catch((err) =>
+      console.error("[Webhook Retry] Error:", err)
+    );
+  }, 60 * 1000);
+  console.log("[Webhook Retry] Scheduled every 60s");
+
+  // Unmatched event retry sweep: re-runs handlers for events that arrived
+  // before the corresponding checkout session was committed. Bounded to 50
+  // per tick.
+  setInterval(() => {
+    retryUnmatchedEvents().catch((err) =>
+      console.error("[Unmatched Retry] Error:", err)
+    );
+  }, 30 * 1000);
+  console.log("[Unmatched Retry] Scheduled every 30s");
+
   console.log("[Indexer] Running. Press Ctrl+C to stop.");
 }
 

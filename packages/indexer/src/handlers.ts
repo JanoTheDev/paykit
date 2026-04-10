@@ -1,9 +1,45 @@
 import { createDb } from "@paylix/db/client";
-import { payments, subscriptions, checkoutSessions, customers } from "@paylix/db/schema";
+import {
+  payments,
+  subscriptions,
+  checkoutSessions,
+  customers,
+  unmatchedEvents,
+} from "@paylix/db/schema";
 import { eq, and, or, desc, sql } from "drizzle-orm";
+import { keccak256, stringToBytes, type Log } from "viem";
 import { config } from "./config";
 import { dispatchWebhooks } from "./webhook-dispatch";
-import type { Log } from "viem";
+
+async function recordUnmatched(
+  eventType: string,
+  log: Log,
+  payload: Record<string, unknown>
+) {
+  if (!log.transactionHash) return;
+  try {
+    await db.insert(unmatchedEvents).values({
+      eventType,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
+      logIndex: typeof log.logIndex === "number" ? log.logIndex : null,
+      payload,
+    });
+    console.warn(
+      `[Handler] Recorded unmatched ${eventType} event tx=${log.transactionHash} for retry`
+    );
+  } catch (err) {
+    console.error("[Handler] Failed to record unmatched event:", err);
+  }
+}
+
+function serializeArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(args)) {
+    out[k] = typeof v === "bigint" ? v.toString() : v;
+  }
+  return out;
+}
 
 const db = createDb(config.databaseUrl);
 
@@ -30,18 +66,33 @@ export async function handlePaymentReceived(log: Log, args: {
     return;
   }
 
+  // Idempotency: skip if we already have a payment for this tx hash
+  const [existingPayment] = await db
+    .select()
+    .from(payments)
+    .where(eq(payments.txHash, log.transactionHash))
+    .limit(1);
+  if (existingPayment) {
+    console.log(
+      `[Handler] Payment for tx ${log.transactionHash} already exists, skipping`
+    );
+    return;
+  }
+
   // Convert on-chain amount (USDC 6 decimals) back to cents
   // 1 USDC = 1,000,000 units = 100 cents
   const amountCents = Number(args.amount) / 10_000;
 
-  // Find the most recent viewed checkout session matching this merchant + amount that isn't completed yet
-  const [session] = await db
+  // Match by reversing the customerId hash: the checkout-client encodes
+  // keccak256(stringToBytes(session.id)) as the on-chain customerId to avoid
+  // collisions on (merchant, amount). Scan recent open sessions for this
+  // merchant and find the one whose id hashes to the provided customerId.
+  const candidates = await db
     .select()
     .from(checkoutSessions)
     .where(
       and(
         sql`lower(${checkoutSessions.merchantWallet}) = lower(${args.merchant})`,
-        eq(checkoutSessions.amount, amountCents),
         or(
           eq(checkoutSessions.status, "viewed"),
           eq(checkoutSessions.status, "active")
@@ -49,12 +100,18 @@ export async function handlePaymentReceived(log: Log, args: {
       )
     )
     .orderBy(desc(checkoutSessions.createdAt))
-    .limit(1);
+    .limit(200);
+
+  const targetCustomerId = args.customerId.toLowerCase();
+  const session = candidates.find(
+    (s) => keccak256(stringToBytes(s.id)).toLowerCase() === targetCustomerId
+  );
 
   if (!session) {
     console.log(
-      `[Handler] No matching checkout session for merchant=${args.merchant} amount=${amountCents} cents`
+      `[Handler] No matching checkout session for merchant=${args.merchant} customerId=${args.customerId}`
     );
+    await recordUnmatched("PaymentReceived", log, serializeArgs(args));
     return;
   }
 
@@ -180,14 +237,14 @@ export async function handleSubscriptionCreated(log: Log, args: {
   const amountCents = Number(args.amount) / 10_000;
   const intervalSeconds = Number(args.interval);
 
-  // Find matching checkout session: merchant + amount + type=subscription + not completed
-  const [session] = await db
+  // Match the checkout session by reversing the session.id hash encoded as
+  // the on-chain customerId.
+  const candidates = await db
     .select()
     .from(checkoutSessions)
     .where(
       and(
         sql`lower(${checkoutSessions.merchantWallet}) = lower(${args.merchant})`,
-        eq(checkoutSessions.amount, amountCents),
         eq(checkoutSessions.type, "subscription"),
         or(
           eq(checkoutSessions.status, "viewed"),
@@ -196,12 +253,18 @@ export async function handleSubscriptionCreated(log: Log, args: {
       )
     )
     .orderBy(desc(checkoutSessions.createdAt))
-    .limit(1);
+    .limit(200);
+
+  const targetCustomerId = args.customerId.toLowerCase();
+  const session = candidates.find(
+    (s) => keccak256(stringToBytes(s.id)).toLowerCase() === targetCustomerId
+  );
 
   if (!session) {
     console.log(
-      `[Handler] No matching subscription checkout session for merchant=${args.merchant} amount=${amountCents} cents`
+      `[Handler] No matching subscription checkout session for merchant=${args.merchant} customerId=${args.customerId}`
     );
+    await recordUnmatched("SubscriptionCreated", log, serializeArgs(args));
     return;
   }
 
@@ -275,6 +338,7 @@ export async function handleSubscriptionCreated(log: Log, args: {
       nextChargeDate: nextCharge,
       lastPaymentId: payment.id,
       onChainId,
+      intervalSeconds,
     })
     .returning();
 
@@ -360,6 +424,22 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
   const amountCents = Number(args.amount) / 10_000;
   const feeCents = Number(args.fee) / 10_000;
 
+  // Derive chain/token from the subscription's initial payment (falling back
+  // to schema defaults) rather than hardcoding "base"/"USDC".
+  let chain = "base";
+  let token = "USDC";
+  if (subscription.lastPaymentId) {
+    const [prior] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.id, subscription.lastPaymentId))
+      .limit(1);
+    if (prior) {
+      chain = prior.chain;
+      token = prior.token;
+    }
+  }
+
   // Create payment record for recurring charge
   const [payment] = await db
     .insert(payments)
@@ -371,8 +451,8 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
       fee: feeCents,
       status: "confirmed",
       txHash: log.transactionHash,
-      chain: "base",
-      token: "USDC",
+      chain,
+      token,
       fromAddress: args.subscriber,
       toAddress: args.merchant,
       blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
@@ -474,5 +554,90 @@ export async function handleSubscriptionCancelled(log: Log, args: {
       onChainId,
       status: "cancelled",
     });
+  }
+}
+
+function rehydrateLog(row: typeof unmatchedEvents.$inferSelect): Log {
+  return {
+    address: "0x0000000000000000000000000000000000000000",
+    blockHash: null,
+    blockNumber: row.blockNumber !== null ? BigInt(row.blockNumber) : null,
+    data: "0x",
+    logIndex: row.logIndex ?? null,
+    removed: false,
+    topics: [],
+    transactionHash: row.txHash as `0x${string}`,
+    transactionIndex: null,
+  } as unknown as Log;
+}
+
+function rehydratePaymentArgs(payload: Record<string, unknown>) {
+  return {
+    payer: payload.payer as `0x${string}`,
+    merchant: payload.merchant as `0x${string}`,
+    token: payload.token as `0x${string}`,
+    amount: BigInt(payload.amount as string),
+    fee: BigInt(payload.fee as string),
+    productId: payload.productId as `0x${string}`,
+    customerId: payload.customerId as `0x${string}`,
+    timestamp: BigInt(payload.timestamp as string),
+  };
+}
+
+function rehydrateSubCreatedArgs(payload: Record<string, unknown>) {
+  return {
+    subscriptionId: BigInt(payload.subscriptionId as string),
+    subscriber: payload.subscriber as `0x${string}`,
+    merchant: payload.merchant as `0x${string}`,
+    token: payload.token as `0x${string}`,
+    amount: BigInt(payload.amount as string),
+    interval: BigInt(payload.interval as string),
+    productId: payload.productId as `0x${string}`,
+    customerId: payload.customerId as `0x${string}`,
+  };
+}
+
+export async function retryUnmatchedEvents() {
+  const rows = await db
+    .select()
+    .from(unmatchedEvents)
+    .orderBy(desc(unmatchedEvents.createdAt))
+    .limit(50);
+
+  if (rows.length === 0) return;
+
+  console.log(`[Handler] Retrying ${rows.length} unmatched events`);
+
+  for (const row of rows) {
+    try {
+      const log = rehydrateLog(row);
+      const payload = row.payload as Record<string, unknown>;
+
+      if (row.eventType === "PaymentReceived") {
+        // Delete first to avoid the handler re-recording itself as unmatched,
+        // then attempt. On failure, re-record is fine because txHash
+        // idempotency protects us.
+        await db
+          .delete(unmatchedEvents)
+          .where(eq(unmatchedEvents.id, row.id));
+        await handlePaymentReceived(log, rehydratePaymentArgs(payload));
+      } else if (row.eventType === "SubscriptionCreated") {
+        await db
+          .delete(unmatchedEvents)
+          .where(eq(unmatchedEvents.id, row.id));
+        await handleSubscriptionCreated(log, rehydrateSubCreatedArgs(payload));
+      } else {
+        // Unknown type: just bump attempts
+        await db
+          .update(unmatchedEvents)
+          .set({ attempts: row.attempts + 1 })
+          .where(eq(unmatchedEvents.id, row.id));
+      }
+    } catch (err) {
+      console.error(
+        `[Handler] Failed retrying unmatched event ${row.id}:`,
+        err
+      );
+    }
   }
 }

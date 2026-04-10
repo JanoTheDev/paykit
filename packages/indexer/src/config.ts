@@ -4,6 +4,6 @@ export const config = {
   paymentVaultAddress: process.env.PAYMENT_VAULT_ADDRESS! as `0x${string}`,
   subscriptionManagerAddress: process.env.SUBSCRIPTION_MANAGER_ADDRESS! as `0x${string}`,
   keeperPrivateKey: process.env.KEEPER_PRIVATE_KEY! as `0x${string}`,
-  network: (process.env.NEXT_PUBLIC_NETWORK || "base-sepolia") as "base" | "base-sepolia",
+  network: (process.env.NETWORK || process.env.NEXT_PUBLIC_NETWORK || "base-sepolia") as "base" | "base-sepolia",
   keeperIntervalMinutes: parseInt(process.env.KEEPER_INTERVAL_MINUTES || "60", 10),
 };

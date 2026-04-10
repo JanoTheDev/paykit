@@ -1,6 +1,7 @@
-import { createPublicClient, http, parseAbiItem } from "viem";
+import { createPublicClient, http, parseAbiItem, type Log } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { config } from "./config";
+import { getLastBlock, setLastBlock } from "./cursor";
 import {
   handlePaymentReceived,
   handleSubscriptionCreated,
@@ -33,6 +34,14 @@ function getChain() {
   return config.network === "base" ? base : baseSepolia;
 }
 
+type ContractSpec = {
+  key: string;
+  address: `0x${string}`;
+  event: ReturnType<typeof parseAbiItem>;
+  eventName: string;
+  handle: (log: Log, args: any) => Promise<void>;
+};
+
 export async function startListener() {
   const chain = getChain();
 
@@ -45,75 +54,124 @@ export async function startListener() {
   console.log(`[Listener] PaymentVault: ${config.paymentVaultAddress}`);
   console.log(`[Listener] SubscriptionManager: ${config.subscriptionManagerAddress}`);
 
-  // Watch PaymentVault: PaymentReceived
-  client.watchContractEvent({
-    address: config.paymentVaultAddress,
-    abi: [paymentReceivedEvent],
-    eventName: "PaymentReceived",
-    onLogs: (logs) => {
-      for (const log of logs) {
-        handlePaymentReceived(log, log.args as any).catch((err) =>
-          console.error("[Listener] Error handling PaymentReceived:", err)
-        );
-      }
+  const contracts: ContractSpec[] = [
+    {
+      key: "payment_vault_payment_received",
+      address: config.paymentVaultAddress,
+      event: paymentReceivedEvent,
+      eventName: "PaymentReceived",
+      handle: (log, args) => handlePaymentReceived(log, args),
     },
-  });
+    {
+      key: "subscription_manager_subscription_created",
+      address: config.subscriptionManagerAddress,
+      event: subscriptionCreatedEvent,
+      eventName: "SubscriptionCreated",
+      handle: (log, args) => handleSubscriptionCreated(log, args),
+    },
+    {
+      key: "subscription_manager_payment_received",
+      address: config.subscriptionManagerAddress,
+      event: subscriptionPaymentReceivedEvent,
+      eventName: "PaymentReceived",
+      handle: (log, args) => handleSubscriptionPaymentReceived(log, args),
+    },
+    {
+      key: "subscription_manager_subscription_past_due",
+      address: config.subscriptionManagerAddress,
+      event: subscriptionPastDueEvent,
+      eventName: "SubscriptionPastDue",
+      handle: (log, args) => handleSubscriptionPastDue(log, args),
+    },
+    {
+      key: "subscription_manager_subscription_cancelled",
+      address: config.subscriptionManagerAddress,
+      event: subscriptionCancelledEvent,
+      eventName: "SubscriptionCancelled",
+      handle: (log, args) => handleSubscriptionCancelled(log, args),
+    },
+  ];
 
-  // Watch SubscriptionManager: SubscriptionCreated
-  client.watchContractEvent({
-    address: config.subscriptionManagerAddress,
-    abi: [subscriptionCreatedEvent],
-    eventName: "SubscriptionCreated",
-    onLogs: (logs) => {
-      for (const log of logs) {
-        handleSubscriptionCreated(log, log.args as any).catch((err) =>
-          console.error("[Listener] Error handling SubscriptionCreated:", err)
-        );
-      }
-    },
-  });
+  const currentBlock = await client.getBlockNumber();
+  console.log(`[Listener] Current block: ${currentBlock}`);
 
-  // Watch SubscriptionManager: PaymentReceived (recurring charges + initial charge)
-  client.watchContractEvent({
-    address: config.subscriptionManagerAddress,
-    abi: [subscriptionPaymentReceivedEvent],
-    eventName: "PaymentReceived",
-    onLogs: (logs) => {
-      for (const log of logs) {
-        handleSubscriptionPaymentReceived(log, log.args as any).catch((err) =>
-          console.error("[Listener] Error handling Subscription PaymentReceived:", err)
-        );
-      }
-    },
-  });
+  // Backfill each contract up to the current block.
+  for (const spec of contracts) {
+    try {
+      const lastBlock = await getLastBlock(spec.key);
+      const fromBlock = lastBlock !== null ? lastBlock + 1n : currentBlock;
 
-  // Watch SubscriptionManager: SubscriptionPastDue
-  client.watchContractEvent({
-    address: config.subscriptionManagerAddress,
-    abi: [subscriptionPastDueEvent],
-    eventName: "SubscriptionPastDue",
-    onLogs: (logs) => {
-      for (const log of logs) {
-        handleSubscriptionPastDue(log, log.args as any).catch((err) =>
-          console.error("[Listener] Error handling SubscriptionPastDue:", err)
+      if (fromBlock > currentBlock) {
+        console.log(
+          `[Listener] ${spec.key}: cursor ${lastBlock} ahead of head ${currentBlock}, nothing to backfill`
         );
-      }
-    },
-  });
+      } else {
+        console.log(
+          `[Listener] ${spec.key}: backfilling ${fromBlock} -> ${currentBlock}`
+        );
 
-  // Watch SubscriptionManager: SubscriptionCancelled
-  client.watchContractEvent({
-    address: config.subscriptionManagerAddress,
-    abi: [subscriptionCancelledEvent],
-    eventName: "SubscriptionCancelled",
-    onLogs: (logs) => {
-      for (const log of logs) {
-        handleSubscriptionCancelled(log, log.args as any).catch((err) =>
-          console.error("[Listener] Error handling SubscriptionCancelled:", err)
+        const logs = await client.getLogs({
+          address: spec.address,
+          event: spec.event as any,
+          fromBlock,
+          toBlock: currentBlock,
+        });
+
+        console.log(
+          `[Listener] ${spec.key}: ${logs.length} backfilled events`
         );
+
+        for (const log of logs) {
+          try {
+            await spec.handle(log as Log, (log as any).args);
+          } catch (err) {
+            console.error(
+              `[Listener] Error handling backfilled ${spec.eventName}:`,
+              err
+            );
+          }
+        }
       }
-    },
-  });
+
+      await setLastBlock(spec.key, currentBlock);
+    } catch (err) {
+      console.error(`[Listener] Backfill failed for ${spec.key}:`, err);
+    }
+  }
+
+  // Start live watchers.
+  for (const spec of contracts) {
+    client.watchContractEvent({
+      address: spec.address,
+      abi: [spec.event],
+      eventName: spec.eventName,
+      onLogs: (logs) => {
+        (async () => {
+          for (const log of logs) {
+            try {
+              await spec.handle(log as Log, (log as any).args);
+              if ((log as Log).blockNumber) {
+                await setLastBlock(
+                  spec.key,
+                  (log as Log).blockNumber as bigint
+                );
+              }
+            } catch (err) {
+              console.error(
+                `[Listener] Error handling ${spec.eventName}:`,
+                err
+              );
+            }
+          }
+        })().catch((err) =>
+          console.error(`[Listener] onLogs dispatch error (${spec.key}):`, err)
+        );
+      },
+      onError: (err) => {
+        console.error(`[Listener] watch error (${spec.key}):`, err);
+      },
+    });
+  }
 
   console.log("[Listener] All event watchers started.");
 }

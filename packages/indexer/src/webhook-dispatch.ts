@@ -1,8 +1,9 @@
 import { createDb } from "@paylix/db/client";
 import { webhooks, webhookDeliveries } from "@paylix/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { createHmac } from "crypto";
 import { config } from "./config";
+import { validateWebhookUrl } from "./url-safety";
 
 const db = createDb(config.databaseUrl);
 
@@ -22,19 +23,31 @@ export async function dispatchWebhooks(
     wh.events.includes(event)
   );
 
-  const payload = JSON.stringify({
-    event,
-    timestamp: new Date().toISOString(),
-    data,
-  });
+  // Compute the timestamp once so the signed bytes match the persisted
+  // payload exactly.
+  const timestamp = new Date().toISOString();
+  const eventPayload = { event, timestamp, data };
+  const payload = JSON.stringify(eventPayload);
 
   for (const wh of matchingWebhooks) {
+    const urlError = await validateWebhookUrl(wh.url);
+    if (urlError) {
+      await db.insert(webhookDeliveries).values({
+        webhookId: wh.id,
+        event,
+        payload: eventPayload,
+        status: "failed",
+        attempts: 1,
+      });
+      continue;
+    }
+
     const [delivery] = await db
       .insert(webhookDeliveries)
       .values({
         webhookId: wh.id,
         event,
-        payload: { event, timestamp: new Date().toISOString(), data },
+        payload: eventPayload,
         status: "pending",
         attempts: 0,
       })
@@ -85,8 +98,79 @@ async function attemptDelivery(
   }
 }
 
-function getNextRetryTime(attempt: number): Date {
+export function getNextRetryTime(attempt: number): Date {
   const delays = [60, 300, 1800, 7200, 43200];
   const delaySec = delays[Math.min(attempt - 1, delays.length - 1)];
   return new Date(Date.now() + delaySec * 1000);
+}
+
+export async function retryFailedWebhooks() {
+  const now = new Date();
+  const failedDeliveries = await db
+    .select()
+    .from(webhookDeliveries)
+    .where(
+      and(
+        eq(webhookDeliveries.status, "failed"),
+        sql`${webhookDeliveries.nextRetryAt} IS NOT NULL AND ${webhookDeliveries.nextRetryAt} <= ${now}`,
+        sql`${webhookDeliveries.attempts} < 5`
+      )
+    )
+    .limit(50);
+
+  for (const delivery of failedDeliveries) {
+    const [webhook] = await db
+      .select()
+      .from(webhooks)
+      .where(eq(webhooks.id, delivery.webhookId));
+    if (!webhook || !webhook.isActive) continue;
+
+    const payload = JSON.stringify(delivery.payload);
+    const newAttempt = delivery.attempts + 1;
+    const signature = `sha256=${createHmac("sha256", webhook.secret).update(payload).digest("hex")}`;
+
+    const urlError = await validateWebhookUrl(webhook.url);
+    if (urlError) {
+      await db
+        .update(webhookDeliveries)
+        .set({
+          status: "failed",
+          attempts: newAttempt,
+          nextRetryAt: null,
+        })
+        .where(eq(webhookDeliveries.id, delivery.id));
+      continue;
+    }
+
+    try {
+      const response = await fetch(webhook.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-paylix-signature": signature,
+          "User-Agent": "Paylix-Webhook/1.0",
+        },
+        body: payload,
+        signal: AbortSignal.timeout(10000),
+      });
+
+      await db
+        .update(webhookDeliveries)
+        .set({
+          status: response.ok ? "delivered" : "failed",
+          httpStatus: response.status,
+          attempts: newAttempt,
+          nextRetryAt: response.ok ? null : getNextRetryTime(newAttempt),
+        })
+        .where(eq(webhookDeliveries.id, delivery.id));
+    } catch {
+      await db
+        .update(webhookDeliveries)
+        .set({
+          attempts: newAttempt,
+          nextRetryAt: getNextRetryTime(newAttempt),
+        })
+        .where(eq(webhookDeliveries.id, delivery.id));
+    }
+  }
 }
