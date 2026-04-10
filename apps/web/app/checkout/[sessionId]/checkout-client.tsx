@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import { useWriteContract, useWaitForTransactionReceipt, useChainId, useSwitchChain } from "wagmi";
 import { keccak256, stringToBytes } from "viem";
-import { CONTRACTS, ERC20_ABI, PAYMENT_VAULT_ABI } from "@/lib/contracts";
+import { CONTRACTS, ERC20_ABI, PAYMENT_VAULT_ABI, SUBSCRIPTION_MANAGER_ABI } from "@/lib/contracts";
+import { intervalToSeconds, formatInterval } from "@/lib/billing-intervals";
 
 type CheckoutStatus = "active" | "viewed" | "abandoned" | "completed" | "expired";
 
@@ -30,6 +31,7 @@ interface CheckoutSession {
     email?: boolean;
     phone?: boolean;
   } | null;
+  billingInterval: string | null;
 }
 
 interface CheckoutClientProps {
@@ -213,13 +215,24 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
         stringToBytes(session.customerId || "anonymous")
       );
 
-      // Step 1: Approve USDC spending to PaymentVault
+      const isSubscription = session.type === "subscription";
+      const spender = isSubscription
+        ? CONTRACTS.subscriptionManager
+        : CONTRACTS.paymentVault;
+
+      // For subscriptions, approve a large allowance (1000x amount = 1000 charges).
+      // For one-time, approve exactly the amount.
+      const approvalAmount = isSubscription
+        ? usdcAmount * BigInt(1000)
+        : usdcAmount;
+
+      // Step 1: Approve USDC spending
       setPayStep("approving");
       const approveHash = await writeContractAsync({
         address: CONTRACTS.usdc,
         abi: ERC20_ABI,
         functionName: "approve",
-        args: [CONTRACTS.paymentVault, usdcAmount],
+        args: [spender, approvalAmount],
         chainId: 84532, // Base Sepolia
       });
       console.log("Approve tx:", approveHash);
@@ -227,22 +240,48 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
       // Wait a moment for approval to propagate
       await new Promise((r) => setTimeout(r, 2000));
 
-      // Step 2: Call createPayment
+      // Step 2: Call createPayment or createSubscription
       setPayStep("paying");
-      const payHash = await writeContractAsync({
-        address: CONTRACTS.paymentVault,
-        abi: PAYMENT_VAULT_ABI,
-        functionName: "createPayment",
-        args: [
-          CONTRACTS.usdc,
-          session.merchantWallet as `0x${string}`,
-          usdcAmount,
-          productIdBytes,
-          customerIdBytes,
-        ],
-        chainId: 84532, // Base Sepolia
-      });
-      console.log("Payment tx:", payHash);
+      let payHash: `0x${string}`;
+
+      if (isSubscription) {
+        const intervalSeconds = intervalToSeconds(session.billingInterval);
+        if (intervalSeconds <= 0) {
+          throw new Error("Invalid billing interval for subscription");
+        }
+
+        payHash = await writeContractAsync({
+          address: CONTRACTS.subscriptionManager,
+          abi: SUBSCRIPTION_MANAGER_ABI,
+          functionName: "createSubscription",
+          args: [
+            CONTRACTS.usdc,
+            session.merchantWallet as `0x${string}`,
+            usdcAmount,
+            BigInt(intervalSeconds),
+            productIdBytes,
+            customerIdBytes,
+          ],
+          chainId: 84532, // Base Sepolia
+        });
+        console.log("Subscription tx:", payHash);
+      } else {
+        payHash = await writeContractAsync({
+          address: CONTRACTS.paymentVault,
+          abi: PAYMENT_VAULT_ABI,
+          functionName: "createPayment",
+          args: [
+            CONTRACTS.usdc,
+            session.merchantWallet as `0x${string}`,
+            usdcAmount,
+            productIdBytes,
+            customerIdBytes,
+          ],
+          chainId: 84532, // Base Sepolia
+        });
+        console.log("Payment tx:", payHash);
+      }
+
       setTxHash(payHash);
       setPayStep("confirming");
     } catch (err) {
@@ -441,7 +480,10 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
             disabled={!indexerOnline || payStep !== "idle"}
             className="h-10 w-full rounded-[8px] bg-[#06d6a0] px-[18px] text-[14px] font-medium text-[#07070a] transition-[background,box-shadow] duration-150 hover:bg-[#05bf8e] active:bg-[#04a87b] focus:outline-none focus:ring-[3px] focus:ring-[#06d6a060] focus:ring-offset-2 focus:ring-offset-[#18181e] disabled:cursor-not-allowed disabled:bg-[#1f1f26] disabled:text-[#64748b] disabled:hover:bg-[#1f1f26]"
           >
-            {payStep === "idle" && `Pay $${displayAmount} ${session.currency}`}
+            {payStep === "idle" &&
+              (session.type === "subscription"
+                ? `Subscribe for $${displayAmount} ${formatInterval(session.billingInterval).replace("per ", "/").replace("every 2 weeks", "/2 weeks")}`
+                : `Pay $${displayAmount} ${session.currency}`)}
             {payStep === "approving" && "Approving USDC..."}
             {payStep === "paying" && "Confirm payment..."}
             {payStep === "confirming" && "Processing..."}

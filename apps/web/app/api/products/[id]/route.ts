@@ -11,7 +11,7 @@ const updateProductSchema = z.object({
   description: z.string().optional(),
   type: z.enum(["one_time", "subscription"]).optional(),
   price: z.number().int().positive().optional(),
-  billingInterval: z.enum(["weekly", "biweekly", "monthly", "quarterly", "yearly"]).nullish(),
+  billingInterval: z.enum(["minutely", "weekly", "biweekly", "monthly", "quarterly", "yearly"]).nullish(),
   metadata: z.record(z.string()).optional(),
   checkoutFields: z
     .object({
@@ -43,6 +43,11 @@ export async function PATCH(
   }
 
   const data = parsed.data;
+
+  // Server-side cleanup: clear billingInterval when type is one_time
+  if (data.type === "one_time") {
+    data.billingInterval = null;
+  }
 
   const [updated] = await db
     .update(products)

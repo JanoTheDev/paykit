@@ -33,16 +33,27 @@ async function main() {
   setInterval(sendHeartbeat, 30 * 1000);
   console.log("[Heartbeat] Sending every 30 seconds.");
 
-  const intervalMs = config.keeperIntervalMinutes * 60 * 1000;
+  // Keeper interval: prefer KEEPER_INTERVAL_MS (millisecond override) for
+  // short intervals (e.g. testing with the "minutely" billing interval),
+  // otherwise fall back to KEEPER_INTERVAL_MINUTES.
+  // Default: 30 seconds, overridable via KEEPER_INTERVAL_MS.
+  // (config.keeperIntervalMinutes is retained for backwards-compat but no longer
+  // used as the default — short intervals are needed for the "minutely" billing
+  // interval used in testing.)
+  const keeperIntervalMs = parseInt(
+    process.env.KEEPER_INTERVAL_MS ?? "30000",
+    10
+  );
+
   setInterval(async () => {
     try {
       await runKeeper();
     } catch (error) {
       console.error("[Keeper] Unhandled error:", error);
     }
-  }, intervalMs);
+  }, keeperIntervalMs);
 
-  console.log(`[Keeper] Scheduled every ${config.keeperIntervalMinutes} minutes`);
+  console.log(`[Keeper] Scheduled every ${keeperIntervalMs}ms`);
   console.log("[Indexer] Running. Press Ctrl+C to stop.");
 }
 

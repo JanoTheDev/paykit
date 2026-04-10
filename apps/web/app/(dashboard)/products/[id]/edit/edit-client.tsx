@@ -10,7 +10,7 @@ interface EditProductClientProps {
     description: string;
     type: "one_time" | "subscription";
     price: number;
-    billingInterval: "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | "";
+    billingInterval: "minutely" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | "";
     metadata: Record<string, string>;
     checkoutFields: {
       firstName: boolean;

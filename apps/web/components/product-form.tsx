@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Plus } from "lucide-react";
+
+type BillingInterval = "minutely" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | "";
 
 interface ProductFormData {
   id?: string;
@@ -10,7 +12,7 @@ interface ProductFormData {
   description: string;
   type: "one_time" | "subscription";
   price: number;
-  billingInterval: "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | "";
+  billingInterval: BillingInterval;
   metadata: Record<string, string>;
   checkoutFields: {
     firstName: boolean;
@@ -46,9 +48,16 @@ export function ProductForm({
     initialData?.type ?? "one_time"
   );
   const [price, setPrice] = useState(initialData?.price ? String(initialData.price) : "");
-  const [billingInterval, setBillingInterval] = useState<"weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | "">(
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(
     initialData?.billingInterval ?? ""
   );
+
+  // Clear billingInterval when type switches away from subscription
+  useEffect(() => {
+    if (type !== "subscription" && billingInterval !== "") {
+      setBillingInterval("");
+    }
+  }, [type, billingInterval]);
 
   const [metadataRows, setMetadataRows] = useState<{ key: string; value: string }[]>(
     initialData?.metadata
@@ -212,6 +221,7 @@ export function ProductForm({
               className={`mt-2 ${selectClass}`}
             >
               <option value="">Select interval</option>
+              <option value="minutely">Every Minute (testing)</option>
               <option value="weekly">Weekly</option>
               <option value="biweekly">Every 2 Weeks</option>
               <option value="monthly">Monthly</option>

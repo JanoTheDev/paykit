@@ -4,6 +4,7 @@ import { config } from "./config";
 import {
   handlePaymentReceived,
   handleSubscriptionCreated,
+  handleSubscriptionPaymentReceived,
   handleSubscriptionPastDue,
   handleSubscriptionCancelled,
 } from "./handlers";
@@ -13,11 +14,11 @@ const paymentReceivedEvent = parseAbiItem(
 );
 
 const subscriptionCreatedEvent = parseAbiItem(
-  "event SubscriptionCreated(uint256 indexed subscriptionId, address indexed subscriber, address indexed merchant, address token, uint256 amount, uint256 interval)"
+  "event SubscriptionCreated(uint256 indexed subscriptionId, address indexed subscriber, address indexed merchant, address token, uint256 amount, uint256 interval, bytes32 productId, bytes32 customerId)"
 );
 
 const subscriptionPaymentReceivedEvent = parseAbiItem(
-  "event PaymentReceived(uint256 indexed subscriptionId, address indexed subscriber, uint256 amount, uint256 timestamp)"
+  "event PaymentReceived(uint256 indexed subscriptionId, address indexed subscriber, address indexed merchant, address token, uint256 amount, uint256 fee, uint256 timestamp)"
 );
 
 const subscriptionPastDueEvent = parseAbiItem(
@@ -67,6 +68,20 @@ export async function startListener() {
       for (const log of logs) {
         handleSubscriptionCreated(log, log.args as any).catch((err) =>
           console.error("[Listener] Error handling SubscriptionCreated:", err)
+        );
+      }
+    },
+  });
+
+  // Watch SubscriptionManager: PaymentReceived (recurring charges + initial charge)
+  client.watchContractEvent({
+    address: config.subscriptionManagerAddress,
+    abi: [subscriptionPaymentReceivedEvent],
+    eventName: "PaymentReceived",
+    onLogs: (logs) => {
+      for (const log of logs) {
+        handleSubscriptionPaymentReceived(log, log.args as any).catch((err) =>
+          console.error("[Listener] Error handling Subscription PaymentReceived:", err)
         );
       }
     },

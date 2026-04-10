@@ -3,7 +3,7 @@ import { users } from "./users";
 
 export const productTypeEnum = pgEnum("product_type", ["one_time", "subscription"]);
 export const billingIntervalEnum = pgEnum("billing_interval", [
-  "weekly", "biweekly", "monthly", "quarterly", "yearly"
+  "minutely", "weekly", "biweekly", "monthly", "quarterly", "yearly"
 ]);
 
 export const products = pgTable("products", {
