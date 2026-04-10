@@ -2,10 +2,10 @@
 
 import dynamic from "next/dynamic";
 
-// Dynamically import CheckoutClient with SSR disabled
+// Dynamically import the entire checkout (providers + client) with SSR disabled
 // This prevents wagmi/walletconnect from trying to use indexedDB on the server
-const CheckoutClient = dynamic(
-  () => import("./checkout-client").then((m) => ({ default: m.CheckoutClient })),
+const CheckoutClientWithProviders = dynamic(
+  () => import("./checkout-inner").then((m) => ({ default: m.CheckoutInner })),
   {
     ssr: false,
     loading: () => (
@@ -19,6 +19,6 @@ const CheckoutClient = dynamic(
   }
 );
 
-export function CheckoutWrapper(props: React.ComponentProps<typeof CheckoutClient>) {
-  return <CheckoutClient {...props} />;
+export function CheckoutWrapper(props: React.ComponentProps<typeof CheckoutClientWithProviders>) {
+  return <CheckoutClientWithProviders {...props} />;
 }
