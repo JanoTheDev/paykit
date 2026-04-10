@@ -16,6 +16,8 @@ import {
   LogOut,
 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
@@ -29,7 +31,7 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [indexerOnline, setIndexerOnline] = useState<boolean | null>(null);
@@ -38,7 +40,9 @@ export function Sidebar() {
     let cancelled = false;
     async function check() {
       try {
-        const res = await fetch("/api/system/indexer-status", { cache: "no-store" });
+        const res = await fetch("/api/system/indexer-status", {
+          cache: "no-store",
+        });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setIndexerOnline(Boolean(data.online));
@@ -60,58 +64,76 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-[rgba(148,163,184,0.08)] bg-[#0c0c10]">
-      <div className="flex h-14 items-center px-4">
-        <span className="text-base font-semibold text-[#f0f0f3]">Paylix</span>
+    <div className="flex h-full flex-col bg-sidebar">
+      <div className="flex h-14 items-center border-b border-sidebar-border px-5">
+        <Link
+          href="/overview"
+          onClick={onNavigate}
+          className="text-sm font-semibold tracking-tight text-foreground"
+        >
+          Paylix
+        </Link>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-2 py-2">
+      <nav className="flex-1 space-y-0.5 px-2 py-3">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
-              className={`flex h-9 items-center gap-2.5 rounded-lg px-3 text-sm transition-colors ${
+              onClick={onNavigate}
+              className={cn(
+                "flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors",
                 active
-                  ? "bg-[#06d6a010] text-[#06d6a0]"
-                  : "text-[#94a3b8] hover:bg-[#111116] hover:text-[#f0f0f3]"
-              }`}
+                  ? "bg-surface-3 text-foreground"
+                  : "text-foreground-muted hover:bg-surface-2 hover:text-foreground",
+              )}
             >
-              <Icon size={18} strokeWidth={1.5} />
+              <Icon size={16} strokeWidth={1.75} />
               {label}
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t border-[rgba(148,163,184,0.08)] px-2 py-2">
-        <div className="flex h-9 items-center gap-2.5 px-3 text-[12px] text-[#94a3b8]">
+      <div className="border-t border-sidebar-border px-2 py-2">
+        <div className="flex h-9 items-center gap-2.5 px-3 text-xs text-foreground-dim">
           <span
-            className={`inline-block h-2 w-2 rounded-full ${
+            className={cn(
+              "inline-block h-2 w-2 rounded-full",
               indexerOnline === null
-                ? "bg-[#64748b]"
+                ? "bg-foreground-dim"
                 : indexerOnline
-                ? "bg-[#22c55e]"
-                : "bg-[#ef4444]"
-            }`}
+                  ? "bg-success"
+                  : "bg-destructive",
+            )}
           />
           <span>
             {indexerOnline === null
-              ? "Checking indexer..."
+              ? "Checking indexer…"
               : indexerOnline
-              ? "Indexer online"
-              : "Indexer offline"}
+                ? "Indexer online"
+                : "Indexer offline"}
           </span>
         </div>
-        <button
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 px-3 text-foreground-muted hover:text-foreground"
           onClick={handleSignOut}
-          className="flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-sm text-[#94a3b8] transition-colors hover:bg-[#111116] hover:text-[#f0f0f3]"
         >
-          <LogOut size={18} strokeWidth={1.5} />
+          <LogOut size={16} strokeWidth={1.75} />
           Sign out
-        </button>
+        </Button>
       </div>
+    </div>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r border-sidebar-border lg:block">
+      <SidebarContent />
     </aside>
   );
 }

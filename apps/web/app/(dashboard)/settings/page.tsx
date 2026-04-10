@@ -1,7 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSession } from "@/lib/auth-client";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  PageShell,
+  PageHeader,
+  FormSection,
+  FormRow,
+  FormActions,
+} from "@/components/paykit";
 
 interface UserSettings {
   id: string;
@@ -17,50 +29,14 @@ interface CheckoutDefaults {
   phone: boolean;
 }
 
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (val: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      style={{
-        width: 44,
-        height: 24,
-        borderRadius: 9999,
-        backgroundColor: checked ? "#06d6a0" : "rgba(148,163,184,0.15)",
-        position: "relative",
-        border: "none",
-        cursor: "pointer",
-        transition: "background-color 200ms cubic-bezier(0.4, 0, 0.2, 1)",
-        flexShrink: 0,
-      }}
-    >
-      <span
-        style={{
-          display: "block",
-          width: 18,
-          height: 18,
-          borderRadius: 9999,
-          backgroundColor: "#f0f0f3",
-          position: "absolute",
-          top: 3,
-          left: checked ? 23 : 3,
-          transition: "left 200ms cubic-bezier(0.4, 0, 0.2, 1)",
-        }}
-      />
-    </button>
-  );
-}
+const CHECKOUT_FIELDS: { key: keyof CheckoutDefaults; label: string }[] = [
+  { key: "firstName", label: "First Name" },
+  { key: "lastName", label: "Last Name" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Phone" },
+];
 
 export default function SettingsPage() {
-  const { data: session } = useSession();
   const [user, setUser] = useState<UserSettings | null>(null);
   const [walletAddress, setWalletAddress] = useState("");
   const [name, setName] = useState("");
@@ -82,35 +58,34 @@ export default function SettingsPage() {
   const [defaultsSaving, setDefaultsSaving] = useState(false);
   const [defaultsSuccess, setDefaultsSuccess] = useState(false);
 
-  const network = process.env.NEXT_PUBLIC_NETWORK || "testnet";
-  const isMainnet = network === "mainnet";
+  const network = process.env.NEXT_PUBLIC_NETWORK || "base-sepolia";
+  const isMainnet = network === "base";
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data: UserSettings = await res.json();
+        setUser(data);
+        setWalletAddress(data.walletAddress || "");
+        setName(data.name);
+      }
+    } catch {
+      // ignore
+    }
+    const saved = localStorage.getItem("paylix_checkout_defaults");
+    if (saved) {
       try {
-        const res = await fetch("/api/settings");
-        if (res.ok) {
-          const data: UserSettings = await res.json();
-          setUser(data);
-          setWalletAddress(data.walletAddress || "");
-          setName(data.name);
-        }
+        setCheckoutDefaults(JSON.parse(saved));
       } catch {
         // ignore
       }
-
-      // Load checkout defaults from localStorage
-      const saved = localStorage.getItem("paylix_checkout_defaults");
-      if (saved) {
-        try {
-          setCheckoutDefaults(JSON.parse(saved));
-        } catch {
-          // ignore
-        }
-      }
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function saveWallet() {
     setWalletSaving(true);
@@ -164,7 +139,7 @@ export default function SettingsPage() {
     setDefaultsSaving(true);
     localStorage.setItem(
       "paylix_checkout_defaults",
-      JSON.stringify(checkoutDefaults)
+      JSON.stringify(checkoutDefaults),
     );
     setDefaultsSuccess(true);
     setTimeout(() => {
@@ -173,295 +148,115 @@ export default function SettingsPage() {
     }, 1500);
   }
 
-  const cardStyle: React.CSSProperties = {
-    background: "#111116",
-    border: "1px solid rgba(148,163,184,0.12)",
-    borderRadius: 12,
-    padding: 24,
-  };
-
-  const sectionTitleStyle: React.CSSProperties = {
-    fontSize: 20,
-    fontWeight: 600,
-    letterSpacing: "-0.4px",
-    color: "#f0f0f3",
-    lineHeight: 1.25,
-    margin: 0,
-    marginBottom: 20,
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 500,
-    color: "#94a3b8",
-    marginBottom: 8,
-    display: "block",
-  };
-
-  const descStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 400,
-    color: "#64748b",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    background: "#07070a",
-    border: "1px solid rgba(148,163,184,0.12)",
-    borderRadius: 8,
-    padding: "10px 14px",
-    height: 40,
-    fontSize: 14,
-    color: "#f0f0f3",
-    outline: "none",
-    transition: "border 150ms ease, box-shadow 150ms ease",
-    boxSizing: "border-box",
-  };
-
-  const primaryBtnStyle: React.CSSProperties = {
-    background: "#06d6a0",
-    color: "#07070a",
-    border: "none",
-    borderRadius: 8,
-    padding: "10px 18px",
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "background 150ms ease",
-  };
-
-  const disabledBtnStyle: React.CSSProperties = {
-    ...primaryBtnStyle,
-    opacity: 0.4,
-    cursor: "not-allowed",
-  };
-
   if (!user) {
     return (
-      <div>
-        <h1
-          style={{
-            fontSize: 30,
-            fontWeight: 600,
-            letterSpacing: "-0.6px",
-            color: "#f0f0f3",
-            lineHeight: 1.15,
-            marginBottom: 32,
-          }}
-        >
-          Settings
-        </h1>
-        <p style={{ color: "#94a3b8", fontSize: 14 }}>Loading...</p>
-      </div>
+      <PageShell size="sm">
+        <PageHeader title="Settings" />
+        <p className="text-sm text-foreground-muted">Loading…</p>
+      </PageShell>
     );
   }
 
   return (
-    <div>
-      <h1
-        style={{
-          fontSize: 30,
-          fontWeight: 600,
-          letterSpacing: "-0.6px",
-          color: "#f0f0f3",
-          lineHeight: 1.15,
-          marginBottom: 32,
-        }}
-      >
-        Settings
-      </h1>
+    <PageShell size="sm">
+      <PageHeader title="Settings" />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 32, maxWidth: 560 }}>
-        {/* Wallet Section */}
-        <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Wallet</h2>
-          <label style={labelStyle}>Payout Wallet Address</label>
-          <p style={{ ...descStyle, marginBottom: 12, marginTop: 0 }}>
-            USDC payments will be sent to this address on Base.
-          </p>
-          <input
+      <FormSection
+        title="Wallet"
+        description="USDC payments will be sent to this address on Base."
+      >
+        <FormRow label="Payout Wallet Address" htmlFor="wallet-address">
+          <Input
+            id="wallet-address"
             type="text"
             value={walletAddress}
             onChange={(e) => setWalletAddress(e.target.value)}
-            placeholder="0x..."
-            style={{
-              ...inputStyle,
-              fontFamily: '"Geist Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace',
-              fontSize: 13,
-              marginBottom: 16,
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = "#06d6a0";
-              e.target.style.boxShadow = "0 0 0 3px #06d6a020";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "rgba(148,163,184,0.12)";
-              e.target.style.boxShadow = "none";
-            }}
+            placeholder="0x…"
+            className="font-mono"
           />
-          {walletError && (
-            <p style={{ color: "#f87171", fontSize: 13, margin: "0 0 12px 0" }}>
-              {walletError}
-            </p>
+        </FormRow>
+        {walletError && (
+          <Alert variant="destructive">
+            <AlertDescription>{walletError}</AlertDescription>
+          </Alert>
+        )}
+        <FormActions>
+          {walletSuccess && (
+            <span className="text-sm font-medium text-success">Saved</span>
           )}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button
-              onClick={saveWallet}
-              disabled={walletSaving}
-              style={walletSaving ? disabledBtnStyle : primaryBtnStyle}
-              onMouseEnter={(e) => {
-                if (!walletSaving) (e.target as HTMLButtonElement).style.background = "#05bf8e";
-              }}
-              onMouseLeave={(e) => {
-                if (!walletSaving) (e.target as HTMLButtonElement).style.background = "#06d6a0";
-              }}
-            >
-              {walletSaving ? "Saving..." : "Save"}
-            </button>
-            {walletSuccess && (
-              <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 500 }}>
-                Saved
-              </span>
-            )}
-          </div>
-        </div>
+          <Button onClick={saveWallet} disabled={walletSaving}>
+            {walletSaving ? "Saving…" : "Save"}
+          </Button>
+        </FormActions>
+      </FormSection>
 
-        {/* Network Section */}
-        <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Network</h2>
-          <label style={labelStyle}>Current Network</label>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
-            <span
-              style={{
-                background: isMainnet ? "#22c55e12" : "#60a5fa12",
-                color: isMainnet ? "#22c55e" : "#60a5fa",
-                border: `1px solid ${isMainnet ? "#22c55e30" : "#60a5fa30"}`,
-                borderRadius: 9999,
-                padding: "3px 10px",
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: "0.3px",
-                lineHeight: 1,
-              }}
-            >
-              {isMainnet ? "Mainnet" : "Testnet"}
-            </span>
-            <span style={{ color: "#f0f0f3", fontSize: 14 }}>
-              {isMainnet ? "Base (Mainnet)" : "Base Sepolia (Testnet)"}
-            </span>
-          </div>
-          <p style={{ ...descStyle, marginTop: 12, marginBottom: 0 }}>
-            Network is configured via the NEXT_PUBLIC_NETWORK environment variable.
-          </p>
+      <FormSection
+        title="Network"
+        description="Configured via the NEXT_PUBLIC_NETWORK environment variable."
+      >
+        <div className="flex items-center gap-3">
+          <Badge variant={isMainnet ? "success" : "info"}>
+            {isMainnet ? "Mainnet" : "Testnet"}
+          </Badge>
+          <span className="text-sm">
+            {isMainnet ? "Base (Mainnet)" : "Base Sepolia (Testnet)"}
+          </span>
         </div>
+      </FormSection>
 
-        {/* Profile Section */}
-        <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Profile</h2>
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-              style={inputStyle}
-              onFocus={(e) => {
-                e.target.style.borderColor = "#06d6a0";
-                e.target.style.boxShadow = "0 0 0 3px #06d6a020";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "rgba(148,163,184,0.12)";
-                e.target.style.boxShadow = "none";
-              }}
-            />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Email</label>
-            <span style={{ color: "#64748b", fontSize: 14 }}>{user.email}</span>
-          </div>
-          {profileError && (
-            <p style={{ color: "#f87171", fontSize: 13, margin: "0 0 12px 0" }}>
-              {profileError}
-            </p>
+      <FormSection title="Profile">
+        <FormRow label="Name" htmlFor="profile-name">
+          <Input
+            id="profile-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+          />
+        </FormRow>
+        <FormRow label="Email">
+          <div className="text-sm text-foreground-muted">{user.email}</div>
+        </FormRow>
+        {profileError && (
+          <Alert variant="destructive">
+            <AlertDescription>{profileError}</AlertDescription>
+          </Alert>
+        )}
+        <FormActions>
+          {profileSuccess && (
+            <span className="text-sm font-medium text-success">Saved</span>
           )}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button
-              onClick={saveProfile}
-              disabled={profileSaving}
-              style={profileSaving ? disabledBtnStyle : primaryBtnStyle}
-              onMouseEnter={(e) => {
-                if (!profileSaving) (e.target as HTMLButtonElement).style.background = "#05bf8e";
-              }}
-              onMouseLeave={(e) => {
-                if (!profileSaving) (e.target as HTMLButtonElement).style.background = "#06d6a0";
-              }}
-            >
-              {profileSaving ? "Saving..." : "Save"}
-            </button>
-            {profileSuccess && (
-              <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 500 }}>
-                Saved
-              </span>
-            )}
-          </div>
-        </div>
+          <Button onClick={saveProfile} disabled={profileSaving}>
+            {profileSaving ? "Saving…" : "Save"}
+          </Button>
+        </FormActions>
+      </FormSection>
 
-        {/* Default Checkout Fields Section */}
-        <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Default Checkout Fields</h2>
-          <p style={{ ...descStyle, marginTop: 0, marginBottom: 20 }}>
-            These fields will be enabled by default when creating new products.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {([
-              { key: "firstName" as const, label: "First Name" },
-              { key: "lastName" as const, label: "Last Name" },
-              { key: "email" as const, label: "Email" },
-              { key: "phone" as const, label: "Phone" },
-            ]).map(({ key, label }) => (
-              <div
-                key={key}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span style={{ color: "#f0f0f3", fontSize: 14, fontWeight: 400 }}>
-                  {label}
-                </span>
-                <Toggle
-                  checked={checkoutDefaults[key]}
-                  onChange={(val) =>
-                    setCheckoutDefaults((prev) => ({ ...prev, [key]: val }))
-                  }
-                />
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 20 }}>
-            <button
-              onClick={saveCheckoutDefaults}
-              disabled={defaultsSaving}
-              style={defaultsSaving ? disabledBtnStyle : primaryBtnStyle}
-              onMouseEnter={(e) => {
-                if (!defaultsSaving) (e.target as HTMLButtonElement).style.background = "#05bf8e";
-              }}
-              onMouseLeave={(e) => {
-                if (!defaultsSaving) (e.target as HTMLButtonElement).style.background = "#06d6a0";
-              }}
-            >
-              {defaultsSaving ? "Saving..." : "Save"}
-            </button>
-            {defaultsSuccess && (
-              <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 500 }}>
-                Saved
-              </span>
-            )}
-          </div>
+      <FormSection
+        title="Default Checkout Fields"
+        description="These fields will be enabled by default on new products."
+      >
+        <div className="flex flex-col gap-3">
+          {CHECKOUT_FIELDS.map(({ key, label }) => (
+            <div key={key} className="flex items-center justify-between">
+              <span className="text-sm">{label}</span>
+              <Switch
+                checked={checkoutDefaults[key]}
+                onCheckedChange={(val) =>
+                  setCheckoutDefaults((prev) => ({ ...prev, [key]: val }))
+                }
+              />
+            </div>
+          ))}
         </div>
-      </div>
-    </div>
+        <FormActions>
+          {defaultsSuccess && (
+            <span className="text-sm font-medium text-success">Saved</span>
+          )}
+          <Button onClick={saveCheckoutDefaults} disabled={defaultsSaving}>
+            {defaultsSaving ? "Saving…" : "Save"}
+          </Button>
+        </FormActions>
+      </FormSection>
+    </PageShell>
   );
 }

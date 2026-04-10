@@ -1,26 +1,24 @@
 "use client";
 
-import { ProductForm } from "@/components/product-form";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { ProductForm } from "@/components/product-form";
+import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader } from "@/components/paykit";
 
 export default function NewProductPage() {
   return (
-    <div>
-      <div className="flex items-center gap-4">
-        <Link
-          href="/products"
-          className="inline-flex items-center rounded-lg border border-[rgba(148,163,184,0.12)] bg-transparent px-[18px] py-2.5 text-[14px] font-medium text-[#f0f0f3] transition-colors hover:border-[rgba(148,163,184,0.20)] hover:bg-[#111116]"
-        >
-          Back
-        </Link>
-        <h1 className="text-[30px] font-semibold leading-[1.15] tracking-[-0.6px] text-[#f0f0f3]">
-          Create Product
-        </h1>
+    <PageShell size="sm">
+      <div>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/products">
+            <ArrowLeft size={16} />
+            Back to Products
+          </Link>
+        </Button>
       </div>
-
-      <div className="mt-8">
-        <ProductForm mode="create" />
-      </div>
-    </div>
+      <PageHeader title="Create Product" />
+      <ProductForm mode="create" />
+    </PageShell>
   );
 }

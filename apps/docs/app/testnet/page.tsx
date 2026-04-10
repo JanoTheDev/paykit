@@ -1,62 +1,76 @@
 import type { Metadata } from "next";
+import {
+  Callout,
+  CodeBlock,
+  DocTable,
+  DocTableBody,
+  DocTableCell,
+  DocTableRow,
+  PageHeading,
+  SectionHeading,
+} from "@/components/docs";
 
 export const metadata: Metadata = { title: "Testnet Setup" };
 
 export default function TestnetSetup() {
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-[-0.6px]">
-        Testnet Setup
-      </h1>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4 mt-4">
-        Test your Paylix integration on Base Sepolia before going live. Testnet
-        uses MockUSDC so you can develop without spending real funds.
-      </p>
+      <PageHeading
+        title="Testnet Setup"
+        description="Test your Paylix integration on Base Sepolia before going live. Testnet uses MockUSDC so you can develop without spending real funds."
+      />
 
-      {/* ── Step 1: Configure SDK ──────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        1. Configure the SDK for Testnet
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <Callout variant="tip" title="Get test ETH first">
+        Every step below requires a small amount of Base Sepolia ETH for gas.
+        Grab some from the{" "}
+        <a
+          href="https://portal.cdp.coinbase.com/products/faucet"
+          className="underline hover:text-foreground"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Coinbase Base Sepolia faucet
+        </a>{" "}
+        before you start — most wallet errors at checkout are really
+        &quot;out of gas&quot; errors in disguise.
+      </Callout>
+
+      <SectionHeading>1. Configure the SDK for Testnet</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Set{" "}
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
           network
         </code>{" "}
         to{" "}
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
           &quot;base-sepolia&quot;
         </code>{" "}
         and use a test API key (
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
           sk_test_...
         </code>
         ).
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`import { Paylix } from "@paylix/sdk";
+      <CodeBlock language="ts">{`import { Paylix } from "@paylix/sdk";
 
 const paylix = new Paylix({
   apiKey: "sk_test_...",
   network: "base-sepolia",
   merchantWallet: "0xYourTestWallet",
   backendUrl: "http://localhost:3000",  // or your staging URL
-});`}
-      </pre>
+});`}</CodeBlock>
 
-      {/* ── Step 2: Get test ETH ───────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        2. Get Test ETH on Base Sepolia
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SectionHeading>2. Get Test ETH on Base Sepolia</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         You need a small amount of ETH on Base Sepolia for gas fees. Use a
         faucet to get test ETH:
       </p>
-      <ul className="text-sm text-[#94a3b8] leading-relaxed mb-4 list-disc pl-5 space-y-2">
+      <ul className="mt-4 space-y-2 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
         <li>
-          <strong className="text-[#f0f0f3]">Coinbase Faucet:</strong>{" "}
+          <strong className="text-foreground">Coinbase Faucet:</strong>{" "}
           <a
             href="https://portal.cdp.coinbase.com/products/faucet"
-            className="text-[#06d6a0] hover:underline"
+            className="text-primary hover:underline"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -64,10 +78,10 @@ const paylix = new Paylix({
           </a>
         </li>
         <li>
-          <strong className="text-[#f0f0f3]">Alchemy Faucet:</strong>{" "}
+          <strong className="text-foreground">Alchemy Faucet:</strong>{" "}
           <a
             href="https://www.alchemy.com/faucets/base-sepolia"
-            className="text-[#06d6a0] hover:underline"
+            className="text-primary hover:underline"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -76,138 +90,127 @@ const paylix = new Paylix({
         </li>
       </ul>
 
-      {/* ── Step 3: Add Base Sepolia to wallet ─────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        3. Add Base Sepolia to Your Wallet
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SectionHeading>3. Add Base Sepolia to Your Wallet</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Add the Base Sepolia network to MetaMask or your preferred wallet:
       </p>
-      <table className="w-full text-sm mb-6">
-        <tbody className="text-[#f0f0f3]">
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 text-[#94a3b8]">Network Name</td>
-            <td className="py-2 font-mono text-[13px]">Base Sepolia</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 text-[#94a3b8]">RPC URL</td>
-            <td className="py-2 font-mono text-[13px]">https://sepolia.base.org</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 text-[#94a3b8]">Chain ID</td>
-            <td className="py-2 font-mono text-[13px]">84532</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 text-[#94a3b8]">Currency Symbol</td>
-            <td className="py-2 font-mono text-[13px]">ETH</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 text-[#94a3b8]">Block Explorer</td>
-            <td className="py-2 font-mono text-[13px]">https://sepolia.basescan.org</td>
-          </tr>
-        </tbody>
-      </table>
+      <DocTable>
+        <DocTableBody>
+          <DocTableRow>
+            <DocTableCell>
+              <span className="text-foreground-muted">Network Name</span>
+            </DocTableCell>
+            <DocTableCell mono>Base Sepolia</DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell>
+              <span className="text-foreground-muted">RPC URL</span>
+            </DocTableCell>
+            <DocTableCell mono>https://sepolia.base.org</DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell>
+              <span className="text-foreground-muted">Chain ID</span>
+            </DocTableCell>
+            <DocTableCell mono>84532</DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell>
+              <span className="text-foreground-muted">Currency Symbol</span>
+            </DocTableCell>
+            <DocTableCell mono>ETH</DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell>
+              <span className="text-foreground-muted">Block Explorer</span>
+            </DocTableCell>
+            <DocTableCell mono>https://sepolia.basescan.org</DocTableCell>
+          </DocTableRow>
+        </DocTableBody>
+      </DocTable>
 
-      {/* ── Step 4: Get MockUSDC ───────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        4. Get MockUSDC Tokens
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
-        Paylix deploys a MockUSDC contract on Base Sepolia for testing. You can
-        mint test tokens directly from the contract.
+      <SectionHeading>4. Get MockUSDC Tokens</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Paylix deploys a MockUSDC contract on Base Sepolia for testing. You
+        can mint test tokens directly from the contract.
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`// Mint MockUSDC using cast (Foundry)
+      <CodeBlock language="bash">{`# Mint MockUSDC using cast (Foundry)
 cast send <MOCK_USDC_ADDRESS> \\
   "mint(address,uint256)" \\
   <YOUR_WALLET> 1000000000 \\
   --rpc-url https://sepolia.base.org \\
   --private-key <YOUR_PRIVATE_KEY>
 
-# This mints 1000 USDC (6 decimals: 1000 * 10^6 = 1000000000)`}
-      </pre>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+# This mints 1000 USDC (6 decimals: 1000 * 10^6 = 1000000000)`}</CodeBlock>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         You can also mint MockUSDC from the Paylix dashboard under{" "}
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
-          Settings &rarr; Testnet Tools
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          Settings → Testnet Tools
         </code>
         .
       </p>
 
-      {/* ── Step 5: Test a Checkout ────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        5. Test a Checkout
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SectionHeading>5. Test a Checkout</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Create a test product in the dashboard, then run a checkout flow:
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`const { checkoutUrl } = await paylix.createCheckout({
+      <CodeBlock language="ts">{`const { checkoutUrl } = await paylix.createCheckout({
   productId: "prod_test_123",
   successUrl: "http://localhost:3001/success",
   cancelUrl: "http://localhost:3001/cancel",
 });
 
 // Open the checkout URL in your browser
-console.log("Checkout:", checkoutUrl);`}
-      </pre>
+console.log("Checkout:", checkoutUrl);`}</CodeBlock>
 
-      {/* ── Step 6: Verify Payment ─────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        6. Verify the Test Payment
-      </h2>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`const result = await paylix.verifyPayment({
+      <SectionHeading>6. Verify the Test Payment</SectionHeading>
+      <CodeBlock language="ts">{`const result = await paylix.verifyPayment({
   paymentId: "pay_test_abc",
 });
 
 console.log("Verified:", result.verified);
 console.log("Chain:", result.chain);  // "base-sepolia"
-console.log("Tx:", result.txHash);    // View on sepolia.basescan.org`}
-      </pre>
+console.log("Tx:", result.txHash);    // View on sepolia.basescan.org`}</CodeBlock>
 
-      {/* ── Going Live ─────────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        Going Live
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SectionHeading>Going Live</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         When you are ready to accept real payments, update your configuration:
       </p>
-      <ul className="text-sm text-[#94a3b8] leading-relaxed mb-4 list-disc pl-5 space-y-2">
+      <ul className="mt-4 space-y-2 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
         <li>
           Change{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             network
           </code>{" "}
           from{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             &quot;base-sepolia&quot;
           </code>{" "}
           to{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             &quot;base&quot;
           </code>
         </li>
         <li>
           Replace{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             sk_test_...
           </code>{" "}
           with{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             sk_live_...
           </code>
         </li>
         <li>
           Point{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             backendUrl
           </code>{" "}
           to your production Paylix instance
         </li>
         <li>
           Update{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             merchantWallet
           </code>{" "}
           to your production wallet address

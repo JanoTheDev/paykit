@@ -1,35 +1,37 @@
-import { db } from "@/lib/db";
+import { desc, eq } from "drizzle-orm";
 import {
   customers,
-  subscriptions,
   payments,
   products,
+  subscriptions,
 } from "@paylix/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { db } from "@/lib/db";
 import { Web3Providers } from "@/components/providers";
-import { PortalClient, type PortalSubscription, type PortalPayment } from "./portal-client";
+import {
+  PortalClient,
+  type PortalPayment,
+  type PortalSubscription,
+} from "./portal-client";
 import { verifyPortalToken } from "@/lib/portal-tokens";
 
 interface PortalPageProps {
-  // Note: this is the customers.id (UUID), not the developer-provided
-  // customers.customerId string. UUIDs are globally unique so this makes
-  // portal links unambiguous.
   params: Promise<{ customerId: string }>;
   searchParams: Promise<{ token?: string }>;
 }
 
 function PortalError({ title, message }: { title: string; message: string }) {
   return (
-    <div className="mx-auto max-w-[480px] rounded-xl border border-[rgba(148,163,184,0.12)] bg-[#111116] p-8 text-center">
-      <h1 className="mb-2 text-[20px] font-semibold tracking-[-0.4px] text-[#f0f0f3]">
-        {title}
-      </h1>
-      <p className="text-[14px] leading-[1.55] text-[#94a3b8]">{message}</p>
+    <div className="mx-auto max-w-[480px] rounded-xl border border-border bg-surface-1 p-8 text-center">
+      <h1 className="mb-2 text-xl font-semibold tracking-tight">{title}</h1>
+      <p className="text-sm leading-relaxed text-foreground-muted">{message}</p>
     </div>
   );
 }
 
-export default async function PortalPage({ params, searchParams }: PortalPageProps) {
+export default async function PortalPage({
+  params,
+  searchParams,
+}: PortalPageProps) {
   const { customerId } = await params;
   const { token } = await searchParams;
 

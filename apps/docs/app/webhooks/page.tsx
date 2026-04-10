@@ -1,49 +1,56 @@
 import type { Metadata } from "next";
+import {
+  Callout,
+  CodeBlock,
+  PageHeading,
+  SectionHeading,
+  SubsectionHeading,
+} from "@/components/docs";
 
 export const metadata: Metadata = { title: "Webhooks" };
 
 export default function Webhooks() {
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-[-0.6px]">Webhooks</h1>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4 mt-4">
-        Paylix sends webhook events to your server when payments and
-        subscriptions change state. Use webhooks to fulfill orders, activate
-        subscriptions, and keep your system in sync.
-      </p>
+      <PageHeading
+        title="Webhooks"
+        description="Paylix sends webhook events to your server when payments and subscriptions change state. Use webhooks to fulfill orders, activate subscriptions, and keep your system in sync with on-chain activity."
+      />
 
-      {/* ── Setup ──────────────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        Setting Up Webhooks
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <Callout variant="tip" title="Always verify signatures">
+        Webhook URLs are public by nature — anyone who discovers yours could
+        POST fake events to it. Verifying the{" "}
+        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[12px] text-primary">
+          x-paylix-signature
+        </code>{" "}
+        header with your webhook secret proves the request actually came from
+        Paylix. Never fulfill an order from an unverified webhook payload.
+      </Callout>
+
+      <SectionHeading>Setting Up Webhooks</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Configure your webhook endpoint in the Paylix dashboard under{" "}
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
-          Settings &rarr; Webhooks
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          Settings → Webhooks
         </code>
         . You&apos;ll receive a webhook secret (
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
           whsec_...
         </code>
         ) used to verify signatures.
       </p>
 
-      {/* ── Signature Verification ─────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        Signature Verification
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SectionHeading>Signature Verification</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Every webhook request includes an{" "}
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
           x-paylix-signature
         </code>{" "}
         header. Always verify the signature before processing the event.
       </p>
 
-      <h3 className="text-base font-medium mt-8 mb-3">Next.js App Router</h3>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`// app/api/webhooks/paylix/route.ts
-import { webhooks } from "@paylix/sdk";
+      <SubsectionHeading>Next.js App Router</SubsectionHeading>
+      <CodeBlock language="ts">{`import { webhooks } from "@paylix/sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -90,12 +97,10 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true });
-}`}
-      </pre>
+}`}</CodeBlock>
 
-      <h3 className="text-base font-medium mt-8 mb-3">Express</h3>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`import express from "express";
+      <SubsectionHeading>Express</SubsectionHeading>
+      <CodeBlock language="ts">{`import express from "express";
 import { webhooks } from "@paylix/sdk";
 
 const app = express();
@@ -123,175 +128,149 @@ app.post(
 
     res.json({ received: true });
   }
-);`}
-      </pre>
+);`}</CodeBlock>
 
-      {/* ── Events ─────────────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        Event Types
-      </h2>
+      <SectionHeading>Event Types</SectionHeading>
 
-      {/* payment.confirmed */}
-      <h3 className="text-base font-medium mt-8 mb-3">
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
-          payment.confirmed
-        </code>
-      </h3>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Every webhook body has the same envelope: an <code>event</code> name, an
+        ISO <code>timestamp</code>, and an event-specific <code>data</code>{" "}
+        object. Any <code>metadata</code> you set when creating the checkout or
+        subscription is echoed back on every event so you can correlate it with
+        your own order or user IDs.
+      </p>
+
+      <SubsectionHeading>payment.confirmed</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Sent when a one-time payment is confirmed on-chain. This is the primary
         event for fulfilling orders.
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`{
-  "type": "payment.confirmed",
+      <CodeBlock language="json">{`{
+  "event": "payment.confirmed",
+  "timestamp": "2026-04-10T18:23:05.166Z",
   "data": {
-    "paymentId": "pay_abc123",
-    "checkoutId": "chk_xyz789",
-    "productId": "prod_abc123",
-    "customerId": "cust_xyz",
+    "paymentId": "1f23991d-105e-4e62-b21c-bd7e05b1b8cd",
+    "checkoutId": "d2a27cbf-cf97-4e04-b8db-835561601241",
+    "productId": "911da752-2e08-4469-b1e9-9ea60677d14b",
+    "customerId": "anon_0x82A9...a2de",
     "amount": 1000,
-    "fee": 30,
+    "fee": 5,
     "currency": "USDC",
     "chain": "base",
-    "txHash": "0xabc...def",
-    "merchantWallet": "0x1234...abcd",
-    "metadata": { "orderId": "42" },
-    "confirmedAt": "2026-01-15T10:30:00Z"
+    "txHash": "0xfea3...d4c2",
+    "fromAddress": "0x82A9...a2de",
+    "toAddress": "0xAeB3...8934",
+    "metadata": { "orderId": "42" }
   }
-}`}
-      </pre>
+}`}</CodeBlock>
 
-      {/* subscription.created */}
-      <h3 className="text-base font-medium mt-8 mb-3">
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
-          subscription.created
-        </code>
-      </h3>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SubsectionHeading>subscription.created</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Sent when a customer successfully sets up a new subscription and the
         first payment is confirmed.
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`{
-  "type": "subscription.created",
+      <CodeBlock language="json">{`{
+  "event": "subscription.created",
+  "timestamp": "2026-04-10T18:23:05.166Z",
   "data": {
-    "subscriptionId": "sub_abc123",
-    "productId": "prod_monthly_pro",
-    "customerId": "cust_xyz",
+    "subscriptionId": "3a1f...",
+    "onChainId": "17",
+    "checkoutId": "d2a2...",
+    "productId": "911d...",
+    "customerId": "anon_0x82A9...a2de",
     "amount": 2000,
     "currency": "USDC",
     "chain": "base",
-    "interval": "monthly",
-    "subscriberWallet": "0xabcd...1234",
-    "merchantWallet": "0x1234...abcd",
-    "metadata": {},
-    "createdAt": "2026-01-15T10:30:00Z",
-    "nextChargeAt": "2026-02-15T10:30:00Z"
+    "interval": 2592000,
+    "subscriberAddress": "0x82A9...a2de",
+    "merchantAddress": "0xAeB3...8934",
+    "txHash": "0xfea3...d4c2",
+    "metadata": { "orderId": "42", "plan": "pro" }
   }
-}`}
-      </pre>
-
-      {/* subscription.charged */}
-      <h3 className="text-base font-medium mt-8 mb-3">
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
-          subscription.charged
-        </code>
-      </h3>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
-        Sent when a recurring subscription charge is successfully processed.
+}`}</CodeBlock>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        <code>interval</code> is the charge period in <strong>seconds</strong>,
+        not a string like <code>&quot;monthly&quot;</code>. A 30-day subscription is{" "}
+        <code>2592000</code>.
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`{
-  "type": "subscription.charged",
-  "data": {
-    "subscriptionId": "sub_abc123",
-    "paymentId": "pay_def456",
-    "productId": "prod_monthly_pro",
-    "customerId": "cust_xyz",
-    "amount": 2000,
-    "fee": 60,
-    "currency": "USDC",
-    "chain": "base",
-    "txHash": "0xdef...789",
-    "chargedAt": "2026-02-15T10:30:00Z",
-    "nextChargeAt": "2026-03-15T10:30:00Z"
-  }
-}`}
-      </pre>
 
-      {/* subscription.past_due */}
-      <h3 className="text-base font-medium mt-8 mb-3">
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
-          subscription.past_due
-        </code>
-      </h3>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SubsectionHeading>subscription.charged</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent when a recurring subscription charge is successfully processed by
+        the keeper. Fires on every successful charge after the initial one.
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "subscription.charged",
+  "timestamp": "2026-05-10T18:23:05.166Z",
+  "data": {
+    "subscriptionId": "3a1f...",
+    "onChainId": "17",
+    "paymentId": "8c44...",
+    "amount": 2000,
+    "fee": 10,
+    "txHash": "0xabc1...ef02",
+    "nextChargeDate": "2026-06-09T18:23:05.166Z",
+    "metadata": { "orderId": "42", "plan": "pro" }
+  }
+}`}</CodeBlock>
+
+      <SubsectionHeading>subscription.past_due</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Sent when a recurring charge fails (e.g. insufficient USDC balance or
-        allowance expired). The subscription is still active but needs attention.
+        allowance exhausted). The subscription is still on record but will not
+        auto-recover.
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`{
-  "type": "subscription.past_due",
+      <CodeBlock language="json">{`{
+  "event": "subscription.past_due",
+  "timestamp": "2026-05-10T18:23:05.166Z",
   "data": {
-    "subscriptionId": "sub_abc123",
-    "productId": "prod_monthly_pro",
-    "customerId": "cust_xyz",
-    "reason": "insufficient_balance",
-    "failedAt": "2026-02-15T10:30:00Z",
-    "retryAt": "2026-02-16T10:30:00Z"
+    "subscriptionId": "3a1f...",
+    "onChainId": "17",
+    "status": "past_due",
+    "metadata": { "orderId": "42", "plan": "pro" }
   }
-}`}
-      </pre>
+}`}</CodeBlock>
 
-      {/* subscription.cancelled */}
-      <h3 className="text-base font-medium mt-8 mb-3">
-        <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
-          subscription.cancelled
-        </code>
-      </h3>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SubsectionHeading>subscription.cancelled</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Sent when a subscription is cancelled, either by the merchant or the
         customer.
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`{
-  "type": "subscription.cancelled",
+      <CodeBlock language="json">{`{
+  "event": "subscription.cancelled",
+  "timestamp": "2026-05-10T18:23:05.166Z",
   "data": {
-    "subscriptionId": "sub_abc123",
-    "productId": "prod_monthly_pro",
-    "customerId": "cust_xyz",
-    "cancelledBy": "merchant",
-    "cancelledAt": "2026-03-01T12:00:00Z"
+    "subscriptionId": "3a1f...",
+    "onChainId": "17",
+    "status": "cancelled",
+    "metadata": { "orderId": "42", "plan": "pro" }
   }
-}`}
-      </pre>
+}`}</CodeBlock>
 
-      {/* ── Best Practices ─────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        Best Practices
-      </h2>
-      <ul className="text-sm text-[#94a3b8] leading-relaxed mb-4 list-disc pl-5 space-y-2">
+      <SectionHeading>Best Practices</SectionHeading>
+      <ul className="mt-4 space-y-2 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
         <li>
-          <strong className="text-[#f0f0f3]">Always verify signatures</strong>{" "}
+          <strong className="text-foreground">Always verify signatures</strong>{" "}
           before processing events. Never trust unverified payloads.
         </li>
         <li>
-          <strong className="text-[#f0f0f3]">Return 200 quickly</strong>. Do
+          <strong className="text-foreground">Return 200 quickly</strong>. Do
           heavy processing asynchronously. Paylix retries on non-2xx responses.
         </li>
         <li>
-          <strong className="text-[#f0f0f3]">Handle duplicates</strong>. Use the{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <strong className="text-foreground">Handle duplicates</strong>. Use
+          the{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             paymentId
           </code>{" "}
           or{" "}
-          <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             subscriptionId
           </code>{" "}
           for idempotency.
         </li>
         <li>
-          <strong className="text-[#f0f0f3]">Use raw body</strong> for
+          <strong className="text-foreground">Use raw body</strong> for
           signature verification. Parsed JSON bodies will fail verification.
         </li>
       </ul>

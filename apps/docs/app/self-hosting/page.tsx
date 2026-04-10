@@ -1,23 +1,38 @@
 import type { Metadata } from "next";
+import {
+  Callout,
+  CodeBlock,
+  DocTable,
+  DocTableBody,
+  DocTableCell,
+  DocTableHead,
+  DocTableHeader,
+  DocTableRow,
+  PageHeading,
+  SectionHeading,
+  SubsectionHeading,
+} from "@/components/docs";
 
 export const metadata: Metadata = { title: "Self-Hosting" };
 
 export default function SelfHosting() {
   return (
     <>
-      <h1 className="text-[30px] font-semibold tracking-[-0.6px]">
-        Self-Hosting
-      </h1>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4 mt-4">
-        Paylix is fully open-source and designed to be self-hosted. Run your own
-        instance with Docker Compose in under 10 minutes.
-      </p>
+      <PageHeading
+        title="Self-Hosting"
+        description="Paylix is fully open-source and designed to be self-hosted. Run your own instance with Docker Compose in under 10 minutes."
+      />
 
-      {/* ── Prerequisites ──────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        Prerequisites
-      </h2>
-      <ul className="text-sm text-[#94a3b8] leading-relaxed mb-4 list-disc pl-5 space-y-2">
+      <Callout variant="info" title="What runs where">
+        A Paylix deployment is three cooperating processes: the Next.js
+        dashboard/API, a PostgreSQL database, and the indexer/keeper. The
+        indexer must stay online — it is what watches the blockchain and
+        charges subscriptions. If it goes down, payments stop settling in your
+        dashboard.
+      </Callout>
+
+      <SectionHeading>Prerequisites</SectionHeading>
+      <ul className="mt-4 space-y-2 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
         <li>Docker and Docker Compose installed</li>
         <li>A domain name (for HTTPS and webhooks)</li>
         <li>
@@ -27,128 +42,145 @@ export default function SelfHosting() {
         <li>A Base RPC URL (Alchemy, Infura, or public RPC)</li>
       </ul>
 
-      {/* ── Step 1: Clone ──────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        1. Clone the Repository
-      </h2>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`git clone https://github.com/paylix/paylix.git
-cd paylix`}
-      </pre>
+      <SectionHeading>1. Clone the Repository</SectionHeading>
+      <CodeBlock language="bash">{`git clone https://github.com/paylix/paylix.git
+cd paylix`}</CodeBlock>
 
-      {/* ── Step 2: Environment ────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        2. Configure Environment
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
+      <SectionHeading>2. Configure Environment</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
         Copy the example environment file and fill in your values.
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`cp .env.example .env`}
-      </pre>
-      <h3 className="text-base font-medium mt-8 mb-3">
-        Required Environment Variables
-      </h3>
-      <table className="w-full text-sm mb-6">
-        <thead>
-          <tr className="border-b border-[rgba(148,163,184,0.12)] text-left text-[#94a3b8]">
-            <th className="pb-2 font-medium">Variable</th>
-            <th className="pb-2 font-medium">Description</th>
-          </tr>
-        </thead>
-        <tbody className="text-[#f0f0f3]">
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 font-mono text-[13px] text-[#06d6a0]">DATABASE_URL</td>
-            <td className="py-2 text-[#94a3b8]">PostgreSQL connection string. Use the Docker Compose default or your own database.</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 font-mono text-[13px] text-[#06d6a0]">BETTER_AUTH_SECRET</td>
-            <td className="py-2 text-[#94a3b8]">Random secret for authentication sessions. Generate with <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">openssl rand -hex 32</code>.</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 font-mono text-[13px] text-[#06d6a0]">BETTER_AUTH_URL</td>
-            <td className="py-2 text-[#94a3b8]">Public URL of your Paylix instance (e.g. <code className="bg-[#111116] px-1.5 py-0.5 rounded text-[13px] font-mono text-[#06d6a0]">https://paylix.example.com</code>).</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 font-mono text-[13px] text-[#06d6a0]">RPC_URL</td>
-            <td className="py-2 text-[#94a3b8]">Base mainnet RPC URL (e.g. from Alchemy or Infura).</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 font-mono text-[13px] text-[#06d6a0]">KEEPER_PRIVATE_KEY</td>
-            <td className="py-2 text-[#94a3b8]">Private key for the keeper wallet that processes subscription charges. Fund with a small amount of ETH for gas.</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 font-mono text-[13px] text-[#06d6a0]">PAYMENT_CONTRACT_ADDRESS</td>
-            <td className="py-2 text-[#94a3b8]">Address of the deployed Paylix payment contract.</td>
-          </tr>
-          <tr className="border-b border-[rgba(148,163,184,0.06)]">
-            <td className="py-2 font-mono text-[13px] text-[#06d6a0]">SUBSCRIPTION_CONTRACT_ADDRESS</td>
-            <td className="py-2 text-[#94a3b8]">Address of the deployed Paylix subscription contract.</td>
-          </tr>
-        </tbody>
-      </table>
+      <CodeBlock language="bash">{`cp .env.example .env`}</CodeBlock>
 
-      {/* ── Step 3: Docker Compose ─────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        3. Start with Docker Compose
-      </h2>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`# Start all services
+      <SubsectionHeading>Required Environment Variables</SubsectionHeading>
+      <DocTable>
+        <DocTableHead>
+          <DocTableRow>
+            <DocTableHeader>Variable</DocTableHeader>
+            <DocTableHeader>Description</DocTableHeader>
+          </DocTableRow>
+        </DocTableHead>
+        <DocTableBody>
+          <DocTableRow>
+            <DocTableCell mono>
+              <span className="text-foreground">DATABASE_URL</span>
+            </DocTableCell>
+            <DocTableCell>
+              <span className="text-foreground-muted">
+                PostgreSQL connection string. Use the Docker Compose default or
+                your own database.
+              </span>
+            </DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell mono>
+              <span className="text-foreground">BETTER_AUTH_SECRET</span>
+            </DocTableCell>
+            <DocTableCell>
+              <span className="text-foreground-muted">
+                Random secret for authentication sessions. Generate with{" "}
+                <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+                  openssl rand -hex 32
+                </code>
+                .
+              </span>
+            </DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell mono>
+              <span className="text-foreground">BETTER_AUTH_URL</span>
+            </DocTableCell>
+            <DocTableCell>
+              <span className="text-foreground-muted">
+                Public URL of your Paylix instance (e.g.{" "}
+                <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+                  https://paylix.example.com
+                </code>
+                ).
+              </span>
+            </DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell mono>
+              <span className="text-foreground">RPC_URL</span>
+            </DocTableCell>
+            <DocTableCell>
+              <span className="text-foreground-muted">
+                Base mainnet RPC URL (e.g. from Alchemy or Infura).
+              </span>
+            </DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell mono>
+              <span className="text-foreground">KEEPER_PRIVATE_KEY</span>
+            </DocTableCell>
+            <DocTableCell>
+              <span className="text-foreground-muted">
+                Private key for the keeper wallet that processes subscription
+                charges. Fund with a small amount of ETH for gas.
+              </span>
+            </DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell mono>
+              <span className="text-foreground">PAYMENT_CONTRACT_ADDRESS</span>
+            </DocTableCell>
+            <DocTableCell>
+              <span className="text-foreground-muted">
+                Address of the deployed Paylix payment contract.
+              </span>
+            </DocTableCell>
+          </DocTableRow>
+          <DocTableRow>
+            <DocTableCell mono>
+              <span className="text-foreground">
+                SUBSCRIPTION_CONTRACT_ADDRESS
+              </span>
+            </DocTableCell>
+            <DocTableCell>
+              <span className="text-foreground-muted">
+                Address of the deployed Paylix subscription contract.
+              </span>
+            </DocTableCell>
+          </DocTableRow>
+        </DocTableBody>
+      </DocTable>
+
+      <SectionHeading>3. Start with Docker Compose</SectionHeading>
+      <CodeBlock language="bash">{`# Start all services
 docker compose up -d
 
 # This starts:
 #   - PostgreSQL database
 #   - Paylix web dashboard + API
-#   - Blockchain indexer + keeper`}
-      </pre>
+#   - Blockchain indexer + keeper`}</CodeBlock>
 
-      {/* ── Step 4: Migrate ────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        4. Run Database Migrations
-      </h2>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`# Push schema to database
-docker compose exec web pnpm --filter @paylix/db db:push`}
-      </pre>
+      <SectionHeading>4. Run Database Migrations</SectionHeading>
+      <CodeBlock language="bash">{`# Push schema to database
+docker compose exec web pnpm --filter @paylix/db db:push`}</CodeBlock>
 
-      {/* ── Step 5: Access ─────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        5. Access the Dashboard
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
-        Open your browser and navigate to your configured URL. Create your first
-        account, add a product, and generate API keys.
+      <SectionHeading>5. Access the Dashboard</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Open your browser and navigate to your configured URL. Create your
+        first account, add a product, and generate API keys.
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`# Default local URL
-http://localhost:3000`}
-      </pre>
+      <CodeBlock language="bash">{`# Default local URL
+http://localhost:3000`}</CodeBlock>
 
-      {/* ── Reverse Proxy ──────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        6. Set Up a Reverse Proxy (Production)
-      </h2>
-      <p className="text-sm text-[#94a3b8] leading-relaxed mb-4">
-        For production, place Paylix behind a reverse proxy with TLS. Here is an
-        example Caddy configuration:
+      <SectionHeading>6. Set Up a Reverse Proxy (Production)</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        For production, place Paylix behind a reverse proxy with TLS. Here is
+        an example Caddy configuration:
       </p>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`# Caddyfile
-paylix.example.com {
+      <CodeBlock language="bash">{`paylix.example.com {
   reverse_proxy localhost:3000
-}`}
-      </pre>
+}`}</CodeBlock>
 
-      {/* ── Updating ───────────────────────────────────── */}
-      <h2 className="text-xl font-semibold tracking-[-0.4px] mt-12 mb-4">
-        Updating
-      </h2>
-      <pre className="bg-[#111116] border border-[rgba(148,163,184,0.12)] rounded-lg p-4 text-[13px] font-mono text-[#f0f0f3] overflow-x-auto mb-6">
-{`git pull origin main
+      <SectionHeading>Updating</SectionHeading>
+      <CodeBlock language="bash">{`git pull origin main
 docker compose down
 docker compose up -d --build
-docker compose exec web pnpm --filter @paylix/db db:push`}
-      </pre>
+docker compose exec web pnpm --filter @paylix/db db:push`}</CodeBlock>
     </>
   );
 }

@@ -8,7 +8,19 @@ import {
   useChainId,
   useSwitchChain,
 } from "wagmi";
+import { CheckCircle2 } from "lucide-react";
 import { CONTRACTS, SUBSCRIPTION_MANAGER_ABI } from "@/lib/contracts";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { MonoText } from "@/components/mono-text";
 
 interface CancelSubscriptionModalProps {
   open: boolean;
@@ -32,7 +44,13 @@ interface CancelSubscriptionModalProps {
   expectedWallet?: string | null;
 }
 
-type Step = "idle" | "switching" | "signing" | "confirming" | "confirmed" | "error";
+type Step =
+  | "idle"
+  | "switching"
+  | "signing"
+  | "confirming"
+  | "confirmed"
+  | "error";
 
 export default function CancelSubscriptionModal({
   open,
@@ -60,7 +78,6 @@ export default function CancelSubscriptionModal({
 
   useEffect(() => {
     if (!open) {
-      // Reset state when modal closes
       setStep("idle");
       setError(null);
       setTxHash(null);
@@ -75,11 +92,11 @@ export default function CancelSubscriptionModal({
     }
   }, [txConfirmed, step, onConfirmed]);
 
-  if (!open) return null;
-
   async function handleCancelOnChain() {
     if (!onChainId) {
-      setError("This subscription has no on-chain ID. Use force cancel instead.");
+      setError(
+        "This subscription has no on-chain ID. Use force cancel instead.",
+      );
       return;
     }
     setError(null);
@@ -115,184 +132,146 @@ export default function CancelSubscriptionModal({
     }
   }
 
-  const truncated = address
-    ? `${address.slice(0, 6)}...${address.slice(-4)}`
-    : "";
+  const walletLabel =
+    context === "subscriber" ? "your wallet" : "the merchant wallet";
 
   const truncatedExpected = expectedWallet
     ? `${expectedWallet.slice(0, 6)}...${expectedWallet.slice(-4)}`
     : null;
 
-  const walletLabel =
-    context === "subscriber" ? "your wallet" : "the merchant wallet";
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{
-        background: "rgba(0, 0, 0, 0.65)",
-        backdropFilter: "blur(8px)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[440px] rounded-xl border border-[rgba(148,163,184,0.12)] bg-[#18181e] p-6"
-        style={{ boxShadow: "0 4px 16px rgba(0, 0, 0, 0.30)" }}
-      >
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-[20px] font-semibold leading-[1.25] tracking-[-0.4px] text-[#f0f0f3]">
-              Cancel subscription
-            </h2>
-            {productName && (
-              <p className="mt-1 text-[13px] leading-[1.5] text-[#94a3b8]">
-                {productName}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-[#94a3b8] transition-colors hover:bg-[#111116] hover:text-[#f0f0f3]"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Cancel subscription</DialogTitle>
+          {productName && <DialogDescription>{productName}</DialogDescription>}
+        </DialogHeader>
 
         {step === "confirmed" ? (
           <div className="flex flex-col items-center py-4 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-[#22c55e30] bg-[#22c55e12]">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-[color:var(--success)]/30 bg-[color:var(--success)]/10">
+              <CheckCircle2
+                size={28}
+                className="text-[color:var(--success)]"
+              />
             </div>
-            <h3 className="mb-1 text-[16px] font-medium text-[#f0f0f3]">
+            <h3 className="mb-1 text-base font-medium">
               Subscription cancelled
             </h3>
-            <p className="text-[13px] leading-[1.5] text-[#94a3b8]">
-              The cancel transaction was confirmed on-chain. The dashboard will update shortly.
+            <p className="text-[13px] text-muted-foreground">
+              The cancel transaction was confirmed on-chain. The dashboard will
+              update shortly.
             </p>
-            <button
-              onClick={onClose}
-              className="mt-5 h-10 rounded-lg border border-[rgba(148,163,184,0.12)] bg-transparent px-[18px] text-[14px] font-medium text-[#f0f0f3] transition-colors hover:bg-[#111116] hover:border-[rgba(148,163,184,0.20)]"
-            >
+            <Button className="mt-5" variant="outline" onClick={onClose}>
               Done
-            </button>
+            </Button>
           </div>
         ) : (
           <>
-            <p className="text-[14px] leading-[1.55] text-[#94a3b8]">
+            <p className="text-sm text-muted-foreground">
               {isConnected
                 ? "Sign the cancel transaction with your connected wallet. The subscription will stop billing once the transaction is confirmed on Base Sepolia."
                 : "Connect your wallet to sign the on-chain cancel transaction."}
             </p>
 
-            <div className="mt-4 rounded-lg border border-[#60a5fa30] bg-[#60a5fa12] p-4">
-              <p className="text-[13px] font-medium text-[#60a5fa]">
+            <Alert className="border-[color:var(--info)]/30 bg-[color:var(--info)]/10">
+              <AlertTitle className="text-[color:var(--info)]">
                 Why do I need to connect a wallet?
-              </p>
-              <p className="mt-1 text-[12px] leading-[1.55] text-[#94a3b8]">
+              </AlertTitle>
+              <AlertDescription className="text-xs">
                 Subscriptions live on the blockchain, not just in the database.
                 Cancelling requires an on-chain transaction signed by{" "}
                 {walletLabel}
                 {truncatedExpected && context === "merchant" ? (
                   <>
-                    {" "}(
-                    <span
-                      className="text-[#f0f0f3]"
-                      style={{ fontFamily: '"Geist Mono", monospace' }}
-                    >
-                      {truncatedExpected}
-                    </span>
-                    )
+                    {" "}
+                    (<MonoText>{truncatedExpected}</MonoText>)
                   </>
-                ) : null}
-                {" "}to permanently stop future charges. A database-only update
+                ) : null}{" "}
+                to permanently stop future charges. A database-only update
                 wouldn&apos;t stop the on-chain keeper from pulling USDC.
-              </p>
-            </div>
+              </AlertDescription>
+            </Alert>
 
             {!onChainId && (
-              <div className="mt-4 rounded-lg border border-[#fbbf2430] bg-[#fbbf2412] p-3 text-[12px] text-[#fbbf24]">
-                This subscription has no on-chain ID. It may have been created before
-                the contract integration. You can only force-cancel it in the database.
-              </div>
+              <Alert className="border-[color:var(--warning)]/30 bg-[color:var(--warning)]/10">
+                <AlertDescription className="text-xs text-[color:var(--warning)]">
+                  This subscription has no on-chain ID. It may have been
+                  created before the contract integration. You can only
+                  force-cancel it in the database.
+                </AlertDescription>
+              </Alert>
             )}
 
             {error && (
-              <div className="mt-4 rounded-lg border border-[#f8717130] bg-[#f8717112] p-3 text-[12px] text-[#f87171]">
-                {error}
-              </div>
+              <Alert variant="destructive">
+                <AlertDescription className="text-xs">{error}</AlertDescription>
+              </Alert>
             )}
 
             {!isConnected ? (
-              <button
-                onClick={() => openAppKit()}
-                className="mt-5 h-10 w-full rounded-lg bg-[#06d6a0] px-[18px] text-[14px] font-medium text-[#07070a] transition-colors hover:bg-[#05bf8e] active:bg-[#04a87b] focus:outline-none focus:ring-[3px] focus:ring-[#06d6a060] focus:ring-offset-2 focus:ring-offset-[#18181e]"
-              >
+              <Button size="xl" onClick={() => openAppKit()}>
                 Connect Wallet
-              </button>
+              </Button>
             ) : (
               <>
-                <div className="mt-5 mb-3 flex items-center justify-between rounded-lg border border-[rgba(148,163,184,0.12)] bg-[#07070a] px-3.5 py-2.5">
-                  <span className="text-[13px] text-[#94a3b8]" style={{ fontFamily: '"Geist Mono", monospace' }}>
-                    {truncated}
-                  </span>
+                <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3.5 py-2.5">
+                  <MonoText className="text-[13px] text-muted-foreground">
+                    {address
+                      ? `${address.slice(0, 6)}...${address.slice(-4)}`
+                      : ""}
+                  </MonoText>
                   <button
                     onClick={() => openAppKit()}
-                    className="text-[12px] text-[#94a3b8] transition-colors hover:text-[#f0f0f3]"
+                    className="text-xs text-muted-foreground hover:text-foreground"
                   >
                     Switch
                   </button>
                 </div>
-                <button
+                <Button
+                  variant="destructive"
+                  size="xl"
                   onClick={handleCancelOnChain}
-                  disabled={!onChainId || step === "switching" || step === "signing" || step === "confirming"}
-                  className="h-10 w-full rounded-lg border border-[#f8717130] bg-transparent px-[18px] text-[14px] font-medium text-[#f87171] transition-colors hover:bg-[#f8717112] hover:border-[#f8717150] disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={
+                    !onChainId ||
+                    step === "switching" ||
+                    step === "signing" ||
+                    step === "confirming"
+                  }
                 >
                   {step === "idle" && "Confirm Cancel"}
                   {step === "switching" && "Switching to Base Sepolia..."}
                   {step === "signing" && "Waiting for signature..."}
                   {step === "confirming" && "Confirming on Base..."}
                   {step === "error" && "Try again"}
-                </button>
+                </Button>
               </>
             )}
 
-            <div className="mt-5 flex items-center gap-3">
-              <div className="h-px flex-1 bg-[rgba(148,163,184,0.08)]" />
-              <button
-                onClick={onClose}
-                className="text-[13px] text-[#94a3b8] transition-colors hover:text-[#f0f0f3]"
-              >
-                Dismiss
-              </button>
-              <div className="h-px flex-1 bg-[rgba(148,163,184,0.08)]" />
-            </div>
-
             {onForceCancel && (
-              <div className="mt-5 rounded-lg border border-[rgba(148,163,184,0.12)] bg-[#07070a] p-4">
-                <p className="text-[12px] leading-[1.5] text-[#64748b]">
-                  Don&apos;t have the merchant wallet handy? You can mark the
-                  subscription as cancelled in the database only. The on-chain
-                  subscription will remain active until cancelled.
-                </p>
-                <button
-                  onClick={handleForceCancel}
-                  disabled={forceLoading}
-                  className="mt-3 h-9 rounded-lg border border-[rgba(148,163,184,0.12)] bg-transparent px-3.5 text-[12px] font-medium text-[#94a3b8] transition-colors hover:bg-[#111116] hover:text-[#f0f0f3] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {forceLoading ? "Cancelling..." : "Force cancel (DB only)"}
-                </button>
-              </div>
+              <>
+                <Separator />
+                <div className="rounded-lg border border-border bg-background p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Don&apos;t have the merchant wallet handy? You can mark the
+                    subscription as cancelled in the database only. The
+                    on-chain subscription will remain active until cancelled.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={handleForceCancel}
+                    disabled={forceLoading}
+                  >
+                    {forceLoading ? "Cancelling..." : "Force cancel (DB only)"}
+                  </Button>
+                </div>
+              </>
             )}
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

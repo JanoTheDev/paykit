@@ -1,14 +1,16 @@
 import { Sidebar } from "@/components/sidebar";
+import { MobileNav } from "@/components/mobile-nav";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <div className="min-h-screen bg-[#07070a]">
+    <div className="min-h-screen bg-background">
       <Sidebar />
-      <main className="ml-60 min-h-screen p-6">
-        <div className="mx-auto max-w-[1200px]">
-          {children}
-        </div>
-      </main>
+      <MobileNav />
+      <div className="min-h-screen lg:ml-60">{children}</div>
     </div>
   );
 }

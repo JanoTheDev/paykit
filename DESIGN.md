@@ -2,522 +2,405 @@
 
 ## 1. Visual Theme & Atmosphere
 
-Paylix's interface is built on controlled darkness — a near-black canvas (`#07070a`) that sits between pure void and warm charcoal, creating a stage where financial data and payment states command attention without strain. This is the darkness of a well-designed trading terminal or a Stripe dashboard in dark mode: purposeful, engineered, and easy on the eyes during long sessions. Every pixel serves the mission of making money movement feel safe, clear, and inevitable.
+Paylix's interface is built on controlled darkness — a near-black canvas (`#0a0a0c`) that sits between pure void and warm charcoal, creating a stage where financial data and payment states command attention without strain. This is the darkness of a well-designed trading terminal or a Stripe dashboard in dark mode: purposeful, engineered, and easy on the eyes during long sessions. Every pixel serves the mission of making money movement feel safe, clear, and inevitable.
 
 The color story is anchored by a single, electric teal accent (`#06d6a0`) — a color that sits at the intersection of "financial confidence" and "technical precision." Unlike the blues that dominate fintech (Stripe, PayPal, Coinbase), teal carves out a distinct identity while still reading as trustworthy. It glows against the dark canvas with the calm authority of a status LED on high-end hardware — present, reassuring, never shouting. This accent is used surgically: interactive elements, primary CTAs, and active states only. Everything else lives in the neutral gray spectrum.
 
 Typography runs on two tracks: Geist Sans for all human-readable interface text — clean, geometric, engineered by Vercel for screen rendering at small sizes — and Geist Mono for the financial data layer. Wallet addresses, transaction hashes, USDC amounts, and API keys all render in monospace, creating an instant visual separation between "what the interface says" and "what the blockchain says." Tabular numbers (`tnum`) are enabled globally so columns of financial data align with pixel precision.
 
-The border system uses a cool-tinted gray (`rgba(148, 163, 184, 0.12)`) — not warm, not neutral, slightly blue-shifted — that gives every card and divider a subtle crystalline quality against the dark canvas. Combined with minimal shadow usage (borders do the heavy lifting in dark mode), the result is a layered-glass aesthetic where UI surfaces feel like translucent panels floating at measured depths.
+The border system uses neutral white at low opacity (`rgba(255, 255, 255, 0.06)`) — chromatically silent, no blue cast. This is an explicit correction of the previous cold `rgba(148, 163, 184, 0.12)` border, which introduced a subtle slate tint that fought the teal accent. With white-based borders, cards and dividers recede quietly and the single accent color does all the chromatic work. Combined with minimal shadow usage (borders and surface tiers do the heavy lifting in dark mode), the result is a calm, layered aesthetic where depth comes from background lightness, not drop shadows.
 
 **Key Characteristics:**
-- Near-black canvas (`#07070a`) with layered surfaces ascending through subtle lightness shifts
+- Near-black canvas (`#0a0a0c`) with three ascending surface tiers for depth
 - Electric teal accent (`#06d6a0`) — one color, used only for interactive and active states
 - Two-font system: Geist Sans (interface) and Geist Mono (financial data) — no third font
-- Cool-tinted borders (`rgba(148, 163, 184, 0.12)`) that shimmer faintly against the dark canvas
+- Neutral white borders at 0.06 / 0.10 opacity — no blue cast (this is the fix for the previous cold `rgba(148, 163, 184)` border)
 - Monospace typography for all blockchain data: amounts, hashes, addresses, keys
 - Tabular numbers (`font-variant-numeric: tabular-nums`) on every numeric display
-- Status colors derived from payment semantics: green=confirmed, amber=past_due, red=failed, blue=pending
+- Status colors derived from payment semantics: `confirmed → success` green, `pending → info` blue, `past_due → warning` amber, `failed → destructive` red
 - No gradients, no glows, no crypto-aesthetic ornamentation — this is fintech, not DeFi
+- Depth from background tiers, not shadow. Shadows are reserved for truly floating elements.
 - Dark mode as the primary and default experience
 - Micro-animations only on meaningful state transitions (payment confirmation, status changes)
-- Generous whitespace that communicates premium quality and financial seriousness
+- Generous whitespace on an 8-point grid that communicates premium quality and financial seriousness
 - Checkout page designed as a focused, trust-building single card — no distractions
 
 ## 2. Color Palette & Roles
 
-### Brand
+The token names below match `paykit/apps/web/app/globals.css` exactly. CSS variables are the source of truth; hex values are shown for reference.
 
-- **Teal Primary** (`#06d6a0`): The accent. Interactive elements, primary buttons, active nav states, focus rings, links. A calm, electric green-teal that reads as both technical and trustworthy.
-- **Teal Hover** (`#05bf8e`): Hover and pressed state for teal interactive elements.
-- **Teal Deep** (`#04a87b`): Active/pressed state for buttons under click.
-- **Teal Muted** (`#06d6a010`): 6% opacity teal for subtle backgrounds — active nav items, selected table rows.
-- **Teal Glow** (`#06d6a020`): 12% opacity teal for badge backgrounds and soft emphasis areas.
-- **Teal Border** (`#06d6a033`): 20% opacity teal for badge borders and active-state outlines.
+### Canvas & Surface Tiers
 
-### Semantic — Payment States
+Depth is created by ascending surface lightness, not by shadow. Every card, modal, or popover picks one of these four tiers.
 
-- **Confirmed Green** (`#22c55e`): Payment confirmed, subscription active, webhook delivered. The money landed.
-- **Confirmed Green Muted** (`#22c55e12`): Badge background for confirmed/active states.
-- **Confirmed Green Border** (`#22c55e30`): Badge border for confirmed/active states.
-- **Pending Blue** (`#60a5fa`): Payment pending, processing, waiting for confirmation. Patience.
-- **Pending Blue Muted** (`#60a5fa12`): Badge background for pending states.
-- **Pending Blue Border** (`#60a5fa30`): Badge border for pending states.
-- **Past Due Amber** (`#fbbf24`): Subscription past due, charge failed but recoverable. Attention needed.
-- **Past Due Amber Muted** (`#fbbf2412`): Badge background for warning states.
-- **Past Due Amber Border** (`#fbbf2430`): Badge border for warning states.
-- **Failed Red** (`#f87171`): Payment failed, subscription cancelled, webhook delivery failed. Something broke.
-- **Failed Red Muted** (`#f8717112`): Badge background for error/failed states.
-- **Failed Red Border** (`#f8717130`): Badge border for error/failed states.
+- **`--background`** (`#0a0a0c`): The canvas. Page background, the deepest layer. Near-black with a neutral undertone.
+- **`--surface-1`** (`#111113`): Cards, sidebar, default containers. The workhorse surface — one step above canvas.
+- **`--surface-2`** (`#17171a`): Elevated elements — popovers, dropdowns, the checkout card. Two steps above canvas.
+- **`--surface-3`** (`#1e1e22`): Hover state for surface elements, and the highest content tier. Interactive feedback.
+
+### Text Tiers
+
+- **`--foreground`** (`#ededef`): Headings, amounts, primary content. Near-white, neutral (no blue cast).
+- **`--foreground-muted`** (`#a1a1aa`): Descriptions, labels, secondary information. Neutral zinc gray.
+- **`--foreground-dim`** (`#71717a`): Placeholders, table-header uppercase labels, timestamps, disabled text. Recedes into the canvas.
+
+### Borders
+
+**Neutral white at low opacity, no blue cast.** This is the fix for the previous cold `rgba(148, 163, 184, 0.12)` border, which introduced a slate tint that conflicted with the teal accent.
+
+- **`--border`** (`rgba(255, 255, 255, 0.06)`): Default border. Cards, inputs, dividers, table rows. Applied globally as `border-color` on `*, ::before, ::after`.
+- **`--border-strong`** (`rgba(255, 255, 255, 0.10)`): Emphasized borders — focused inputs (before the teal ring kicks in), important dividers, the checkout card edge.
+
+Warm-tinted borders are not permitted. Any border shade outside this scale is a regression.
+
+### Accent
+
+- **`--primary`** (`#06d6a0`): The accent. Interactive elements, primary buttons, active nav states, focus rings, links. A calm, electric green-teal that reads as both technical and trustworthy. Unchanged from previous versions.
+- **`--primary-foreground`** (`#07070a`): Text on teal buttons.
+- **`--ring`** (`#06d6a0`): Focus ring color for interactive elements.
+
+Teal is reserved for small interactive targets. Never use it on large background areas, body text, or decoration.
+
+### Status — Payment Semantics
+
+Status colors are immutable and map 1:1 with payment states:
+
+| Payment state | Token | Hex | Semantic |
+|---|---|---|---|
+| `confirmed` | `--success` | `#22c55e` | Payment confirmed, subscription active, webhook delivered |
+| `pending` | `--info` | `#3b82f6` | Payment pending, processing, waiting for confirmation |
+| `past_due` | `--warning` | `#f59e0b` | Subscription past due, charge failed but recoverable |
+| `failed` | `--destructive` | `#ef4444` | Payment failed, subscription cancelled, webhook delivery failed |
+
+- **`--destructive-foreground`** (`#fef2f2`): Text on destructive surfaces.
+
+Do not invent additional status colors. A new payment state must map onto one of these four tokens.
 
 ### Currency
 
-- **USDC Blue** (`#2775ca`): The official USDC brand color. Used exclusively for token indicators, currency badges, and amount displays where token identity needs emphasis.
-- **USDC Blue Muted** (`#2775ca14`): Token badge background.
-- **USDC Blue Border** (`#2775ca33`): Token badge border.
+- **`--usdc`** (`#2775ca`): The official USDC brand color. Used exclusively for token indicators, currency badges, and amount displays where token identity needs emphasis.
 
-### Neutral Scale — Dark Mode (Primary)
+### Shadcn Compatibility Aliases
 
-- **Canvas** (`#07070a`): The deepest layer. Page background. Near-black with a cold undertone.
-- **Surface 0** (`#0c0c10`): Sidebar, navigation chrome. One step above canvas.
-- **Surface 1** (`#111116`): Cards, containers, primary content areas. The workhorse surface.
-- **Surface 2** (`#18181e`): Elevated elements — dropdowns, modals, popovers, the checkout card.
-- **Surface 3** (`#1f1f26`): Hover state for surface elements. Interactive feedback.
-- **Border Subtle** (`rgba(148, 163, 184, 0.08)`): Faintest dividers — table row separators, section breaks.
-- **Border Default** (`rgba(148, 163, 184, 0.12)`): The signature cool-tinted border. Cards, inputs, containers.
-- **Border Strong** (`rgba(148, 163, 184, 0.20)`): Emphasized borders — input focus (before brand ring), important dividers.
-- **Text Primary** (`#f0f0f3`): Headings, amounts, primary content. Near-white with a cool shift.
-- **Text Secondary** (`#94a3b8`): Descriptions, labels, secondary information. Slate-tinted gray.
-- **Text Tertiary** (`#64748b`): Placeholders, disabled text, timestamps. Recedes into the canvas.
-- **Text Inverted** (`#07070a`): Text on teal buttons. Dark on bright.
+The `:root` block keeps the following legacy shadcn names pointing at the new tiers so existing `components/ui/*` primitives continue to build. They will be rewired to surface tokens over time:
 
-### Neutral Scale — Light Mode (Secondary)
+```
+--card               → var(--surface-1)
+--card-foreground    → var(--foreground)
+--popover            → var(--surface-2)
+--popover-foreground → var(--foreground)
+--secondary          → var(--surface-2)
+--muted              → var(--surface-1)
+--muted-foreground   → var(--foreground-muted)
+--accent             → var(--surface-3)
+--input              → var(--border)
+```
 
-- **Canvas** (`#ffffff`): Page background.
-- **Surface 0** (`#f8fafc`): Sidebar, navigation. Slate-tinted off-white.
-- **Surface 1** (`#f1f5f9`): Cards, containers.
-- **Surface 2** (`#e2e8f0`): Elevated elements.
-- **Surface 3** (`#cbd5e1`): Hover states.
-- **Border Subtle** (`#f1f5f9`): Faint dividers.
-- **Border Default** (`#e2e8f0`): Standard borders.
-- **Border Strong** (`#94a3b8`): Emphasized borders.
-- **Text Primary** (`#0f172a`): Dark slate for headings. Deep, not pure black.
-- **Text Secondary** (`#475569`): Descriptions, labels.
-- **Text Tertiary** (`#94a3b8`): Placeholders, disabled.
-- **Text Inverted** (`#ffffff`): Text on teal buttons in light mode.
-
-### Shadow Colors
-
-- **Shadow SM** (`rgba(0, 0, 0, 0.20)`): Dropdowns, tooltips.
-- **Shadow MD** (`rgba(0, 0, 0, 0.30)`): Modals, dialogs.
-- **Shadow LG** (`rgba(0, 0, 0, 0.40)`): Command palette, critical overlays.
-- **Ring Shadow** (`rgba(148, 163, 184, 0.10) 0px 0px 0px 1px`): Cool-tinted shadow-as-border for cards.
+When writing new components, prefer the surface/foreground tier names directly over these aliases.
 
 ## 3. Typography Rules
 
 ### Font Family
 
-- **Primary**: `"Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` — Vercel's geometric sans-serif. Optimized for screen rendering, particularly at 12-16px sizes where most UI text lives.
-- **Monospace**: `"Geist Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace` — For all financial data, blockchain identifiers, and code.
-- **OpenType features**: `"tnum"` tabular numbers enabled globally. `"ss01"` stylistic set for alternate glyph forms in Geist.
+- **Sans (interface)**: Geist Sans — `var(--font-sans)`. Vercel's geometric sans-serif, optimized for screen rendering at 12–16px.
+- **Mono (blockchain data)**: Geist Mono — `var(--font-mono)`. For all financial data, blockchain identifiers, and code.
+- **Global**: `font-variant-numeric: tabular-nums` is enabled on `body` so every numeric column aligns.
 
-### Hierarchy
+Do not introduce a third font family. Geist Sans + Geist Mono only.
 
-| Role | Font | Size | Weight | Line Height | Letter Spacing | Notes |
-|------|------|------|--------|-------------|----------------|-------|
-| Page Title | Primary | 30px (1.875rem) | 600 | 1.15 (tight) | -0.6px | Dashboard page headings. One per page. |
-| Section Title | Primary | 20px (1.25rem) | 600 | 1.25 (tight) | -0.4px | Card headers, major section labels. |
-| Card Title | Primary | 16px (1.00rem) | 500 | 1.40 | -0.1px | Widget titles, subsection labels. |
-| Body | Primary | 14px (0.875rem) | 400 | 1.55 | normal | Default text. Descriptions, paragraphs. |
-| Body Small | Primary | 13px (0.8125rem) | 400 | 1.50 | normal | Table cells, compact UI text. |
-| Caption | Primary | 12px (0.75rem) | 400 | 1.40 | 0.2px | Timestamps, helper text, footnotes. |
-| Label | Primary | 13px (0.8125rem) | 500 | 1.00 | 0.1px | Form labels, table column headers. |
-| Label Uppercase | Primary | 11px (0.6875rem) | 600 | 1.00 | 0.8px | `text-transform: uppercase`. Sidebar section labels, overline text. |
-| Amount Hero | Mono | 32px (2.00rem) | 600 | 1.15 | -0.5px | Revenue totals on overview page. The big number. |
-| Amount Large | Mono | 24px (1.50rem) | 600 | 1.20 | -0.3px | Stat card numbers, checkout price. |
-| Amount | Mono | 14px (0.875rem) | 500 | 1.50 | normal | Payment amounts in tables, inline values. |
-| Hash / Address | Mono | 13px (0.8125rem) | 400 | 1.50 | normal | Tx hashes, wallet addresses. Always truncated. |
-| Code Block | Mono | 13px (0.8125rem) | 400 | 1.65 (relaxed) | normal | Code snippets, API key displays. |
-| Button | Primary | 14px (0.875rem) | 500 | 1.00 | normal | Button labels. |
-| Badge | Primary | 11px (0.6875rem) | 600 | 1.00 | 0.3px | Status badges, token indicators. |
+### Hierarchy (current scale)
+
+- **h1 / page title** — `text-2xl font-semibold tracking-tight`
+  - **Changed from `text-3xl`.** The old 30px page title was too loud for a data-dense fintech dashboard; 24px with tight tracking reads as confident without shouting. One h1 per page.
+- **h2 / section title** — `text-base font-semibold`
+  - Section labels, card headers. 16px — deliberately close to body size so the hierarchy is carried by weight, not scale.
+- **Table header** — `text-xs font-medium uppercase tracking-wider text-foreground-dim`
+  - 12px uppercase, dim tier text. Used for every data-table column header and overline label.
+- **Body** — `text-sm`
+  - 14px. The default for descriptions, form copy, table cells, everything that isn't a heading or blockchain data.
+- **Blockchain data** — `font-mono tabular-nums`
+  - Applies to amounts (`$10.00`), tx hashes, wallet addresses, API keys, subscription IDs. Monospace with tabular numbers, always. Size follows the surrounding context (usually `text-sm`, larger for hero amounts).
 
 ### Principles
 
-- **Financial data is always monospace.** Every number that represents money, every blockchain hash, every wallet address, every API key renders in Geist Mono. This creates an instant cognitive split: sans-serif = interface, monospace = data. Users learn this in seconds.
-- **Tabular numbers are non-negotiable.** `font-variant-numeric: tabular-nums` on every numeric display. Columns of payment amounts, subscriber counts, and revenue figures must align to the pixel. Proportional numbers in financial tables is a cardinal sin.
-- **Negative tracking on headings, neutral everywhere else.** Page titles use -0.6px, section titles -0.4px. Body text and below use `normal`. This creates a "tightened headline, open body" rhythm that mirrors print editorial design.
-- **Truncate blockchain data, never wrap.** Wallet addresses: `0x1a2b...3c4d` (first 6 + last 4). Tx hashes: `0x8f3e...a1b2` (first 6 + last 4). API keys: `sk_live_...a1b2` (prefix + last 4). Copy button adjacent. Never multi-line.
-- **Weight range is 400-600.** 400 for body, 500 for labels and buttons, 600 for titles and emphasis. Nothing heavier. 700+ feels aggressive in a financial context — we want confidence, not force.
+- **Financial data is always monospace.** Every number that represents money, every blockchain hash, every wallet address, every API key renders in Geist Mono. Sans-serif = interface, monospace = data. Users learn the split in seconds.
+- **Tabular numbers are non-negotiable.** `font-variant-numeric: tabular-nums` on every numeric display. Proportional numbers in financial tables is a cardinal sin.
+- **Hierarchy through weight, not just size.** Body is `font-normal`, labels and buttons `font-medium`, headings `font-semibold`. Nothing above 600.
+- **Truncate blockchain data, never wrap.** Wallet addresses: `0x1a2b...3c4d` (first 6 + last 4). Tx hashes: same. API keys: `sk_live_...a1b2` (prefix + last 4). Copy button adjacent. Never multi-line.
 
 ## 4. Component Stylings
 
 ### Buttons
 
 **Primary**
-- Background: `#06d6a0`
-- Text: `#07070a`
-- Padding: 10px 18px
-- Radius: 8px
-- Font: 14px / weight 500
-- Hover: `#05bf8e` background
-- Active: `#04a87b` background
-- Focus: 2px ring `#06d6a060` with 2px offset
-- Disabled: 40% opacity, cursor not-allowed
-- Transition: background 150ms ease, box-shadow 150ms ease
+- Background: `bg-primary` (`#06d6a0`)
+- Text: `text-primary-foreground`
+- Radius: `rounded-md` (`--radius` = 0.625rem)
+- Font: `text-sm font-medium`
+- Hover: subtle primary darken
+- Focus: `ring-2 ring-ring` with 2px offset
+- Disabled: 40% opacity
 - Use: Primary actions ("Create Product", "Generate Key", "Connect Wallet & Pay")
 
 **Secondary**
 - Background: `transparent`
-- Border: 1px solid `rgba(148, 163, 184, 0.12)`
-- Text: `#f0f0f3`
-- Padding: 10px 18px
-- Radius: 8px
-- Hover: background `#111116`, border `rgba(148, 163, 184, 0.20)`
+- Border: `1px solid var(--border)`
+- Text: `text-foreground`
+- Hover: background `var(--surface-1)`, border `var(--border-strong)`
 - Use: Secondary actions ("Cancel", "Back", "Export CSV", "View Details")
 
 **Ghost**
 - Background: `transparent`
-- Border: none
-- Text: `#94a3b8`
-- Padding: 10px 18px
-- Radius: 8px
-- Hover: background `#111116`, text `#f0f0f3`
-- Use: Tertiary actions, navigation links, toolbar items, "Add Field" in metadata editor
+- Text: `text-foreground-muted`
+- Hover: background `var(--surface-1)`, text `var(--foreground)`
+- Use: Tertiary actions, nav links, toolbar items
 
 **Destructive**
 - Background: `transparent`
-- Border: 1px solid `#f8717130`
-- Text: `#f87171`
-- Padding: 10px 18px
-- Radius: 8px
-- Hover: background `#f8717112`, border `#f8717150`
-- Use: Irreversible actions ("Revoke Key", "Cancel Subscription", "Delete Webhook")
+- Border: `1px solid color-mix(in oklab, var(--destructive) 30%, transparent)`
+- Text: `text-destructive`
+- Hover: background destructive at 12% opacity
+- Use: Irreversible actions
 
 **Icon Button**
-- Size: 36px x 36px
-- Padding: 0 (centered icon)
-- Radius: 8px
-- Icon: 16px, color `#94a3b8`
-- Hover: background `#111116`, icon `#f0f0f3`
-- Use: Copy buttons, table row actions, close buttons
+- Size: 36px × 36px desktop, 44px × 44px mobile
+- Icon: 16px, `text-foreground-dim`
+- Hover: background `var(--surface-1)`, icon `var(--foreground)`
 
 ### Cards & Containers
 
-**Default Card**
-- Background: `#111116`
-- Border: 1px solid `rgba(148, 163, 184, 0.12)`
-- Radius: 12px
-- Padding: 24px
-- Shadow: none
-- Use: Dashboard content containers, form sections, settings panels
+**Default Card** — `bg-surface-1 border border-border rounded-lg p-6`
+- Dashboard content containers, form sections, settings panels.
 
-**Elevated Card**
-- Background: `#18181e`
-- Border: 1px solid `rgba(148, 163, 184, 0.12)`
-- Radius: 12px
-- Padding: 24px
-- Shadow: `0 4px 16px rgba(0, 0, 0, 0.30)`
-- Use: Modals, dropdowns, popovers, command palette
+**Elevated Card** — `bg-surface-2 border border-border rounded-lg p-6`
+- Modals, dropdowns, popovers, command palette.
 
-**Checkout Card**
-- Background: `#18181e`
-- Border: 1px solid `rgba(148, 163, 184, 0.16)`
-- Radius: 16px
-- Padding: 32px
-- Shadow: `0 8px 32px rgba(0, 0, 0, 0.40)`
-- Max-width: 480px, centered
-- Use: The checkout payment form — the most important card in the system
+**Checkout Card** — `bg-surface-2 border border-border-strong rounded-xl p-8 max-w-[480px]`
+- The single most important card in the system. Centered, slightly stronger border.
 
-**Stat Card**
-- Background: `#111116`
-- Border: 1px solid `rgba(148, 163, 184, 0.12)`
-- Radius: 12px
-- Padding: 20px 24px
-- Layout: Label (uppercase caption, `#64748b`) top → Large mono number (`#f0f0f3`) bottom → Optional trend badge right-aligned
-- Use: Overview page metrics (revenue, payment count, active subscribers)
+**Stat Card** — `bg-surface-1 border border-border rounded-lg p-6`
+- Top: uppercase label (table-header style, `text-foreground-dim`).
+- Bottom: large mono number (`font-mono tabular-nums`, `text-foreground`).
+- Optional: small trend badge right-aligned.
 
 ### Badges / Tags / Pills
 
-**Status Confirmed / Active**
-- Background: `#22c55e12`
-- Text: `#22c55e`
-- Border: 1px solid `#22c55e30`
-- Padding: 3px 10px
-- Radius: 9999px (full pill)
-- Font: 11px / weight 600 / tracking 0.3px
-- Use: Active subscriptions, confirmed payments, delivered webhooks
+All status badges follow the same shape: full pill (`rounded-full`), `text-xs font-medium`, `px-2.5 py-0.5`, 1px border in the status color at ~30% opacity, background at ~12% opacity, foreground at the full status color.
 
-**Status Pending**
-- Background: `#60a5fa12`
-- Text: `#60a5fa`
-- Border: 1px solid `#60a5fa30`
-- Same dimensions as above
-- Use: Pending payments, processing states
-
-**Status Past Due / Warning**
-- Background: `#fbbf2412`
-- Text: `#fbbf24`
-- Border: 1px solid `#fbbf2430`
-- Use: Past due subscriptions, expiring items, attention needed
-
-**Status Failed / Cancelled**
-- Background: `#f8717112`
-- Text: `#f87171`
-- Border: 1px solid `#f8717130`
-- Use: Failed payments, cancelled subscriptions, revoked keys, failed webhook deliveries
-
-**Token Badge (USDC)**
-- Background: `#2775ca14`
-- Text: `#2775ca`
-- Border: 1px solid `#2775ca33`
-- Padding: 3px 10px
-- Radius: 6px
-- Font: Mono 11px / weight 600
-- Use: USDC indicator alongside amounts. Always shown in payment tables.
+- **Confirmed / Active** — `--success` / green
+- **Pending** — `--info` / blue
+- **Past Due / Warning** — `--warning` / amber
+- **Failed / Cancelled** — `--destructive` / red
+- **USDC Token Badge** — `--usdc` / USDC blue, `rounded-md` (slightly less round than status pills)
 
 ### Inputs & Forms
 
 **Text Input**
-- Background: `#07070a`
-- Border: 1px solid `rgba(148, 163, 184, 0.12)`
-- Text: `#f0f0f3`
-- Placeholder: `#64748b`
-- Padding: 10px 14px
-- Radius: 8px
-- Height: 40px
-- Focus: border `#06d6a0`, ring `0 0 0 3px #06d6a020`
-- Error: border `#f87171`, ring `0 0 0 3px #f8717115`
-- Transition: border 150ms ease, box-shadow 150ms ease
-- Use: All text inputs, email fields, URL fields
+- Background: `bg-background`
+- Border: `1px solid var(--border)`
+- Text: `text-foreground`
+- Placeholder: `text-foreground-dim`
+- Radius: `rounded-md`
+- Height: 40px (`h-10`)
+- Focus: border `var(--primary)`, ring `ring-2 ring-ring/20`
+- Error: border `var(--destructive)`
 
-**Select / Dropdown**
-- Same base styling as text input
-- Chevron: `#64748b`, 16px, right-aligned
-- Dropdown panel: Elevated Card styling, max-height 240px with scroll
-- Option hover: background `#1f1f26`
-- Selected option: text `#06d6a0`
+**Select / Dropdown** — same base as text input; dropdown panel uses Elevated Card styling; option hover = `bg-surface-3`; selected option text = `text-primary`.
 
-**Toggle Switch**
-- Track inactive: `rgba(148, 163, 184, 0.15)`
-- Track active: `#06d6a0`
-- Thumb: `#f0f0f3`
-- Width: 44px, Height: 24px
-- Thumb size: 18px
-- Transition: 200ms cubic-bezier(0.4, 0, 0.2, 1)
-- Use: Checkout field toggles (enable/disable name, email, phone), webhook active state, product active state
-
-**Metadata Key-Value Editor**
-- Row layout: key input (40%) + value input (55%) + delete icon button (5%) — horizontal
-- Key input placeholder: "key"
-- Value input placeholder: "value"
-- "Add field" ghost button below, with `+` icon
-- Separator: 8px gap between rows
-- Use: Product metadata editor, customer metadata
+**Toggle Switch** — track inactive `var(--border-strong)`, track active `var(--primary)`, thumb `var(--foreground)`.
 
 ### Navigation
 
 **Sidebar**
-- Background: `#0c0c10`
-- Width: 240px, fixed position
-- Border right: 1px solid `rgba(148, 163, 184, 0.08)`
-- Logo area: 56px height, 20px horizontal padding. Logo + "Paylix" wordmark in 16px weight 600
-- Section labels: Label Uppercase style (`#64748b`, 11px, weight 600, 0.8px tracking, uppercase), 20px horizontal padding, 28px top margin
-- Nav items: height 36px, padding 8px 12px, margin 2px 8px, radius 8px
-- Nav item icon: 18px, `#64748b`
-- Nav item text: 14px weight 400, `#94a3b8`
-- Nav item hover: background `#111116`, text `#f0f0f3`, icon `#f0f0f3`
-- Nav item active: background `#06d6a010`, text `#06d6a0`, icon `#06d6a0`
-- Bottom section: settings + user avatar, border top `rgba(148, 163, 184, 0.08)`
-
-**Top Bar (checkout page / mobile)**
-- Height: 56px
-- Background: `#07070a`
-- Border bottom: 1px solid `rgba(148, 163, 184, 0.08)`
-- Content: centered Paylix logo or merchant name
-- Use: Checkout page header, mobile dashboard nav
+- Background: `var(--sidebar)` (= `--surface-1`)
+- Right border: `1px solid var(--sidebar-border)` (= `--border`)
+- Section labels: table-header style — `text-xs font-medium uppercase tracking-wider text-foreground-dim`
+- Nav items: `h-9 px-3 rounded-md text-sm`
+- Inactive: `text-foreground-muted`, icon `text-foreground-dim`
+- Hover: `bg-surface-2`, text + icon `text-foreground`
+- Active: `bg-primary/10`, text + icon `text-primary`
 
 ### Tables
 
-**Data Table**
-- Container: Default Card (no extra wrapper needed)
-- Header row: height 40px, Label style text (`#64748b`, 13px, weight 500), border-bottom `rgba(148, 163, 184, 0.08)`, no background
-- Data row: height 52px, Body Small text (`#f0f0f3`, 13px), border-bottom `rgba(148, 163, 184, 0.06)`
-- Row hover: background `#0c0c10`
-- Cell padding: 0 16px
-- Monospace cells: amounts (right-aligned), tx hashes (truncated + copy button), wallet addresses (truncated + copy button)
-- Status column: status badge (pill)
-- Actions column: icon buttons, right-aligned
-- Empty state: centered text `#64748b` + ghost button CTA
-- Use: Payments table, subscribers table, customers table, webhook delivery log, API keys list
+- Container: lives inside a Default Card (no extra wrapper needed).
+- Header row: `text-xs font-medium uppercase tracking-wider text-foreground-dim`, bottom border `var(--border)`.
+- Data row: `text-sm text-foreground`, bottom border `var(--border)`.
+- Row hover: `bg-surface-1` (if the table lives on `--background`) or `bg-surface-2` (if in a card).
+- Cell padding: `py-3.5 px-4` (see Spacing section).
+- Monospace cells: amounts (right-aligned), tx hashes (truncated + copy button).
+- Status column: status pill.
+- Actions column: icon buttons, right-aligned.
 
 ### Checkout Page Layout
 
-**Container**
-- Full viewport, centered vertically and horizontally
-- Background: `#07070a` (canvas)
-- Content: Checkout Card (max-width 480px)
-
-**Checkout Card Internal Layout**
-- Top: Merchant/product info section — product name (Section Title), description (Body, `#94a3b8`), price (Amount Large, mono, `#f0f0f3` + USDC token badge)
-- Divider: 1px solid `rgba(148, 163, 184, 0.08)`, 24px vertical margin
-- Middle: Customer info fields (if enabled) — stacked inputs with 12px gap
-- Divider: same as above
-- Bottom: Payment section — "Connect Wallet & Pay" primary button (full-width) → OR divider → QR code block (centered, 200x200px, white QR on dark)
-- Footer: "Powered by Paylix" caption text, centered, `#64748b`
-
-**Payment State Transitions**
-- Waiting: pulsing teal dot + "Waiting for payment..." in Body style, `#94a3b8`
-- Confirming: spinning teal loader + "Confirming on Base..." 
-- Confirmed: teal checkmark + "Payment confirmed!" — redirect after 2 seconds
-- Failed: red X + "Payment failed" + retry button
+- Full viewport, `bg-background`, centered card.
+- Checkout Card — `max-w-[480px]`, `bg-surface-2`, `border-border-strong`, `rounded-xl`, `p-8`.
+- Top: product name (h2 style), description (`text-sm text-foreground-muted`), price (`font-mono tabular-nums text-2xl`) + USDC badge.
+- Divider: `border-t border-border`, `my-6`.
+- Middle: customer info fields, stacked with `gap-3`.
+- Bottom: primary "Connect Wallet & Pay" button (full width) and/or QR code block.
+- Footer: "Powered by Paylix" caption, `text-xs text-foreground-dim`, centered.
 
 ## 5. Layout Principles
 
-### Spacing System
+### Spacing — 8-Point Grid
 
-Base unit: `4px`. Every spacing value is a multiple of 4.
+Paylix uses an **8-point grid** (with 4px permitted as a half-step for tight compositions). Prefer multiples of 8. This creates visual rhythm without requiring pixel-level precision.
 
-- `2px` — Micro: icon-to-badge gap, internal badge padding
-- `4px` — Tight: between icon and label in a button, badge internal
-- `8px` — Compact: between related items, nav item vertical gap, table cell gap
-- `12px` — Default: input padding, button side padding, form field gap
-- `16px` — Comfortable: between form fields, between list items, card internal sections
-- `20px` — Spacious: stat card padding, section gaps within a card
-- `24px` — Card padding (standard), horizontal page padding on desktop
-- `32px` — Between cards on the same page, major card internal divisions
-- `48px` — Between dashboard page sections
-- `64px` — Top/bottom page padding, hero spacing on checkout
+**Canonical spacings — use these verbatim:**
+
+- **Page gutters** — `px-8 py-10` (32px horizontal, 40px vertical)
+- **Section gaps** — `gap-10` (40px between major sections on a page)
+- **Card padding** — `p-6` (24px — the workhorse card inset)
+- **Table cell padding** — `py-3.5 px-4` (14px vertical, 16px horizontal — the one deliberate 4px half-step, because 14px row density reads better than 16px for dense data)
+- Form field gap — `gap-4` (16px)
+- Stat card grid gap — `gap-4` (16px)
 
 ### Grid & Container
 
-- Dashboard max content width: `1200px`, centered with `auto` horizontal margins
-- Sidebar: fixed `240px` on desktop, collapses on tablet/mobile
-- Main content area: `calc(100% - 240px)`, fluid, `24px` horizontal padding
-- Stat cards: `3-column` CSS grid, `16px` gap, equal width
-- Forms: single column, `max-width: 560px`
-- Tables: 100% of content area width, horizontal scroll on overflow
-- Checkout page: centered `max-width: 480px`, `64px` top padding
-- Docs site: `240px` left TOC sidebar + fluid content (max `720px`) + `200px` right headings nav
+- Dashboard max content width: `max-w-[1200px]`, centered.
+- Sidebar: fixed `240px` desktop, collapses on tablet/mobile.
+- Main content area: fluid, `px-8 py-10`.
+- Stat cards: 3-column CSS grid at desktop, `gap-4`.
+- Forms: single column, `max-w-[560px]`.
+- Checkout page: centered `max-w-[480px]`.
 
 ### Whitespace Philosophy
 
-- **Generous spacing equals trust.** A payment platform with cramped margins feels amateur and unsafe. Every card, every section, every form has room to breathe. Users subconsciously associate whitespace with confidence and control.
-- **Data tables are the exception.** Tables use compact 52px rows and 16px cell padding because users scan them — density helps here. But tables are always surrounded by generous card padding, so the density is contained.
-- **Rhythm over precision.** Follow the 4px grid absolutely. A 24px margin that "should" be 22px is better at 24px because maintaining the grid rhythm creates visual coherence that outweighs any single measurement being "optimal."
+- **Generous spacing equals trust.** A payment platform with cramped margins feels amateur. Cards breathe; sections breathe.
+- **Data tables are denser by design.** Users scan them — density helps. But tables sit inside a padded card, so the density is contained.
+- **Rhythm over pixel-perfection.** The 8-point grid is law. A 24px inset that "should" be 22px is better at 24px because consistency outweighs any single measurement being "optimal."
 
 ### Border Radius Scale
 
-| Name | Value | Use |
-|------|-------|-----|
-| None | 0px | Table cells, raw dividers |
-| Subtle | 4px | Inline code spans, small tags |
-| Default | 8px | Buttons, inputs, dropdowns, nav items |
-| Medium | 12px | Cards, containers, modals, settings panels |
-| Large | 16px | Checkout card, hero elements |
-| Full | 9999px | Status badges, token pills, avatars |
+| Token | Value | Use |
+|---|---|---|
+| `--radius-sm` | `0.375rem` (6px) | Inline tags, small pills, tight controls |
+| `--radius` / `--radius-md` | `0.625rem` (10px) | Buttons, inputs, nav items, default cards |
+| `--radius-lg` | `0.875rem` (14px) | Elevated cards, modals, major containers |
+| `--radius-xl` | `1rem` (16px) | Checkout card, hero elements |
+| Full pill | `9999px` | Status badges, avatars |
 
 ## 6. Depth & Elevation
 
-| Level | Treatment | Use |
-|-------|-----------|-----|
-| Recessed (L0) | No border, canvas background | Page background, empty areas |
-| Flat (L1) | 1px solid `rgba(148, 163, 184, 0.12)` | Cards, containers, inputs, table wrappers |
-| Raised (L2) | 1px solid `rgba(148, 163, 184, 0.12)` + `0 2px 8px rgba(0, 0, 0, 0.20)` | Dropdowns, select menus, tooltips, popovers |
-| Elevated (L3) | 1px solid `rgba(148, 163, 184, 0.12)` + `0 4px 16px rgba(0, 0, 0, 0.30)` | Modals, dialogs, confirmation popups |
-| Floating (L4) | 1px solid `rgba(148, 163, 184, 0.16)` + `0 8px 32px rgba(0, 0, 0, 0.40)` | Checkout card, command palette, critical overlays |
+On a near-black canvas, shadows are barely perceptible. **Depth comes from surface tiers, not shadow.**
 
-**Shadow Philosophy:** On a near-black canvas, shadows are barely perceptible — you cannot meaningfully darken `#07070a`. The cool-tinted border (`rgba(148, 163, 184, 0.12)`) does 80% of the depth work in dark mode. Shadows serve only to separate truly floating elements (modals, dropdowns, the checkout card) from the layers beneath them. In light mode, shadows carry more visual weight and borders soften proportionally.
+| Level | Treatment | Use |
+|---|---|---|
+| Canvas (L0) | `--background` | Page background, empty areas |
+| Flat (L1) | `--surface-1` + `--border` | Cards, containers, inputs, sidebar |
+| Raised (L2) | `--surface-2` + `--border` | Dropdowns, popovers, tooltips, modals |
+| Elevated (L3) | `--surface-2` + `--border-strong` + optional shadow | Checkout card, command palette |
+| Hover state | `--surface-3` | Transient hover background on interactive surfaces |
+
+Shadows are reserved for truly floating elements (checkout card, command palette, critical overlays). For everything else, move up one surface tier instead of adding a shadow.
 
 ### Backdrop
 
-- Modal/dialog/drawer backdrop: `rgba(0, 0, 0, 0.65)` with `backdrop-filter: blur(8px)`
-- Transition: opacity 200ms ease
-- Use: All full-screen overlays — modals, drawers, command palette
+- Modal/dialog/drawer backdrop: `rgba(0, 0, 0, 0.65)` with `backdrop-blur-sm`.
+- Transition: opacity 200ms ease.
 
 ## 7. Do's and Don'ts
 
 ### Do
 
-- Use `#06d6a0` (teal) exclusively for interactive elements — buttons, links, focus rings, active nav items, toggle tracks. It is the brand. Protect it.
+- Use `--primary` (`#06d6a0`) exclusively for interactive elements — buttons, links, focus rings, active nav items, toggle tracks. Protect it.
 - Apply Geist Mono to every piece of financial data: amounts (`$10.00`), hashes (`0x1a2b...`), addresses, API keys (`sk_live_...`), subscription IDs. No exceptions.
-- Enable `font-variant-numeric: tabular-nums` on every numeric display — amounts, counts, percentages, table columns.
-- Truncate wallet addresses to first 6 + `...` + last 4 characters (`0x1a2b...3c4d`). Add a copy-to-clipboard icon button adjacent.
-- Use status colors consistently and exclusively: green (`#22c55e`) = confirmed/active, amber (`#fbbf24`) = warning/past_due, red (`#f87171`) = failed/cancelled, blue (`#60a5fa`) = pending.
-- Keep the checkout card centered at `max-width: 480px` — the payment moment must feel focused, contained, and safe.
-- Apply `border-radius: 8px` to all interactive elements (buttons, inputs, nav items) and `12px` to containers (cards, modals). Never mix radius values on the same visual layer.
-- Use cool-tinted borders (`rgba(148, 163, 184, 0.12)`) as the primary depth mechanism. They are the structural skeleton of the dark UI.
-- Maintain the 4px spacing grid — every margin, padding, and gap must be a multiple of 4.
+- Enable `tabular-nums` on every numeric display.
+- Truncate wallet addresses to first 6 + `...` + last 4 characters. Add a copy-to-clipboard icon button adjacent.
+- Use status colors consistently: `success`=confirmed/active, `info`=pending, `warning`=past_due, `destructive`=failed/cancelled.
+- Keep the checkout card centered at `max-w-[480px]`.
+- Maintain the 8-point spacing grid.
+- Use surface tiers for depth. Move up a tier instead of adding a shadow.
 - Show USDC amounts with exactly 2 decimal places (`$10.00`, not `$10`) and the USDC token badge alongside.
 
 ### Don't
 
-- Don't use gradients, glows, neon effects, or animated backgrounds. These are crypto-aesthetic tropes that destroy professional credibility. Paylix is a payment tool, not a DeFi dashboard.
-- Don't use font weight above 600. The maximum is 600 for page titles and badge text. Weight 700+ feels aggressive and cheap in a financial UI.
-- Don't apply teal (`#06d6a0`) to large background areas, body text, or decorative elements. It is for small interactive targets only — buttons, links, focus rings, active indicators.
-- Don't use pure black (`#000000`) as the canvas. Use `#07070a` which has enough cold warmth to avoid the "floating in absolute void" effect.
-- Don't use warm-tinted grays for borders. All borders use the cool-shifted `rgba(148, 163, 184, ...)` scale. Warm borders conflict with the teal accent.
-- Don't wrap wallet addresses or transaction hashes to multiple lines. Always truncate with ellipsis and provide a copy button.
-- Don't use emoji or decorative icons in the dashboard. Use Lucide icons at 16-18px, stroke width 1.5px, in `#64748b` (inactive) or `#f0f0f3` (active/hover).
-- Don't add box-shadows to flat cards in dark mode. Borders provide the structure. Shadows are reserved for truly floating elements (L2+).
-- Don't introduce a third font family. Geist Sans + Geist Mono. That's it. Adding a display serif, a rounded sans, or any other font breaks the system.
-- Don't use color alone to communicate status. Always pair status colors with text labels ("Active", "Failed") or icons for accessibility.
+- Don't use gradients, glows, neon effects, or animated backgrounds. These are crypto-aesthetic tropes. Paylix is a payment tool, not a DeFi dashboard.
+- Don't use font weight above 600.
+- Don't apply teal to large background areas, body text, or decorative elements.
+- Don't use pure black (`#000000`) as the canvas. Use `--background` (`#0a0a0c`).
+- **Don't reintroduce `rgba(148, 163, 184, …)` borders.** These are the old cold slate-tinted borders; they're gone for a reason. Use `--border` / `--border-strong`.
+- Don't wrap wallet addresses or transaction hashes to multiple lines.
+- Don't use emoji or decorative icons in the dashboard. Use Lucide icons, stroke width 1.5px, in `--foreground-dim` (inactive) or `--foreground` (active).
+- Don't add box-shadows to L1/L2 cards. Shadows are reserved for L3 floating elements.
+- Don't introduce a third font family.
+- Don't use color alone to communicate status. Always pair with a text label.
 
 ## 8. Responsive Behavior
 
 ### Breakpoints
 
 | Name | Width | Key Changes |
-|------|-------|-------------|
-| Mobile | < 640px | Sidebar collapses to bottom tab bar (5 icons). Stat cards stack to 1-column. Tables scroll horizontally with sticky first column. Checkout is full-width with 16px padding. Page title stacks above action buttons. |
-| Tablet | 640px – 1024px | Sidebar collapses to icon-only rail (56px). Stat cards in 2-column grid. Content padding reduces to 16px. Forms remain max-width 560px. |
-| Desktop | > 1024px | Full sidebar (240px). Stat cards 3-column. All features visible. Content padding 24px. Tables comfortably fit without scroll. |
+|---|---|---|
+| Mobile | < 640px | Sidebar collapses to bottom tab bar. Stat cards stack to 1-column. Tables scroll horizontally with sticky first column. Checkout is full-width with 16px padding. |
+| Tablet | 640–1024px | Sidebar collapses to icon-only rail (56px). Stat cards in 2-column grid. Page gutters reduce to `px-6 py-8`. |
+| Desktop | > 1024px | Full sidebar (240px). Stat cards 3-column. Page gutters `px-8 py-10`. |
 
 ### Touch Targets
 
-- Minimum touch target: 44px x 44px on mobile (WCAG 2.5.5)
-- Table rows: 52px height (tappable on mobile, scannable on desktop)
-- Buttons: height 40px desktop, 44px mobile
-- Nav items: 44px height mobile, 36px desktop
-- Icon buttons: 44px x 44px mobile, 36px x 36px desktop
-- Toggle switches: 44px x 24px (full track is the target)
+- Minimum touch target: 44×44px on mobile (WCAG 2.5.5).
+- Table rows: 52px height.
+- Buttons: 40px desktop, 44px mobile.
+- Icon buttons: 36×36px desktop, 44×44px mobile.
 
 ### Collapsing Strategy
 
-- Sidebar: `240px` full → `56px` icon rail → hidden (bottom tab bar on mobile)
-- Stat cards: 3-column → 2-column → 1-column stack
-- Data tables: fixed layout → horizontal scroll, sticky first column + actions column
-- Forms: `max-width: 560px` at all sizes, horizontal padding adjusts (24px → 16px)
-- Checkout card: `max-width: 480px` centered → full-width with 16px horizontal padding
-- Page header (title + actions): side-by-side → stacked (title top, actions below)
-- Metadata editor: horizontal key-value → stacked (key above value) on mobile
+- Sidebar: 240px full → 56px icon rail → hidden (bottom tab bar on mobile).
+- Stat cards: 3-col → 2-col → 1-col stack.
+- Data tables: fixed layout → horizontal scroll, sticky first and actions columns.
+- Forms: `max-w-[560px]` at all sizes, gutters adjust.
+- Checkout card: `max-w-[480px]` centered → full-width with 16px horizontal padding.
+- Page header (title + actions): side-by-side → stacked.
 
 ### Image Behavior
 
-- Paylix logo: SVG, renders at 24px height in sidebar, 20px in mobile nav, 28px on checkout page
-- Token icons (USDC): 16px in tables, 20px in checkout, loaded from CDN with text fallback ("USDC")
-- QR codes: 200px on desktop, 160px on mobile, always centered, white code on dark background
-- No decorative illustrations — the UI is data-driven
+- Paylix logo: SVG, 24px in sidebar, 20px in mobile nav, 28px on checkout.
+- Token icons (USDC): 16px in tables, 20px in checkout.
+- QR codes: 200px desktop, 160px mobile, always centered.
+- No decorative illustrations — the UI is data-driven.
 
 ## 9. Agent Prompt Guide
 
-### Quick Color Reference
+### Quick Token Reference
 
-- Brand accent / interactive: Teal (`#06d6a0`)
-- Brand hover: `#05bf8e`
-- Page background: Canvas (`#07070a`)
-- Card surface: Surface 1 (`#111116`)
-- Elevated surface: Surface 2 (`#18181e`)
-- Sidebar: Surface 0 (`#0c0c10`)
-- Primary text: `#f0f0f3`
-- Secondary text: `#94a3b8`
-- Tertiary text: `#64748b`
-- Border: `rgba(148, 163, 184, 0.12)`
-- Success: `#22c55e`
-- Warning: `#fbbf24`
-- Error: `#f87171`
-- Pending: `#60a5fa`
-- USDC: `#2775ca`
-- Financial amounts: Geist Mono, weight 500, tabular-nums
+- Brand / interactive: `--primary` (`#06d6a0`)
+- Canvas: `--background` (`#0a0a0c`)
+- Card surface: `--surface-1` (`#111113`)
+- Elevated surface: `--surface-2` (`#17171a`)
+- Hover surface: `--surface-3` (`#1e1e22`)
+- Primary text: `--foreground` (`#ededef`)
+- Muted text: `--foreground-muted` (`#a1a1aa`)
+- Dim text: `--foreground-dim` (`#71717a`)
+- Border: `--border` (`rgba(255, 255, 255, 0.06)`)
+- Strong border: `--border-strong` (`rgba(255, 255, 255, 0.10)`)
+- Success (confirmed): `--success` (`#22c55e`)
+- Warning (past_due): `--warning` (`#f59e0b`)
+- Info (pending): `--info` (`#3b82f6`)
+- Destructive (failed): `--destructive` (`#ef4444`)
+- USDC: `--usdc` (`#2775ca`)
+- Financial amounts: `font-mono tabular-nums`
 
 ### Example Component Prompts
 
-- "Build a payment status badge. Pill shape (`border-radius: 9999px`), 11px Geist Sans weight 600, letter-spacing 0.3px, padding 3px 10px. Confirmed: `#22c55e` text, `#22c55e12` background, `#22c55e30` border. Pending: `#60a5fa` text, `#60a5fa12` bg, `#60a5fa30` border. Past due: `#fbbf24`. Failed: `#f87171`. All with 1px solid border."
+- "Build a payment status badge. `rounded-full`, `text-xs font-medium`, `px-2.5 py-0.5`, 1px border in the status color at 30% opacity, bg at 12% opacity, text at the full status color. Confirmed → `--success`. Pending → `--info`. Past due → `--warning`. Failed → `--destructive`."
 
-- "Build a stat card for the dashboard. Background `#111116`, border 1px `rgba(148, 163, 184, 0.12)`, radius 12px, padding 20px 24px. Top: uppercase label in 11px weight 600, `#64748b`, tracking 0.8px. Bottom: large amount in Geist Mono 24px weight 600, `#f0f0f3`, tabular-nums. Optional: small trend badge (green pill for positive, red for negative) right-aligned."
+- "Build a stat card. `bg-surface-1 border border-border rounded-lg p-6`. Top: uppercase label `text-xs font-medium uppercase tracking-wider text-foreground-dim`. Bottom: large amount `font-mono tabular-nums text-2xl font-semibold text-foreground`. Optional trend badge right-aligned."
 
-- "Build the sidebar nav. Width 240px, background `#0c0c10`, right border `rgba(148, 163, 184, 0.08)`. Logo area 56px tall. Section labels: 11px uppercase weight 600, `#64748b`, 0.8px tracking. Nav items: 36px tall, 8px 12px padding, 8px radius, Lucide icons 18px. Inactive: `#94a3b8` text, `#64748b` icon. Hover: `#111116` bg, `#f0f0f3` text+icon. Active: `#06d6a010` bg, `#06d6a0` text+icon."
+- "Build the sidebar nav. Width 240px, `bg-sidebar` (= `--surface-1`), right border `--sidebar-border`. Section labels: `text-xs font-medium uppercase tracking-wider text-foreground-dim`. Nav items: `h-9 px-3 rounded-md text-sm`. Inactive: `text-foreground-muted`, icon `text-foreground-dim`. Hover: `bg-surface-2`, text+icon `text-foreground`. Active: `bg-primary/10`, text+icon `text-primary`."
 
-- "Build the checkout page. Full viewport `#07070a` background. Centered card: max-width 480px, `#18181e` background, border `rgba(148, 163, 184, 0.16)`, radius 16px, padding 32px, shadow `0 8px 32px rgba(0,0,0,0.40)`. Product name 20px weight 600. Price in Geist Mono 24px weight 600 + USDC badge. Customer fields stacked with 12px gap. Full-width teal primary button. QR code section below divider, centered 200x200."
+- "Build the checkout page. Full viewport `bg-background`. Centered card: `max-w-[480px] bg-surface-2 border border-border-strong rounded-xl p-8`. Product name in h2 style (`text-base font-semibold`). Price `font-mono tabular-nums text-2xl font-semibold` + USDC badge. Customer fields stacked with `gap-3`. Full-width primary button. QR code section below divider, centered."
 
-- "Build a data table for payments. No outer border — lives inside a card. Header: 40px height, 13px weight 500 `#64748b` text, bottom border `rgba(148, 163, 184, 0.08)`. Rows: 52px height, 13px `#f0f0f3` text, bottom border `rgba(148, 163, 184, 0.06)`, hover `#0c0c10`. Amount column: Geist Mono right-aligned + USDC badge. Status column: pill badges. Tx hash: Geist Mono truncated (6+4) + 16px copy icon button."
+- "Build a data table for payments. Lives inside a Default Card. Header: `text-xs font-medium uppercase tracking-wider text-foreground-dim`, bottom border `--border`. Rows: `text-sm text-foreground`, cell padding `py-3.5 px-4`, row hover `bg-surface-2`. Amount column: `font-mono tabular-nums` right-aligned + USDC badge. Status column: pill badges. Tx hash: mono truncated (6+4) + copy icon button."
 
 ### Iteration Guide
 
-1. Start with `#07070a` canvas, `#111116` cards, `#f0f0f3` text — this is the foundation of every screen.
-2. Teal (`#06d6a0`) is ONLY for things the user clicks, focuses, or that indicate "active." If it's not interactive, it's not teal.
-3. All financial data (amounts, hashes, addresses, keys) renders in Geist Mono with `tabular-nums`. Every time. No exceptions.
-4. Borders (`rgba(148, 163, 184, 0.12)`) are the primary depth mechanism. Shadows appear only on floating elements (L2+).
-5. The 4px grid is law. If a spacing value isn't divisible by 4, round to the nearest multiple.
-6. Status colors are immutable: green=confirmed/active, amber=past_due, red=failed/cancelled, blue=pending.
-7. The checkout page is a single centered card (480px max). No sidebar, no nav, no footer — just the payment flow and "Powered by Paylix."
-8. More whitespace is almost always the right call. A payment platform should feel spacious, controlled, and calm — never cramped.
+1. Start with `--background` canvas, `--surface-1` cards, `--foreground` text — this is the foundation of every screen.
+2. Teal is ONLY for things the user clicks, focuses, or that indicate "active."
+3. All financial data renders in Geist Mono with `tabular-nums`. Every time.
+4. Depth comes from surface tiers (`--surface-1` → `--surface-2` → `--surface-3`), not shadow.
+5. Borders are neutral white at 0.06 / 0.10 opacity. No slate, no blue cast.
+6. The 8-point spacing grid is law: `px-8 py-10` page gutters, `gap-10` section gaps, `p-6` card padding, `py-3.5 px-4` table cells.
+7. Status colors are immutable: `success`=confirmed, `info`=pending, `warning`=past_due, `destructive`=failed.
+8. The checkout page is a single centered card (`max-w-[480px]`).
+9. More whitespace is almost always the right call.

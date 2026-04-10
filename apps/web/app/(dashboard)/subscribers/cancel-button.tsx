@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Web3Providers } from "@/components/providers";
 import CancelSubscriptionModal from "@/components/cancel-subscription-modal";
+import { Button } from "@/components/ui/button";
 
 interface CancelButtonProps {
   subscriptionId: string;
@@ -11,7 +12,11 @@ interface CancelButtonProps {
   productName: string | null;
 }
 
-function CancelButtonInner({ subscriptionId, onChainId, productName }: CancelButtonProps) {
+function CancelButtonInner({
+  subscriptionId,
+  onChainId,
+  productName,
+}: CancelButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -34,25 +39,13 @@ function CancelButtonInner({ subscriptionId, onChainId, productName }: CancelBut
 
   return (
     <>
-      <button
+      <Button
+        variant="destructive"
+        size="sm"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors"
-        style={{
-          background: "transparent",
-          borderColor: "#f8717130",
-          color: "#f87171",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "#f8717112";
-          e.currentTarget.style.borderColor = "#f8717150";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.borderColor = "#f8717130";
-        }}
       >
         Cancel
-      </button>
+      </Button>
       <CancelSubscriptionModal
         open={open}
         onClose={() => setOpen(false)}

@@ -21,6 +21,29 @@ const updateWebhookSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  const [row] = await db
+    .select()
+    .from(webhooks)
+    .where(and(eq(webhooks.id, id), eq(webhooks.userId, session.user.id)));
+
+  if (!row) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(row);
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
