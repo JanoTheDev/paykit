@@ -182,13 +182,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 relayerStatus.low ? "bg-warning" : "bg-success",
               )}
             />
-            <span>
-              Relayer{" "}
-              {relayerStatus.balanceEth
-                ? `${Number(relayerStatus.balanceEth).toFixed(4)} ETH`
-                : "ok"}
-              {relayerStatus.low && " (low)"}
-            </span>
+            <span>Relayer {relayerStatus.low ? "low" : "ok"}</span>
           </div>
         )}
         {keeperStatus && keeperStatus.configured && (
@@ -199,13 +193,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 keeperStatus.low ? "bg-warning" : "bg-success",
               )}
             />
-            <span>
-              Keeper{" "}
-              {keeperStatus.balanceEth
-                ? `${Number(keeperStatus.balanceEth).toFixed(4)} ETH`
-                : "ok"}
-              {keeperStatus.low && " (low)"}
-            </span>
+            <span>Keeper {keeperStatus.low ? "low" : "ok"}</span>
           </div>
         )}
         <Button

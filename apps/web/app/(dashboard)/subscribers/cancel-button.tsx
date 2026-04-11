@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog, ActionMenu } from "@/components/paykit";
 import type { ActionItem } from "@/components/paykit";
@@ -22,7 +22,6 @@ export default function CancelButton({
 }: CancelButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [, startTransition] = useTransition();
 
   const items: ActionItem[] = [
     {
@@ -34,6 +33,8 @@ export default function CancelButton({
   ];
 
   async function handleConfirm() {
+    // The route waits for the on-chain receipt + updates the DB before
+    // returning, so this fetch resolves only after the cancellation is real.
     const res = await fetch(
       `/api/subscriptions/${subscriptionId}/cancel-gasless`,
       { method: "POST" },
@@ -42,9 +43,14 @@ export default function CancelButton({
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || "Cancel failed");
     }
-    startTransition(() => {
-      router.refresh();
-    });
+
+    // Trigger the server-component refresh and HOLD the dialog's "Working..."
+    // state until the new data has had time to render. router.refresh() is
+    // fire-and-forget, so without this delay the dialog closes 500ms before
+    // the table row visually flips to "cancelled" — looking like the cancel
+    // didn't take effect.
+    router.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 600));
   }
 
   return (

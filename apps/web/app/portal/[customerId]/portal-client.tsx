@@ -83,8 +83,14 @@ export function PortalClient({
     null,
   );
 
-  function handleConfirmed() {
-    setTimeout(() => router.refresh(), 2500);
+  async function handleConfirmed() {
+    // Trigger the server-component refresh and hold the dialog's "Working..."
+    // state until the new data has had time to render. The cancel route already
+    // waits for the on-chain receipt before returning, so by this point the DB
+    // is settled — the small delay just covers the refresh round-trip so the
+    // dialog doesn't close while the row still visually says "active".
+    router.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 600));
   }
 
   const paymentRows: PortalPaymentRow[] = payments.map((p) => ({
@@ -211,7 +217,7 @@ export function PortalClient({
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || "Cancel failed");
           }
-          handleConfirmed();
+          await handleConfirmed();
         }}
       />
     </PageShell>
