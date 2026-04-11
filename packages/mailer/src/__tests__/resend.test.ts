@@ -35,7 +35,7 @@ describe("resend driver", () => {
     sendSpy.mockResolvedValueOnce({
       data: null,
       error: { message: "bounced" },
-    } as unknown as { data: null; error: { message: string } });
+    } as unknown as { data: { id: string }; error: null });
     const driver = createResendDriver({ apiKey: "key" });
     const result = await driver.send({
       to: "a@b.com",
