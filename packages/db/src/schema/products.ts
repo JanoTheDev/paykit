@@ -3,6 +3,7 @@ import {
   uuid,
   text,
   boolean,
+  integer,
   timestamp,
   jsonb,
   pgEnum,
@@ -41,6 +42,11 @@ export const products = pgTable("products", {
       phone?: boolean;
     }>()
     .default({}),
+  taxRateBps: integer("tax_rate_bps"),
+  taxLabel: text("tax_label"),
+  reverseChargeEligible: boolean("reverse_charge_eligible")
+    .notNull()
+    .default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
