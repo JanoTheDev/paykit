@@ -39,6 +39,7 @@ const updateProductSchema = z.object({
   taxRateBps: z.number().int().min(0).max(10000).nullable().optional(),
   taxLabel: z.string().max(64).nullable().optional(),
   reverseChargeEligible: z.boolean().optional(),
+  trialDays: z.number().int().min(0).max(365).nullish(),
 });
 
 export async function PATCH(
@@ -62,19 +63,24 @@ export async function PATCH(
   const data = parsed.data;
 
   const updated = await db.transaction(async (tx) => {
+    const patch: Partial<typeof products.$inferInsert> = {
+      name: data.name,
+      description: data.description,
+      type: data.type,
+      billingInterval: data.type === "one_time" ? null : data.billingInterval,
+      metadata: data.metadata,
+      checkoutFields: data.checkoutFields,
+      taxRateBps: data.taxRateBps,
+      taxLabel: data.taxLabel,
+      reverseChargeEligible: data.reverseChargeEligible,
+    };
+    if (data.trialDays !== undefined) {
+      patch.trialDays = data.trialDays;
+    }
+
     const [row] = await tx
       .update(products)
-      .set({
-        name: data.name,
-        description: data.description,
-        type: data.type,
-        billingInterval: data.type === "one_time" ? null : data.billingInterval,
-        metadata: data.metadata,
-        checkoutFields: data.checkoutFields,
-        taxRateBps: data.taxRateBps,
-        taxLabel: data.taxLabel,
-        reverseChargeEligible: data.reverseChargeEligible,
-      })
+      .set(patch)
       .where(and(eq(products.id, id), eq(products.organizationId, organizationId)))
       .returning();
 

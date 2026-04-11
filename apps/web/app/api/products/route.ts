@@ -40,6 +40,7 @@ const createProductSchema = z
     taxRateBps: z.number().int().min(0).max(10000).nullable().optional(),
     taxLabel: z.string().max(64).nullable().optional(),
     reverseChargeEligible: z.boolean().optional(),
+    trialDays: z.number().int().min(0).max(365).nullish(),
   })
   .refine((d) => d.type !== "subscription" || !!d.billingInterval, {
     message: "billingInterval is required for subscription products",
@@ -135,6 +136,7 @@ export async function POST(request: Request) {
         taxRateBps: data.taxRateBps ?? null,
         taxLabel: data.taxLabel ?? null,
         reverseChargeEligible: data.reverseChargeEligible ?? false,
+        trialDays: data.type === "subscription" ? (data.trialDays ?? null) : null,
       })
       .returning();
 
