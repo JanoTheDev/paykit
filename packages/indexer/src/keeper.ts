@@ -39,14 +39,17 @@ export async function runKeeper() {
 
   const now = new Date();
 
-  const currentContract = config.subscriptionManagerAddress.toLowerCase();
+  // Query ALL active due subscriptions, regardless of contract address.
+  // Each subscription row records the contract it was born on and the keeper
+  // routes the writeContract call to that specific address below. This lets
+  // the operator redeploy SubscriptionManager (e.g. after an upgrade) without
+  // stranding old subscriptions — they keep charging on the old contract.
   const dueSubscriptions = await db
     .select()
     .from(subscriptions)
     .where(
       and(
         eq(subscriptions.status, "active"),
-        eq(subscriptions.contractAddress, currentContract),
         lte(subscriptions.nextChargeDate, now)
       )
     );
@@ -87,10 +90,28 @@ export async function runKeeper() {
     }
 
     try {
-      console.log(`[Keeper] Charging subscription ${sub.id} (onChainId: ${sub.onChainId})`);
+      // Subscriptions are locked to the contract they were born on. Read the
+      // address from the row, not the env — if the operator redeploys the
+      // SubscriptionManager, old subs keep charging on the old contract and new
+      // subs go to the new one. See spec §Option Z.
+      const contractAddress = sub.contractAddress as `0x${string}` | null;
+      if (!contractAddress) {
+        console.error(
+          `[Keeper] Subscription ${sub.id} has no contract_address, skipping. ` +
+            `This should not happen for subs created after the multi-chain refactor.`,
+        );
+        // Roll back the optimistic bump since we're skipping.
+        await db
+          .update(subscriptions)
+          .set({ nextChargeDate: originalNextChargeDate })
+          .where(eq(subscriptions.id, sub.id));
+        continue;
+      }
+
+      console.log(`[Keeper] Charging subscription ${sub.id} (onChainId: ${sub.onChainId}) via contract ${contractAddress}`);
 
       const txHash = await walletClient.writeContract({
-        address: config.subscriptionManagerAddress,
+        address: contractAddress,
         abi: chargeSubscriptionAbi,
         functionName: "chargeSubscription",
         args: [BigInt(sub.onChainId)],
