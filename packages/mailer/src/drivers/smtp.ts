@@ -21,12 +21,17 @@ export function createSmtpDriver(cfg: SmtpConfig): MailDriver {
   return {
     async send(input: SendMailInput): Promise<SendMailResult> {
       try {
-        const html = await render(input.react);
+        const html =
+          "html" in input && input.html !== undefined
+            ? input.html
+            : await render(input.react!);
+        const text = "text" in input ? input.text : undefined;
         const info = await transporter.sendMail({
           from: input.from,
           to: input.to,
           subject: input.subject,
           html,
+          text,
           attachments: input.attachments?.map((a) => ({
             filename: a.filename,
             content: a.content,
