@@ -9,6 +9,7 @@ import { Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,7 +17,6 @@ import { Separator } from "@/components/ui/separator";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -44,7 +44,6 @@ const schema = z
     name: z.string().min(1, "Name is required").max(100),
     description: z.string().optional(),
     type: z.enum(["one_time", "subscription"]),
-    price: z.coerce.number().int().positive("Price must be > 0"),
     billingInterval: z
       .enum([
         "minutely",
@@ -70,7 +69,6 @@ export type ProductFormData = {
   name: string;
   description: string;
   type: "one_time" | "subscription";
-  price: number;
   billingInterval:
     | "minutely"
     | "weekly"
@@ -86,6 +84,11 @@ export type ProductFormData = {
     email: boolean;
     phone: boolean;
   };
+  prices: Array<{
+    networkKey: string;
+    tokenSymbol: string;
+    amount: string; // human-readable decimal, converted to native units on save
+  }>;
 };
 
 interface ProductFormProps {
@@ -103,7 +106,6 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
       name: initialData?.name ?? "",
       description: initialData?.description ?? "",
       type: initialData?.type ?? "one_time",
-      price: initialData?.price ?? 0,
       billingInterval: initialData?.billingInterval ?? "",
     },
   });
@@ -134,6 +136,23 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
     phone: initialData?.checkoutFields?.phone ?? false,
   });
 
+  const [prices, setPrices] = useState<
+    Array<{ networkKey: string; tokenSymbol: string; amount: string }>
+  >(
+    initialData?.prices && initialData.prices.length > 0
+      ? initialData.prices
+      : [{ networkKey: "", tokenSymbol: "", amount: "" }],
+  );
+
+  const [enabledNetworks, setEnabledNetworks] = useState<
+    Array<{
+      networkKey: string;
+      chainName: string;
+      displayLabel: string;
+      tokens: string[];
+    }>
+  >([]);
+
   // On create-mode mount, pre-fill the toggles from the merchant's
   // per-account defaults (configured in /settings → Default Checkout Fields).
   // We only do this on create — editing an existing product must show its
@@ -161,6 +180,52 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
     };
   }, [mode, initialData]);
 
+  useEffect(() => {
+    // Load merchant's enabled networks from /api/settings
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(async (data) => {
+        if (cancelled || !data?.networks) return;
+        const { NETWORKS } = await import("@paylix/config/networks");
+        const enabled = data.networks
+          .filter((n: { enabled: boolean }) => n.enabled)
+          .map((n: { networkKey: string; chainName: string; displayLabel: string }) => ({
+            networkKey: n.networkKey,
+            chainName: n.chainName,
+            displayLabel: n.displayLabel,
+            tokens: Object.keys(NETWORKS[n.networkKey as keyof typeof NETWORKS].tokens),
+          }));
+        if (!cancelled) setEnabledNetworks(enabled);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function updatePrice(
+    index: number,
+    field: "networkKey" | "tokenSymbol" | "amount",
+    value: string,
+  ) {
+    setPrices((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  }
+
+  function addPrice() {
+    setPrices((prev) => [
+      ...prev,
+      { networkKey: "", tokenSymbol: "", amount: "" },
+    ]);
+  }
+
+  function removePrice(index: number) {
+    setPrices((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }
+
   function updateMetadataRow(
     index: number,
     field: "key" | "value",
@@ -184,21 +249,59 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
 
   async function onSubmit(values: z.infer<typeof schema>) {
     setError("");
+
+    // Validate all prices have complete fields
+    for (const p of prices) {
+      if (!p.networkKey || !p.tokenSymbol || !p.amount.trim()) {
+        setError("All price entries must have network, token, and amount set");
+        return;
+      }
+    }
+
+    // Convert amounts to native units
+    const { NETWORKS } = await import("@paylix/config/networks");
+    const { toNativeUnits } = await import("@/lib/amounts");
+
+    let convertedPrices: Array<{
+      networkKey: string;
+      tokenSymbol: string;
+      amount: string;
+    }>;
+    try {
+      convertedPrices = prices.map((p) => {
+        const network = NETWORKS[p.networkKey as keyof typeof NETWORKS];
+        const token = (network.tokens as Record<string, typeof network.tokens[keyof typeof network.tokens]>)[p.tokenSymbol];
+        if (!token) {
+          throw new Error(`Unknown token ${p.tokenSymbol} on ${p.networkKey}`);
+        }
+        return {
+          networkKey: p.networkKey,
+          tokenSymbol: p.tokenSymbol,
+          amount: toNativeUnits(p.amount, token.decimals).toString(),
+        };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Price conversion error");
+      return;
+    }
+
     const metadata: Record<string, string> = {};
     for (const row of metadataRows) {
       if (row.key.trim()) metadata[row.key.trim()] = row.value;
     }
+
     const payload: Record<string, unknown> = {
       name: values.name,
       description: values.description || undefined,
       type: values.type,
-      price: values.price,
       metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       checkoutFields,
+      prices: convertedPrices,
     };
     if (values.type === "subscription" && values.billingInterval) {
       payload.billingInterval = values.billingInterval;
     }
+
     try {
       const url =
         mode === "edit" ? `/api/products/${initialData?.id}` : "/api/products";
@@ -209,8 +312,8 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error ?? "Something went wrong");
+        const body = await res.json().catch(() => ({}));
+        setError(body.error ?? "Something went wrong");
         return;
       }
       router.push("/products");
@@ -291,29 +394,6 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Price (cents)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="1000"
-                      min={1}
-                      step={1}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Enter amount in cents. 1000 = $10.00
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             {type === "subscription" && (
               <FormField
                 control={form.control}
@@ -342,6 +422,104 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
                   </FormItem>
                 )}
               />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium">Prices</h3>
+              <p className="text-xs text-muted-foreground">
+                One or more prices per product. Each entry is an independent
+                (network, token, amount) combination. Buyers pick between them at
+                checkout if you don&apos;t pre-lock the currency.
+              </p>
+            </div>
+
+            {enabledNetworks.length === 0 ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  No networks enabled. Go to Settings → Networks and enable at
+                  least one before creating a product.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="space-y-3">
+                {prices.map((p, i) => (
+                  <div
+                    key={i}
+                    className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end"
+                  >
+                    <div>
+                      <Label className="text-xs">Network</Label>
+                      <select
+                        value={p.networkKey}
+                        onChange={(e) =>
+                          updatePrice(i, "networkKey", e.target.value)
+                        }
+                        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">Select network…</option>
+                        {enabledNetworks.map((n) => (
+                          <option key={n.networkKey} value={n.networkKey}>
+                            {n.displayLabel}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Token</Label>
+                      <select
+                        value={p.tokenSymbol}
+                        onChange={(e) =>
+                          updatePrice(i, "tokenSymbol", e.target.value)
+                        }
+                        disabled={!p.networkKey}
+                        className="w-full rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-50"
+                      >
+                        <option value="">Select token…</option>
+                        {p.networkKey &&
+                          enabledNetworks
+                            .find((n) => n.networkKey === p.networkKey)
+                            ?.tokens.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">Amount</Label>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="10.00"
+                        value={p.amount}
+                        onChange={(e) => updatePrice(i, "amount", e.target.value)}
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removePrice(i)}
+                      disabled={prices.length === 1}
+                      aria-label="Remove price"
+                    >
+                      <Trash2 size={16} strokeWidth={1.5} />
+                    </Button>
+                  </div>
+                ))}
+
+                <Button type="button" variant="ghost" size="sm" onClick={addPrice}>
+                  <Plus size={16} strokeWidth={1.5} />
+                  Add price
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
