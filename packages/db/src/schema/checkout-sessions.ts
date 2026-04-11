@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, bigint, boolean, timestamp, jsonb, pgEnum } from "drizzle-orm/pg-core";
-import { users } from "./users";
+import { organization } from "./auth";
 import { products } from "./products";
 
 export const checkoutStatusEnum = pgEnum("checkout_status", [
@@ -13,7 +13,7 @@ export const checkoutStatusEnum = pgEnum("checkout_status", [
 
 export const checkoutSessions = pgTable("checkout_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   productId: uuid("product_id").notNull().references(() => products.id),
   customerId: text("customer_id"),
   merchantWallet: text("merchant_wallet").notNull(),
