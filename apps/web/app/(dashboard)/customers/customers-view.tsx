@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import PortalLinkButton from "./portal-link-button";
 import { CreateCustomerSheet } from "@/components/customers/create-customer-sheet";
+import { CustomerDetailDrawer } from "@/components/customers/customer-detail-drawer";
 
 export type CustomerRow = {
   id: string;
@@ -44,7 +45,10 @@ const columns = [
   col.text<CustomerRow>("paymentCount", "Payments", { align: "right" }),
   col.date<CustomerRow>("lastPayment", "Last Payment"),
   col.actions<CustomerRow>((row) => (
-    <div className="flex items-center gap-2">
+    <div
+      className="flex items-center gap-2"
+      onClick={(e) => e.stopPropagation()}
+    >
       {row.activeSubscriptionCount > 0 && (
         <Badge variant="success">Subscriber</Badge>
       )}
@@ -62,6 +66,7 @@ interface CustomersViewProps {
 export default function CustomersView({ rows }: CustomersViewProps) {
   const [segment, setSegment] = useState<Segment>("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     switch (segment) {
@@ -132,6 +137,7 @@ export default function CustomersView({ rows }: CustomersViewProps) {
       <DataTable
         columns={columns}
         data={filtered}
+        onRowClick={(row) => setDetailId(row.id)}
         emptyState={
           <EmptyState
             title={segment === "all" ? "No customers yet" : "No matches"}
@@ -144,6 +150,12 @@ export default function CustomersView({ rows }: CustomersViewProps) {
         }
       />
       <CreateCustomerSheet open={createOpen} onOpenChange={setCreateOpen} />
+      <CustomerDetailDrawer
+        customerId={detailId}
+        onOpenChange={(open) => {
+          if (!open) setDetailId(null);
+        }}
+      />
     </PageShell>
   );
 }

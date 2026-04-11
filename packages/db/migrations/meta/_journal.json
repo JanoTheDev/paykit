@@ -43,6 +43,13 @@
       "when": 1775928829747,
       "tag": "0005_premium_enchantress",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775935178044,
+      "tag": "0006_early_typhoid_mary",
+      "breakpoints": true
     }
   ]
 }

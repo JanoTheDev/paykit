@@ -1,8 +1,43 @@
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { payments, customers, checkoutSessions } from "@paylix/db/schema";
 import { authenticateApiKey } from "@/lib/api-auth";
+import { auth } from "@/lib/auth";
+import { z } from "zod";
+
+const patchSchema = z.object({
+  metadata: z.record(z.string(), z.string()),
+});
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const body = await request.json().catch(() => null);
+  const parsed = patchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const [updated] = await db
+    .update(payments)
+    .set({ metadata: parsed.data.metadata })
+    .where(and(eq(payments.id, id), eq(payments.userId, session.user.id)))
+    .returning();
+
+  if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  return NextResponse.json({ payment: updated });
+}
 
 export async function GET(
   request: Request,

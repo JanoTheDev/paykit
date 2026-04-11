@@ -1,10 +1,95 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { customers } from "@paylix/db/schema";
-import { and, eq } from "drizzle-orm";
+import {
+  customers,
+  invoices,
+  payments,
+  products,
+  subscriptions,
+} from "@paylix/db/schema";
+import { and, desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+export async function GET(
+  _request: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+  const userId = session.user.id;
+
+  const [customer] = await db
+    .select()
+    .from(customers)
+    .where(and(eq(customers.id, id), eq(customers.userId, userId)))
+    .limit(1);
+
+  if (!customer) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const [customerPayments, customerSubscriptions, customerInvoices] =
+    await Promise.all([
+      db
+        .select({
+          id: payments.id,
+          amount: payments.amount,
+          fee: payments.fee,
+          status: payments.status,
+          txHash: payments.txHash,
+          createdAt: payments.createdAt,
+          productName: products.name,
+          productType: products.type,
+          metadata: payments.metadata,
+        })
+        .from(payments)
+        .leftJoin(products, eq(payments.productId, products.id))
+        .where(and(eq(payments.customerId, id), eq(payments.userId, userId)))
+        .orderBy(desc(payments.createdAt)),
+      db
+        .select({
+          id: subscriptions.id,
+          status: subscriptions.status,
+          createdAt: subscriptions.createdAt,
+          nextChargeDate: subscriptions.nextChargeDate,
+          productName: products.name,
+          metadata: subscriptions.metadata,
+        })
+        .from(subscriptions)
+        .leftJoin(products, eq(subscriptions.productId, products.id))
+        .where(
+          and(
+            eq(subscriptions.customerId, id),
+            eq(subscriptions.userId, userId),
+          ),
+        )
+        .orderBy(desc(subscriptions.createdAt)),
+      db
+        .select({
+          id: invoices.id,
+          number: invoices.number,
+          totalCents: invoices.totalCents,
+          currency: invoices.currency,
+          issuedAt: invoices.issuedAt,
+          emailStatus: invoices.emailStatus,
+          hostedToken: invoices.hostedToken,
+        })
+        .from(invoices)
+        .where(
+          and(eq(invoices.customerId, id), eq(invoices.merchantId, userId)),
+        )
+        .orderBy(desc(invoices.issuedAt)),
+    ]);
+
+  return NextResponse.json({
+    customer,
+    payments: customerPayments,
+    subscriptions: customerSubscriptions,
+    invoices: customerInvoices,
+  });
+}
 
 const patchSchema = z.object({
   firstName: z.string().trim().max(100).nullish(),
