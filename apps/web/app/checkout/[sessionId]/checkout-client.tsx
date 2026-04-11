@@ -49,6 +49,8 @@ interface CheckoutSession {
     email?: boolean;
     phone?: boolean;
   } | null;
+  collectCountry: boolean;
+  collectTaxId: boolean;
   billingInterval: string | null;
 }
 
@@ -77,6 +79,8 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
     lastName: "",
     email: "",
     phone: "",
+    country: "",
+    taxId: "",
   });
   const markedViewed = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -107,11 +111,13 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
   }, []);
 
   const hasCheckoutFields =
-    session.checkoutFields &&
-    (session.checkoutFields.firstName ||
-      session.checkoutFields.lastName ||
-      session.checkoutFields.email ||
-      session.checkoutFields.phone);
+    (session.checkoutFields &&
+      (session.checkoutFields.firstName ||
+        session.checkoutFields.lastName ||
+        session.checkoutFields.email ||
+        session.checkoutFields.phone)) ||
+    session.collectCountry ||
+    session.collectTaxId;
 
   // Mark as viewed on mount
   useEffect(() => {
@@ -452,6 +458,21 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
 
       setPayStep("paying");
 
+      // Persist any collected customer form fields (names, email, phone,
+      // country, taxId) onto the session before relaying. Failures here are
+      // non-fatal — the payment can still go through.
+      if (hasCheckoutFields) {
+        try {
+          await fetch(`/api/checkout/${session.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ customer: customerFields }),
+          });
+        } catch {
+          // ignore — never block payment on form persistence
+        }
+      }
+
       // Submit to the backend relay endpoint — it will call the contract
       // via the whitelisted relayer wallet and return the tx hash.
       const relayRes = await fetch(`/api/checkout/${session.id}/relay`, {
@@ -768,6 +789,39 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
                     }))
                   }
                   placeholder="+1 (555) 123-4567"
+                />
+              </div>
+            )}
+            {session.collectCountry && (
+              <div className="space-y-1.5">
+                <Label>Country (ISO code)</Label>
+                <Input
+                  type="text"
+                  maxLength={2}
+                  value={customerFields.country}
+                  onChange={(e) =>
+                    setCustomerFields((f) => ({
+                      ...f,
+                      country: e.target.value.toUpperCase(),
+                    }))
+                  }
+                  placeholder="DE"
+                />
+              </div>
+            )}
+            {session.collectTaxId && (
+              <div className="space-y-1.5">
+                <Label>Tax / VAT ID (optional)</Label>
+                <Input
+                  type="text"
+                  value={customerFields.taxId}
+                  onChange={(e) =>
+                    setCustomerFields((f) => ({
+                      ...f,
+                      taxId: e.target.value,
+                    }))
+                  }
+                  placeholder="DE123456789"
                 />
               </div>
             )}

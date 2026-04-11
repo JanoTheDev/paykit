@@ -47,6 +47,8 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       metadata: checkoutSessions.metadata,
       expiresAt: checkoutSessions.expiresAt,
       productId: checkoutSessions.productId,
+      collectCountry: checkoutSessions.collectCountry,
+      collectTaxId: checkoutSessions.collectTaxId,
       productName: products.name,
       productDescription: products.description,
       checkoutFields: products.checkoutFields,
