@@ -10,6 +10,8 @@ export const customers = pgTable("customers", {
   lastName: text("last_name"),
   phone: text("phone"),
   walletAddress: text("wallet_address"),
+  country: text("country"),
+  taxId: text("tax_id"),
   metadata: jsonb("metadata").$type<Record<string, string>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
