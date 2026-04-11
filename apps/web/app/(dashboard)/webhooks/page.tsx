@@ -95,6 +95,11 @@ export default function WebhooksPage() {
   const [createdSecret, setCreatedSecret] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [testing, setTesting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editUrl, setEditUrl] = useState("");
+  const [editEvents, setEditEvents] = useState<string[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string>("");
 
   const fetchWebhooks = useCallback(async () => {
     const res = await fetch("/api/webhooks");
@@ -160,6 +165,56 @@ export default function WebhooksPage() {
       setDeliveries((prev) => [delivery, ...prev]);
     }
     setTesting(false);
+  }
+
+  async function loadDeliveries(webhookId: string) {
+    const res = await fetch(`/api/webhooks/${webhookId}/deliveries`);
+    if (res.ok) {
+      const data = await res.json();
+      setDeliveries(data.deliveries ?? []);
+    }
+  }
+
+  function startEdit() {
+    if (!selected) return;
+    setEditUrl(selected.url);
+    setEditEvents([...selected.events]);
+    setEditError("");
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setEditError("");
+  }
+
+  async function saveEdit() {
+    if (!selected) return;
+    if (!editUrl.trim() || editEvents.length === 0) return;
+    setSavingEdit(true);
+    setEditError("");
+    const res = await fetch(`/api/webhooks/${selected.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: editUrl, events: editEvents }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setEditError(data.error ?? "Failed to save");
+      setSavingEdit(false);
+      return;
+    }
+    const updated = await res.json();
+    setSelected({ ...selected, url: updated.url, events: updated.events });
+    setEditing(false);
+    setSavingEdit(false);
+    fetchWebhooks();
+  }
+
+  function toggleEditEvent(event: string) {
+    setEditEvents((prev) =>
+      prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event],
+    );
   }
 
   function toggleEvent(event: string) {
@@ -237,11 +292,14 @@ export default function WebhooksPage() {
             setSelected(row.raw);
             setSelectedSecret(null);
             setDeliveries([]);
-            const res = await fetch(`/api/webhooks/${row.raw.id}`);
-            if (res.ok) {
-              const full = await res.json();
-              setSelectedSecret(full.secret ?? null);
-            }
+            setEditing(false);
+            const [full, _] = await Promise.all([
+              fetch(`/api/webhooks/${row.raw.id}`).then((r) =>
+                r.ok ? r.json() : null,
+              ),
+              loadDeliveries(row.raw.id),
+            ]);
+            if (full?.secret) setSelectedSecret(full.secret);
           }}
           emptyState={
             <EmptyState
@@ -349,29 +407,47 @@ export default function WebhooksPage() {
           if (!v) {
             setSelected(null);
             setSelectedSecret(null);
+            setEditing(false);
           }
         }}
         title="Webhook Endpoint"
         description={selected?.url}
         footer={
-          <>
-            <Button
-              variant="outline"
-              onClick={handleTest}
-              disabled={testing}
-            >
-              {testing ? "Sending…" : "Send Test"}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => selected && setDeleteId(selected.id)}
-            >
-              Delete
-            </Button>
-          </>
+          editing ? (
+            <>
+              <Button variant="outline" onClick={cancelEdit} disabled={savingEdit}>
+                Cancel
+              </Button>
+              <Button
+                onClick={saveEdit}
+                disabled={savingEdit || !editUrl.trim() || editEvents.length === 0}
+              >
+                {savingEdit ? "Saving…" : "Save changes"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={startEdit}>
+                Edit
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleTest}
+                disabled={testing}
+              >
+                {testing ? "Sending…" : "Send Test"}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => selected && setDeleteId(selected.id)}
+              >
+                Delete
+              </Button>
+            </>
+          )
         }
       >
-        {selected && (
+        {selected && !editing && (
           <div className="flex flex-col gap-6">
             <div className="rounded-md border border-border bg-surface-2 p-4">
               <KeyValueList
@@ -405,6 +481,51 @@ export default function WebhooksPage() {
                 }
               />
             </Section>
+          </div>
+        )}
+        {selected && editing && (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-webhook-url">Endpoint URL</Label>
+              <Input
+                id="edit-webhook-url"
+                type="url"
+                value={editUrl}
+                onChange={(e) => setEditUrl(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Events</Label>
+              <div className="flex flex-col gap-1">
+                {ALL_EVENTS.map((event) => (
+                  <label
+                    key={event.value}
+                    className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-surface-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={editEvents.includes(event.value)}
+                      onChange={() => toggleEditEvent(event.value)}
+                      className="size-4 rounded border-border bg-surface-2 text-primary focus:ring-primary/20"
+                    />
+                    <span className="flex flex-col">
+                      <span className="text-sm text-foreground">
+                        {event.label}
+                      </span>
+                      <span className="font-mono text-xs text-foreground-muted">
+                        {event.value}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {editError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                {editError}
+              </div>
+            )}
           </div>
         )}
       </DetailDrawer>
