@@ -184,6 +184,9 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
   const [payStep, setPayStep] = useState<"idle" | "approving" | "paying" | "confirming">("idle");
   const [payError, setPayError] = useState<string | null>(null);
   const [isPicking, setIsPicking] = useState(false);
+  // Synchronous lock: React state updates are batched, so a double-click
+  // can enter handlePay twice before payStep flips. The ref closes that gap.
+  const payLockRef = useRef(false);
 
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -212,6 +215,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
       setPayError(txError?.message?.slice(0, 200) || "Transaction failed on-chain");
       setPayStep("idle");
       setTxHash(null);
+      payLockRef.current = false;
     }
   }, [txFailed, txError, txHash]);
 
@@ -236,11 +240,13 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
   }, [session.id, status, txHash, payStep]);
 
   const handlePay = async () => {
-    if (payStep !== "idle") return; // prevent double clicks
+    if (payLockRef.current || payStep !== "idle") return; // prevent double clicks
+    payLockRef.current = true;
     setPayError(null);
 
     if (wagmiStatus !== "connected" || !wagmiAddress) {
       open();
+      payLockRef.current = false;
       return;
     }
 
@@ -253,10 +259,12 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
           setStatus("completed");
           if (data.customerUuid) setCustomerUuid(data.customerUuid);
           if (data.portalToken) setPortalToken(data.portalToken);
+          payLockRef.current = false;
           return;
         }
         if (data.status === "expired") {
           setStatus("expired");
+          payLockRef.current = false;
           return;
         }
       }
@@ -510,6 +518,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
       const msg = err instanceof Error ? err.message : "Payment failed";
       setPayError(msg.slice(0, 200));
       setPayStep("idle");
+      payLockRef.current = false;
     }
   };
 

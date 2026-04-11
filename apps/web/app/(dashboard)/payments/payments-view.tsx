@@ -19,6 +19,8 @@ export type PaymentRow = {
   productType: string | null;
   customerEmail: string | null;
   customerWallet: string | null;
+  invoiceNumber: string | null;
+  invoiceHostedToken: string | null;
 };
 
 const columns = [
@@ -33,6 +35,19 @@ const columns = [
   col.amount<PaymentRow>("fee", "Fee"),
   col.status<PaymentRow>("status", "Status", "payment"),
   col.hash<PaymentRow>("txHash", "Tx Hash"),
+  col.actions<PaymentRow>((row) =>
+    row.invoiceHostedToken ? (
+      <a
+        href={`/i/${row.invoiceHostedToken}/pdf`}
+        className="text-accent underline-offset-2 hover:underline"
+        title={row.invoiceNumber ?? "Invoice"}
+      >
+        Invoice
+      </a>
+    ) : (
+      <span className="text-foreground-dim">—</span>
+    ),
+  ),
 ];
 
 interface PaymentsViewProps {

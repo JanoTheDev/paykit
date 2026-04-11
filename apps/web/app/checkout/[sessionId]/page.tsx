@@ -68,6 +68,16 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     );
   }
 
+  if (session.status === "completed") {
+    return (
+      <CheckoutStateCard
+        icon="✓"
+        title="This checkout has already been paid"
+        description="This payment link has already been used. If you need a receipt, contact the merchant or check your email for the invoice."
+      />
+    );
+  }
+
   const isExpired =
     session.status === "expired" ||
     (session.status === "active" && new Date(session.expiresAt) < new Date());
