@@ -4,12 +4,18 @@ import { and, count, eq, gte, sum, sql } from "drizzle-orm";
 import { payments, subscriptions } from "@paylix/db/schema";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireActiveOrg } from "@/lib/require-active-org";
 import OverviewView from "./overview-view";
 
 export default async function OverviewPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  const userId = session.user.id;
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch {
+    redirect("/login");
+  }
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -25,14 +31,14 @@ export default async function OverviewPage() {
       .select({ total: sum(payments.amount) })
       .from(payments)
       .where(
-        and(eq(payments.userId, userId), eq(payments.status, "confirmed")),
+        and(eq(payments.organizationId, organizationId), eq(payments.status, "confirmed")),
       ),
     db
       .select({ total: sum(payments.amount) })
       .from(payments)
       .where(
         and(
-          eq(payments.userId, userId),
+          eq(payments.organizationId, organizationId),
           eq(payments.status, "confirmed"),
           gte(payments.createdAt, thirtyDaysAgo),
         ),
@@ -40,13 +46,13 @@ export default async function OverviewPage() {
     db
       .select({ count: count() })
       .from(payments)
-      .where(eq(payments.userId, userId)),
+      .where(eq(payments.organizationId, organizationId)),
     db
       .select({ count: count() })
       .from(subscriptions)
       .where(
         and(
-          eq(subscriptions.userId, userId),
+          eq(subscriptions.organizationId, organizationId),
           eq(subscriptions.status, "active"),
         ),
       ),
@@ -59,7 +65,7 @@ export default async function OverviewPage() {
         createdAt: payments.createdAt,
       })
       .from(payments)
-      .where(eq(payments.userId, userId))
+      .where(eq(payments.organizationId, organizationId))
       .orderBy(sql`${payments.createdAt} desc`)
       .limit(10),
   ]);

@@ -10,6 +10,7 @@ import {
 } from "@paylix/db/schema";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireActiveOrg } from "@/lib/require-active-org";
 import CustomerDetailView from "./customer-detail-view";
 
 export default async function CustomerDetailPage({
@@ -19,13 +20,18 @@ export default async function CustomerDetailPage({
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  const userId = session.user.id;
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch {
+    redirect("/login");
+  }
   const { id } = await params;
 
   const [customer] = await db
     .select()
     .from(customers)
-    .where(and(eq(customers.id, id), eq(customers.userId, userId)))
+    .where(and(eq(customers.id, id), eq(customers.organizationId, organizationId)))
     .limit(1);
 
   if (!customer) notFound();
@@ -44,7 +50,7 @@ export default async function CustomerDetailPage({
         })
         .from(payments)
         .leftJoin(products, eq(payments.productId, products.id))
-        .where(and(eq(payments.customerId, id), eq(payments.userId, userId)))
+        .where(and(eq(payments.customerId, id), eq(payments.organizationId, organizationId)))
         .orderBy(desc(payments.createdAt)),
       db
         .select({
@@ -60,7 +66,7 @@ export default async function CustomerDetailPage({
         .where(
           and(
             eq(subscriptions.customerId, id),
-            eq(subscriptions.userId, userId),
+            eq(subscriptions.organizationId, organizationId),
           ),
         )
         .orderBy(desc(subscriptions.createdAt)),
@@ -76,7 +82,7 @@ export default async function CustomerDetailPage({
         })
         .from(invoices)
         .where(
-          and(eq(invoices.customerId, id), eq(invoices.merchantId, userId)),
+          and(eq(invoices.customerId, id), eq(invoices.organizationId, organizationId)),
         )
         .orderBy(desc(invoices.issuedAt)),
     ]);

@@ -4,12 +4,18 @@ import { count, desc, eq, max, sql, sum } from "drizzle-orm";
 import { customers, payments, subscriptions } from "@paylix/db/schema";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireActiveOrg } from "@/lib/require-active-org";
 import CustomersView, { type CustomerRow } from "./customers-view";
 
 export default async function CustomersPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  const userId = session.user.id;
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch {
+    redirect("/login");
+  }
 
   const raw = await db
     .select({
@@ -27,7 +33,7 @@ export default async function CustomersPage() {
     })
     .from(customers)
     .leftJoin(payments, eq(customers.id, payments.customerId))
-    .where(eq(customers.userId, userId))
+    .where(eq(customers.organizationId, organizationId))
     .groupBy(customers.id)
     .orderBy(desc(customers.createdAt));
 
@@ -37,7 +43,7 @@ export default async function CustomersPage() {
       status: subscriptions.status,
     })
     .from(subscriptions)
-    .where(eq(subscriptions.userId, userId));
+    .where(eq(subscriptions.organizationId, organizationId));
 
   const subByCustomer = new Map<string, { active: number; pastDue: number }>();
   for (const s of subRows) {

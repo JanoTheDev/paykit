@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { invoices, invoiceLineItems } from "@paylix/db/schema";
 import { HostedInvoice } from "@/components/invoice/hosted-invoice";
 import { PageShell, PageHeader } from "@/components/paykit";
+import { requireActiveOrg } from "@/lib/require-active-org";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -14,12 +15,18 @@ interface PageProps {
 export default async function InvoiceDetailPage({ params }: PageProps) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch {
+    redirect("/login");
+  }
   const { id } = await params;
 
   const [invoice] = await db
     .select()
     .from(invoices)
-    .where(and(eq(invoices.id, id), eq(invoices.merchantId, session.user.id)))
+    .where(and(eq(invoices.id, id), eq(invoices.organizationId, organizationId)))
     .limit(1);
   if (!invoice) notFound();
 
