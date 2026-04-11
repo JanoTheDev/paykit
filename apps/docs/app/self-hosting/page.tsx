@@ -224,16 +224,23 @@ RELAYER_ADDRESS=`}</CodeBlock>
 
       <SubsectionHeading>3. Deploy and fund</SubsectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
-        Run the deploy script (or redeploy if contracts are already live). It
-        will derive the relayer address from your private key and call{" "}
-        <code>setRelayer()</code> on both the PaymentVault and
-        SubscriptionManager contracts.
+        Deploy the contracts and pass the relayer address through as an env
+        var — the deploy script will call <code>setRelayer()</code> on both
+        the PaymentVault and SubscriptionManager. Derive the address from
+        your relayer private key with{" "}
+        <code>cast wallet address</code>:
       </p>
-      <CodeBlock language="bash">{`./deploy-contracts.sh`}</CodeBlock>
+      <CodeBlock language="bash">{`# From packages/contracts
+export RELAYER_ADDRESS=$(cast wallet address --private-key $RELAYER_PRIVATE_KEY)
+
+forge script script/DeployTestnet.s.sol \\
+  --rpc-url $RPC_URL --broadcast -v`}</CodeBlock>
       <p className="text-sm leading-relaxed text-foreground-muted">
-        Then fund the relayer wallet with ETH on the target chain. A small
-        balance goes a long way — ~0.005 ETH on Base Sepolia covers around
-        1,000 relayed transactions.
+        Copy the printed PaymentVault and SubscriptionManager addresses into
+        your <code>.env</code> (both the server-side and{" "}
+        <code>NEXT_PUBLIC_*</code> copies). Then fund the relayer wallet with
+        ETH on the target chain. A small balance goes a long way —
+        ~0.005 ETH on Base Sepolia covers around 1,000 relayed transactions.
       </p>
 
       <SubsectionHeading>4. Monitor balance</SubsectionHeading>
