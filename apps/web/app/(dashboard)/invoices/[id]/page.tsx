@@ -35,6 +35,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
         invoice={invoice}
         lineItems={lineItems}
         downloadHref={`/i/${invoice.hostedToken}/pdf`}
+        receiptHref={`/i/${invoice.hostedToken}/receipt`}
       />
     </PageShell>
   );

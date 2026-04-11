@@ -27,6 +27,7 @@ export default async function HostedInvoicePage({ params }: PageProps) {
       invoice={invoice}
       lineItems={lineItems}
       downloadHref={`/i/${token}/pdf`}
+      receiptHref={`/i/${token}/receipt`}
     />
   );
 }

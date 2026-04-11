@@ -10,12 +10,17 @@ import type {
   VerifyPaymentResult,
   CustomerPortalParams,
   CustomerPortalResult,
+  CreatePortalSessionParams,
+  CreatePortalSessionResult,
+  ListCustomerInvoicesParams,
+  ListCustomerInvoicesResult,
 } from "./types";
 import { NETWORKS } from "./networks";
 import { createCheckout } from "./checkout";
 import { createSubscription, cancelSubscription, updateSubscriptionWallet } from "./subscription";
 import { verifyPayment } from "./verify";
 import { getCustomerPortal } from "./portal";
+import { createPortalSession, listCustomerInvoices } from "./invoices";
 import { webhooks } from "./webhooks";
 
 export class Paylix {
@@ -57,5 +62,23 @@ export class Paylix {
 
   async getCustomerPortal(params: CustomerPortalParams): Promise<CustomerPortalResult> {
     return getCustomerPortal(this.config, params);
+  }
+
+  /**
+   * Create a signed URL to the hosted customer portal. Redirect the
+   * customer to this URL so they can view their payments, subscriptions,
+   * and invoices without needing a Paylix login.
+   */
+  async createPortalSession(params: CreatePortalSessionParams): Promise<CreatePortalSessionResult> {
+    return createPortalSession(this.config, params);
+  }
+
+  /**
+   * List all invoices for a customer. Each entry includes public URLs
+   * for the hosted invoice page, the on-demand invoice PDF, and the
+   * on-demand receipt PDF — pass these URLs directly to your customer.
+   */
+  async listCustomerInvoices(params: ListCustomerInvoicesParams): Promise<ListCustomerInvoicesResult> {
+    return listCustomerInvoices(this.config, params);
   }
 }

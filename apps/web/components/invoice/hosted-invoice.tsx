@@ -4,13 +4,14 @@ interface Props {
   invoice: Invoice;
   lineItems: InvoiceLineItem[];
   downloadHref: string;
+  receiptHref?: string;
 }
 
 function money(cents: number, currency: string) {
   return `${(cents / 100).toFixed(2)} ${currency}`;
 }
 
-export function HostedInvoice({ invoice, lineItems, downloadHref }: Props) {
+export function HostedInvoice({ invoice, lineItems, downloadHref, receiptHref }: Props) {
   return (
     <div className="mx-auto max-w-[720px] p-8">
       <header className="flex items-start justify-between gap-8 border-b border-border pb-6">
@@ -49,12 +50,22 @@ export function HostedInvoice({ invoice, lineItems, downloadHref }: Props) {
           <div className="mt-2 text-xs text-foreground-muted">
             Issued {new Date(invoice.issuedAt).toLocaleDateString()}
           </div>
-          <a
-            href={downloadHref}
-            className="mt-4 inline-block rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground"
-          >
-            Download PDF
-          </a>
+          <div className="mt-4 flex flex-col items-end gap-1.5">
+            <a
+              href={downloadHref}
+              className="inline-block rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground"
+            >
+              Download invoice
+            </a>
+            {receiptHref && (
+              <a
+                href={receiptHref}
+                className="inline-block rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2"
+              >
+                Download receipt
+              </a>
+            )}
+          </div>
         </div>
       </header>
 

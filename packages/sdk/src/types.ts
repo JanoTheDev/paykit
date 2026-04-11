@@ -89,6 +89,41 @@ export interface CustomerPortalParams {
   customerId: string;
 }
 
+export interface CreatePortalSessionParams {
+  customerId: string;
+}
+
+export interface CreatePortalSessionResult {
+  /** Signed, time-limited URL you can redirect the customer to. */
+  url: string;
+}
+
+export interface ListCustomerInvoicesParams {
+  customerId: string;
+}
+
+export interface CustomerInvoice {
+  id: string;
+  number: string;
+  totalCents: number;
+  subtotalCents: number;
+  taxCents: number;
+  taxLabel: string | null;
+  currency: string;
+  issuedAt: string;
+  emailStatus: "pending" | "sent" | "failed" | "skipped";
+  /** Public hosted HTML page a customer can bookmark. */
+  hostedUrl: string;
+  /** On-demand invoice PDF download. */
+  invoicePdfUrl: string;
+  /** On-demand payment receipt PDF download. */
+  receiptPdfUrl: string;
+}
+
+export interface ListCustomerInvoicesResult {
+  invoices: CustomerInvoice[];
+}
+
 export interface CustomerPortalResult {
   customer: {
     id: string;
