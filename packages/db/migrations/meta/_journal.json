@@ -8,6 +8,13 @@
       "when": 1775853047351,
       "tag": "0000_cooing_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775870540861,
+      "tag": "0001_shallow_snowbird",
+      "breakpoints": true
     }
   ]
 }

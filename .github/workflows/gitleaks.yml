@@ -1,0 +1,42 @@
+name: Gitleaks
+
+# Scans every commit for accidentally committed secrets — API keys, private
+# keys, database URLs, JWTs, and ~150 other credential patterns. Critical
+# for a payment project: one leaked sk_live_ or RELAYER_PRIVATE_KEY lets an
+# attacker drain funds. GitHub's native secret scanning catches some of this,
+# but gitleaks catches patterns (custom regexes, entropy-based detection)
+# that GitHub's ruleset doesn't, and it runs BEFORE master so you can reject
+# the commit instead of rotating after the fact.
+#
+# On PRs: scans only the PR diff (fast).
+# On push to master: scans the full history of the incoming commits.
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: gitleaks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need full history so gitleaks can scan all incoming commits on a
+          # push, not just the tip. PRs auto-fetch enough context via the
+          # merge-base so fetch-depth=0 is only really needed on push.
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        # Pinned to commit SHA (third-party action — CWE-829).
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          # GITHUB_TOKEN is used to post scan results as PR comments.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

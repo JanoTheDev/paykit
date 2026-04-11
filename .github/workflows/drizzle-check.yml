@@ -1,0 +1,69 @@
+name: Drizzle Migration Check
+
+# Guards against schema drift. If a PR touches packages/db/src/schema/**
+# but forgets to run `pnpm --filter @paylix/db db:generate`, the migration
+# file won't be committed — and self-hosters running `db:migrate` on a
+# fresh database would end up with a stale schema. This job regenerates
+# the migrations inside CI and fails if the result differs from what's
+# already checked in.
+#
+# drizzle-kit generate reads from ./src/schema + ./migrations/meta/_journal.json
+# and does NOT need a live database connection, so we pass a dummy URL.
+
+on:
+  pull_request:
+    paths:
+      - "packages/db/src/schema/**"
+      - "packages/db/drizzle.config.ts"
+      - "packages/db/migrations/**"
+      - ".github/workflows/drizzle-check.yml"
+  push:
+    branches: [master]
+    paths:
+      - "packages/db/src/schema/**"
+      - "packages/db/drizzle.config.ts"
+      - "packages/db/migrations/**"
+      - ".github/workflows/drizzle-check.yml"
+
+concurrency:
+  group: drizzle-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Verify migrations are up to date
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerate migrations
+        env:
+          # drizzle-kit generate is offline but the script reads DATABASE_URL
+          # from dotenv-cli. Give it a throwaway value so the command runs.
+          DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+        run: pnpm --filter @paylix/db db:generate
+
+      - name: Fail if schema drifted from committed migrations
+        run: |
+          if ! git diff --exit-code --quiet packages/db/migrations; then
+            echo "::error::Schema was changed but no migration was committed."
+            echo "::error::Run 'pnpm --filter @paylix/db db:generate' locally and commit the result."
+            git status packages/db/migrations
+            git diff packages/db/migrations
+            exit 1
+          fi
+          echo "Migrations are in sync with the schema."

@@ -1,0 +1,2 @@
+ALTER TABLE "user" ADD COLUMN "checkout_field_defaults" jsonb DEFAULT '{"firstName":true,"lastName":true,"email":true,"phone":false}'::jsonb;--> statement-breakpoint
+ALTER TABLE "checkout_sessions" ADD COLUMN "relay_in_flight_at" timestamp with time zone;
