@@ -226,7 +226,7 @@ export function getToken(
   }
   const network = NETWORKS[networkKey];
   assertValidTokenSymbol(network, tokenSymbol);
-  return network.tokens[tokenSymbol];
+  return (network.tokens as Record<string, TokenConfig>)[tokenSymbol]!;
 }
 
 // Type-level enforcement test — this block must never compile if the

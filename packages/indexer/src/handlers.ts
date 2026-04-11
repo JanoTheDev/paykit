@@ -8,11 +8,35 @@ import {
 } from "@paylix/db/schema";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { keccak256, stringToBytes, type Log } from "viem";
+import { NETWORKS, getToken } from "@paylix/config/networks";
+import type { NetworkKey } from "@paylix/config/networks";
 import { config } from "./config";
 import { dispatchWebhooks } from "./webhook-dispatch";
 
 function currentSubscriptionManagerAddress(): string {
   return config.subscriptionManagerAddress.toLowerCase();
+}
+
+/**
+ * Reverse-lookup: given a network and a token address, find the symbol.
+ * Used when populating new session/subscription rows from PaymentReceived
+ * events that only carry the token's 0x address.
+ */
+function symbolForTokenAddress(
+  networkKey: NetworkKey,
+  address: `0x${string}`,
+): string {
+  const network = NETWORKS[networkKey];
+  const lower = address.toLowerCase();
+  for (const [symbol, token] of Object.entries(network.tokens)) {
+    const resolved = (
+      token.address ?? process.env[(token as { addressEnvVar?: string }).addressEnvVar ?? ""] ?? ""
+    ).toLowerCase();
+    if (resolved === lower) return symbol;
+  }
+  throw new Error(
+    `Token address ${address} is not registered on ${networkKey}`,
+  );
 }
 
 async function recordUnmatched(
@@ -83,9 +107,11 @@ export async function handlePaymentReceived(log: Log, args: {
     return;
   }
 
-  // Convert on-chain amount (USDC 6 decimals) back to cents
-  // 1 USDC = 1,000,000 units = 100 cents
-  const amountCents = Number(args.amount) / 10_000;
+  // Convert on-chain amount back to cents using registry decimals.
+  // Formula: cents = on_chain / 10^(decimals - 2)
+  // For USDC (decimals=6): 10^4 = 10,000 → 1,000,000 units = 100 cents.
+  const paymentToken = getToken(config.networkKey, symbolForTokenAddress(config.networkKey as NetworkKey, args.token));
+  const amountCents = Number(args.amount) / 10 ** (paymentToken.decimals - 2);
 
   // Match by reversing the customerId hash: the checkout-client encodes
   // keccak256(stringToBytes(session.id)) as the on-chain customerId to avoid
@@ -156,6 +182,8 @@ export async function handlePaymentReceived(log: Log, args: {
     }
 
     // Create payment record
+    const sessionNetworkKey = session.networkKey ?? config.networkKey;
+    const sessionTokenSymbol = session.tokenSymbol ?? symbolForTokenAddress(config.networkKey as NetworkKey, args.token);
     const [payment] = await tx
       .insert(payments)
       .values({
@@ -166,8 +194,8 @@ export async function handlePaymentReceived(log: Log, args: {
         fee: Number(args.fee) / 10_000,
         status: "confirmed",
         txHash: log.transactionHash,
-        chain: session.chain,
-        token: session.currency,
+        chain: sessionNetworkKey,
+        token: sessionTokenSymbol,
         fromAddress: args.payer,
         toAddress: args.merchant,
         blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
@@ -253,7 +281,8 @@ export async function handleSubscriptionCreated(log: Log, args: {
     return;
   }
 
-  const amountCents = Number(args.amount) / 10_000;
+  const subToken = getToken(config.networkKey, symbolForTokenAddress(config.networkKey as NetworkKey, args.token));
+  const amountCents = Number(args.amount) / 10 ** (subToken.decimals - 2);
   const intervalSeconds = Number(args.interval);
 
   // Match the checkout session by reversing the session.id hash encoded as
@@ -323,6 +352,8 @@ export async function handleSubscriptionCreated(log: Log, args: {
     }
 
     // Create first payment (the initial charge happens atomically with createSubscription)
+    const subNetworkKey = session.networkKey ?? config.networkKey;
+    const subTokenSymbol = session.tokenSymbol ?? symbolForTokenAddress(config.networkKey as NetworkKey, args.token);
     const [payment] = await tx
       .insert(payments)
       .values({
@@ -333,8 +364,8 @@ export async function handleSubscriptionCreated(log: Log, args: {
         fee: 0, // fee is tracked per-charge in PaymentReceived; creation doesn't include it here
         status: "confirmed",
         txHash: log.transactionHash,
-        chain: session.chain,
-        token: session.currency,
+        chain: subNetworkKey,
+        token: subTokenSymbol,
         fromAddress: args.subscriber,
         toAddress: args.merchant,
         blockNumber: log.blockNumber ? Number(log.blockNumber) : null,
@@ -361,6 +392,8 @@ export async function handleSubscriptionCreated(log: Log, args: {
         lastPaymentId: payment.id,
         onChainId,
         contractAddress: contractAddr,
+        networkKey: subNetworkKey,
+        tokenSymbol: subTokenSymbol,
         intervalSeconds,
         metadata: session.metadata ?? {},
       })
@@ -391,8 +424,8 @@ export async function handleSubscriptionCreated(log: Log, args: {
     productId: session.productId,
     customerId: result.customer.customerId,
     amount: amountCents,
-    currency: session.currency,
-    chain: session.chain,
+    currency: result.subscription.tokenSymbol,
+    chain: result.subscription.networkKey,
     interval: intervalSeconds,
     subscriberAddress: args.subscriber,
     merchantAddress: args.merchant,
@@ -455,27 +488,17 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
     return;
   }
 
-  const amountCents = Number(args.amount) / 10_000;
-  const feeCents = Number(args.fee) / 10_000;
+  const recurringToken = getToken(subscription.networkKey as NetworkKey, subscription.tokenSymbol);
+  const amountCents = Number(args.amount) / 10 ** (recurringToken.decimals - 2);
+  const feeCents = Number(args.fee) / 10 ** (recurringToken.decimals - 2);
 
   // Atomic: insert recurring payment + advance subscription period.
   // Webhook dispatch stays OUTSIDE the transaction.
   const result = await db.transaction(async (tx) => {
-    // Derive chain/token from the subscription's initial payment (falling back
-    // to schema defaults) rather than hardcoding "base"/"USDC".
-    let chain = "base";
-    let token = "USDC";
-    if (subscription.lastPaymentId) {
-      const [prior] = await tx
-        .select()
-        .from(payments)
-        .where(eq(payments.id, subscription.lastPaymentId))
-        .limit(1);
-      if (prior) {
-        chain = prior.chain;
-        token = prior.token;
-      }
-    }
+    // Read chain/token from the subscription row (populated at subscription
+    // creation time). This avoids the N+1 query of the prior-payment lookup.
+    const chain = subscription.networkKey;
+    const token = subscription.tokenSymbol;
 
     // Create payment record for recurring charge
     const [payment] = await tx
