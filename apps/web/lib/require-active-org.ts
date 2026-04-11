@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { auth } from "./auth";
 
@@ -53,4 +54,17 @@ export async function resolveActiveOrg(): Promise<
     }
     throw e;
   }
+}
+
+export async function getActiveOrgOrRedirect(): Promise<{
+  organizationId: string;
+  userId: string;
+  session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
+}> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect("/login");
+  const activeOrgId = (session.session as { activeOrganizationId?: string | null })
+    .activeOrganizationId;
+  if (!activeOrgId) redirect("/onboarding");
+  return { organizationId: activeOrgId, userId: session.user.id, session };
 }

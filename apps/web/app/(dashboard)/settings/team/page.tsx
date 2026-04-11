@@ -1,23 +1,14 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { eq, and } from "drizzle-orm";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, invitation, user, organization as orgTable } from "@paylix/db/schema";
-import { requireActiveOrg } from "@/lib/require-active-org";
+import { getActiveOrgOrRedirect } from "@/lib/require-active-org";
 import { TeamMembersTable } from "./members-table";
 import { PendingInvitesTable } from "./pending-invites-table";
 import { InviteForm } from "./invite-form";
 import { DangerZoneActions } from "./danger-zone";
 
 export default async function TeamSettingsPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let orgId: string;
-  try {
-    orgId = requireActiveOrg(session);
-  } catch {
-    redirect("/onboarding");
-  }
+  const { organizationId: orgId, userId } = await getActiveOrgOrRedirect();
 
   const [members, pending, [org]] = await Promise.all([
     db
@@ -44,7 +35,7 @@ export default async function TeamSettingsPage() {
       .where(eq(orgTable.id, orgId)),
   ]);
 
-  const currentUserMember = members.find((m) => m.userId === session!.user.id);
+  const currentUserMember = members.find((m) => m.userId === userId);
   const isOwner = currentUserMember?.role === "owner";
 
   return (
@@ -60,7 +51,7 @@ export default async function TeamSettingsPage() {
         <h2 className="text-sm font-medium text-slate-300">Members</h2>
         <TeamMembersTable
           rows={members}
-          currentUserId={session!.user.id}
+          currentUserId={userId}
           canRemove={isOwner}
         />
       </section>
@@ -80,7 +71,7 @@ export default async function TeamSettingsPage() {
               userId: m.userId,
               email: m.email,
             }))}
-            currentUserId={session!.user.id}
+            currentUserId={userId}
             orgId={org.id}
             orgSlug={org.slug}
           />
