@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
-import { useWaitForTransactionReceipt, useChainId, useSwitchChain, usePublicClient, useSignTypedData } from "wagmi";
+import { useAccount, useWaitForTransactionReceipt, useChainId, useSwitchChain, usePublicClient, useSignTypedData } from "wagmi";
 import { CheckCircle2, Clock } from "lucide-react";
 import { keccak256, stringToBytes } from "viem";
 import {
@@ -66,7 +66,11 @@ interface CheckoutClientProps {
 
 export function CheckoutClient({ session, availablePrices }: CheckoutClientProps) {
   const { open } = useAppKit();
-  const { isConnected, address } = useAppKitAccount();
+  const { address: wagmiAddress, status: wagmiStatus } = useAccount();
+  const { isConnected: appkitConnected, address: appkitAddress } =
+    useAppKitAccount();
+  const address = wagmiAddress ?? appkitAddress;
+  const isConnected = appkitConnected;
   const [status, setStatus] = useState<CheckoutStatus>(session.status);
   const [customerFields, setCustomerFields] = useState({
     firstName: "",
@@ -228,6 +232,11 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
   const handlePay = async () => {
     if (payStep !== "idle") return; // prevent double clicks
     setPayError(null);
+
+    if (wagmiStatus !== "connected" || !wagmiAddress) {
+      open();
+      return;
+    }
 
     // Pre-flight: guard against double-payment by checking session status
     try {
