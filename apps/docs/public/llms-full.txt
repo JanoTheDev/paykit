@@ -24,7 +24,6 @@ import { Paylix, webhooks, NETWORKS } from "@paylix/sdk";
 const paylix = new Paylix({
   apiKey: "sk_live_...",           // Secret API key from dashboard
   network: "base",                 // "base" (mainnet) or "base-sepolia" (testnet)
-  merchantWallet: "0x1234...abcd", // Your wallet that receives payments
   backendUrl: "https://paylix.example.com", // Your Paylix backend URL
 });
 ```
@@ -64,7 +63,11 @@ const { checkoutUrl, subscriptionId } = await paylix.createSubscription({
 
 ### paylix.cancelSubscription(params)
 
-Marks a subscription as cancelled in the Paylix database.
+Cancels a subscription on-chain via the Paylix relayer. The merchant
+signs nothing and pays no gas — the Paylix backend submits the
+SubscriptionManager cancel transaction on behalf of the merchant wallet
+on file, then updates the database. The promise only resolves after the
+on-chain transaction is mined.
 
 ```typescript
 await paylix.cancelSubscription({
@@ -72,12 +75,6 @@ await paylix.cancelSubscription({
 });
 // Returns: void
 ```
-
-IMPORTANT: This SDK method only updates the database. It does NOT cancel
-the on-chain subscription. To actually stop future charges, the merchant
-wallet or the subscriber wallet must sign an on-chain cancel transaction
-via the merchant dashboard or the customer portal. See the "Subscription
-Cancellation" section below for the full two-layer model.
 
 ### paylix.updateSubscriptionWallet(params)
 
@@ -261,40 +258,50 @@ Paylix subscriptions are a two-layer system:
    that authorizes the keeper to pull USDC from the subscriber's wallet on
    a schedule.
 
-Both layers must be cancelled. Updating only the database does NOT stop
-charges — the keeper will keep calling the contract until the on-chain
-record is terminated.
+Both layers must be cancelled. The keeper will keep calling the contract
+until the on-chain record is terminated.
 
 ### Who can cancel on-chain
 
 The SubscriptionManager contract enforces a strict access check on
-`cancelSubscription(subscriptionId)`. Only two addresses are allowed to
-call it for any given subscription:
+`cancelSubscription(subscriptionId)`. Only two principals are authorised
+for any given subscription:
 
-- The subscriber's wallet (the address that signed the original approval).
-- The merchant wallet (the wallet configured to receive charges).
+- The subscriber (the wallet that signed the original approval).
+- The merchant (the wallet configured to receive charges).
 
-Neither the Paylix backend nor an API key can cancel on-chain on a user's
-behalf. The subscriber's funds are protected by the same self-custody
-model as any other EOA.
+The Paylix backend owns a dedicated relayer key. The contract exposes
+`cancelSubscriptionByRelayerForMerchant(onChainId, merchantWallet)` and
+`cancelSubscriptionByRelayerForSubscriber(onChainId, subscriberWallet)`,
+which let the relayer submit the transaction on the caller's behalf
+while still enforcing that the subscription belongs to that wallet.
+This is how gasless cancellation works end-to-end — the merchant or
+subscriber never signs a transaction, and the relayer can never cancel
+a subscription it doesn't own.
 
 ### Cancellation flow
 
-1. User clicks Cancel in the merchant dashboard or the customer portal.
-2. A modal prompts them to connect the merchant or subscriber wallet.
-3. They sign a `cancelSubscription(onChainId)` transaction on Base.
+1. User clicks Cancel in the merchant dashboard, calls
+   `paylix.cancelSubscription()`, or clicks Cancel in the customer portal.
+2. The Paylix backend authenticates the caller (session, API key, or
+   signed portal token) and verifies ownership of the subscription.
+3. The relayer submits the matching gasless cancel function on
+   SubscriptionManager and waits for the receipt.
 4. The contract emits a `SubscriptionCancelled` event.
 5. The Paylix indexer picks up the event and updates the DB row to
-   status `cancelled`.
+   status `cancelled` (the backend also writes it optimistically).
 6. The keeper skips the subscription on its next tick.
 7. A `subscription.cancelled` webhook is delivered.
 
-### Two cancellation paths in the product
+### Three cancellation paths in the product
 
-- Merchant dashboard → Subscribers → Cancel. Requires the merchant wallet
-  to be connected. Signs on-chain as the merchant.
-- Customer portal → Cancel on an active subscription. Requires the
-  subscriber to connect their own wallet and sign on-chain as themselves.
+- Merchant dashboard → Subscribers → Cancel. Authenticated by session,
+  cancelled on-chain via the relayer as the merchant.
+- SDK → `paylix.cancelSubscription()`. Authenticated by secret API key,
+  cancelled on-chain via the relayer as the merchant.
+- Customer portal → Cancel on an active subscription. Authenticated by
+  a signed portal token, cancelled on-chain via the relayer as the
+  subscriber.
 
 ### Billing intervals
 
@@ -401,7 +408,6 @@ import { redirect } from "next/navigation";
 const paylix = new Paylix({
   apiKey: process.env.PAYLIX_SECRET_KEY!,
   network: "base",
-  merchantWallet: process.env.MERCHANT_WALLET!,
   backendUrl: process.env.PAYLIX_BACKEND_URL!,
 });
 
@@ -515,7 +521,6 @@ NETWORKS["base-sepolia"] = {
 interface PaylixConfig {
   apiKey: string;
   network: "base" | "base-sepolia";
-  merchantWallet: string;
   backendUrl: string;
 }
 
@@ -609,6 +614,6 @@ interface WebhookEvent {
 - **Amounts**: All amounts are in USDC cents (integer). 1000 = $10.00 USDC.
 - **API Keys**: `pk_` prefix for publishable (client-side), `sk_` prefix for secret (server-side).
 - **Networks**: `"base"` for mainnet, `"base-sepolia"` for testnet.
-- **Non-custodial**: Payments go directly to your `merchantWallet`. Paylix never holds funds.
+- **Non-custodial**: Payments go directly to the merchant wallet configured on your dashboard profile. Paylix never holds funds.
 - **Webhook secrets**: `whsec_` prefix. Always verify signatures server-side.
 - **Subscriptions**: Use ERC-20 `approve` + on-chain keeper pattern. No off-chain card storage.

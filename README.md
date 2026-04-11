@@ -20,7 +20,6 @@ import { Paylix } from '@paylix/sdk'
 const paylix = new Paylix({
   apiKey: 'pk_test_abc123',
   network: 'base-sepolia',
-  merchantWallet: '0xYourWallet',
   backendUrl: 'http://localhost:3000',
 })
 

@@ -77,7 +77,6 @@ export default function GettingStarted() {
 const paylix = new Paylix({
   apiKey: "sk_live_...",
   network: "base",           // "base" or "base-sepolia"
-  merchantWallet: "0xYourWalletAddress",
   backendUrl: "https://your-paylix-instance.com",
 });`}</CodeBlock>
 

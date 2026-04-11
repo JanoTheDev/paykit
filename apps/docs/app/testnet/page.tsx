@@ -56,7 +56,6 @@ export default function TestnetSetup() {
 const paylix = new Paylix({
   apiKey: "sk_test_...",
   network: "base-sepolia",
-  merchantWallet: "0xYourTestWallet",
   backendUrl: "http://localhost:3000",  // or your staging URL
 });`}</CodeBlock>
 
@@ -209,11 +208,9 @@ console.log("Tx:", result.txHash);    // View on sepolia.basescan.org`}</CodeBlo
           to your production Paylix instance
         </li>
         <li>
-          Update{" "}
-          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
-            merchantWallet
-          </code>{" "}
-          to your production wallet address
+          Update your production wallet address in the dashboard profile —
+          it&apos;s used automatically for every checkout created with your
+          secret key
         </li>
       </ul>
     </>

@@ -25,7 +25,6 @@ export class Paylix {
   constructor(config: PaylixConfig) {
     if (!config.apiKey) throw new Error("Paylix: apiKey is required");
     if (!config.backendUrl) throw new Error("Paylix: backendUrl is required");
-    if (!config.merchantWallet) throw new Error("Paylix: merchantWallet is required");
     if (!NETWORKS[config.network]) {
       throw new Error(`Paylix: unsupported network "${config.network}"`);
     }

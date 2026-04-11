@@ -22,21 +22,21 @@ export default function SubscriptionsPage() {
             <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
               SubscriptionManager
             </code>{" "}
-            smart contract on Base. The two layers must stay in sync — which
-            is why cancellation requires more than a database update.
+            smart contract on Base. The Paylix relayer keeps the two layers
+            in sync so you never have to touch a wallet to manage them.
           </>
         }
       />
 
-      <Callout variant="warning" title="Cancelling requires an on-chain transaction">
-        Because the billing schedule is stored in the smart contract, stopping
-        a subscription is not just a database write. Either the subscriber or
-        the merchant wallet must sign a{" "}
-        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[12px] text-primary">
-          cancelSubscription()
-        </code>{" "}
-        transaction on Base — no API key or backend process can do it for
-        them. Plan your cancellation UX around this before going live.
+      <Callout variant="info" title="Cancellation is gasless">
+        Stopping a subscription terminates the on-chain record in the
+        SubscriptionManager contract — it&apos;s not just a database flag. The
+        Paylix backend owns a relayer that submits the cancel transaction on
+        behalf of whoever initiated it (merchant dashboard, SDK, or customer
+        portal), so no one signs anything and no one pays gas. The contract
+        still enforces that the subscription belongs to the caller — the
+        relayer can only cancel what the authenticated merchant or subscriber
+        owns.
       </Callout>
 
       <SectionHeading>How subscriptions work</SectionHeading>
@@ -148,23 +148,18 @@ export default function SubscriptionsPage() {
 
       <SectionHeading>Cancelling subscriptions</SectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
-        Cancellation is the part developers most often get wrong. Because the
-        schedule lives inside the smart contract, a database-only update{" "}
-        <span className="text-foreground">will not</span> stop future charges
-        — the keeper will keep pulling USDC until the on-chain record is
-        terminated.
-      </p>
-      <p className="mt-4 text-sm leading-relaxed text-foreground-muted">
-        To actually cancel a subscription, someone has to call{" "}
-        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
-          cancelSubscription()
-        </code>{" "}
-        on the{" "}
+        Cancelling a subscription terminates the on-chain record in the{" "}
         <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
           SubscriptionManager
         </code>{" "}
-        contract. The contract enforces a strict access check and only allows
-        two addresses to cancel a given subscription:
+        contract and updates the database. Paylix runs a relayer that submits
+        the transaction on behalf of whoever initiated the cancel, so no one
+        signs anything and no one pays gas.
+      </p>
+      <p className="mt-4 text-sm leading-relaxed text-foreground-muted">
+        The contract still enforces a strict access check — it only allows
+        cancelling a subscription that belongs to either the subscriber or the
+        merchant on that record:
       </p>
       <ul className="mt-4 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
         <li>
@@ -173,52 +168,67 @@ export default function SubscriptionsPage() {
         </li>
         <li>
           <span className="text-foreground">The merchant wallet</span> — the
-          address configured in your Paylix project that receives the charges.
+          address configured on your Paylix profile that receives the charges.
         </li>
       </ul>
       <p className="mt-4 text-sm leading-relaxed text-foreground-muted">
-        No one else — not the Paylix backend, not an API key, not a server-side
-        process — can terminate an on-chain subscription on their behalf. This
-        is by design: the subscriber&apos;s funds are protected by the same
-        permission model as any other self-custodial wallet.
+        The relayer cannot cancel a subscription it doesn&apos;t have authority
+        over: the contract exposes{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          cancelSubscriptionByRelayerForMerchant
+        </code>{" "}
+        and{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          cancelSubscriptionByRelayerForSubscriber
+        </code>
+        , and both revert unless the wallet passed in actually owns the
+        subscription. So even if the relayer key were compromised, it could
+        not cancel arbitrary subscriptions.
       </p>
 
-      <SubsectionHeading>Two cancellation paths</SubsectionHeading>
-      <p className="text-sm leading-relaxed text-foreground-muted">
-        Paylix exposes two UIs that call the contract for you:
-      </p>
+      <SubsectionHeading>Three cancellation paths</SubsectionHeading>
       <ul className="mt-4 space-y-2 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
         <li>
           <span className="text-foreground">Merchant dashboard</span> — from
-          the Subscribers page, click Cancel. You will be prompted to connect
-          your merchant wallet and sign the transaction yourself.
+          the Subscribers page, click Cancel. Authenticated via your dashboard
+          session, cancelled on-chain via the relayer as the merchant.
+        </li>
+        <li>
+          <span className="text-foreground">SDK</span> — call{" "}
+          <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[12px] text-primary">
+            paylix.cancelSubscription()
+          </code>{" "}
+          from your backend. Authenticated via your secret API key, cancelled
+          on-chain via the relayer as the merchant.
         </li>
         <li>
           <span className="text-foreground">Customer portal</span> — the
-          subscriber visits their portal link, clicks Cancel on an active
-          subscription, and signs the transaction with their own wallet.
+          subscriber visits their portal link and clicks Cancel. Authenticated
+          via a signed portal token, cancelled on-chain via the relayer as the
+          subscriber.
         </li>
       </ul>
 
       <SubsectionHeading>Step-by-step flow</SubsectionHeading>
       <ol className="mt-4 space-y-2 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-decimal">
-        <li>User clicks the Cancel button on a subscription.</li>
         <li>
-          The modal prompts them to connect the merchant or subscriber wallet.
+          The merchant or subscriber triggers a cancel (dashboard, SDK, or
+          portal).
         </li>
         <li>
-          They sign a{" "}
-          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
-            cancelSubscription(onChainId)
-          </code>{" "}
-          transaction on Base.
+          The Paylix backend authenticates the caller and verifies that the
+          authenticated wallet owns the subscription.
+        </li>
+        <li>
+          The relayer submits the matching gasless cancel function on
+          SubscriptionManager and waits for the transaction receipt.
         </li>
         <li>
           The contract emits a{" "}
           <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             SubscriptionCancelled
           </code>{" "}
-          event once the transaction is mined.
+          event.
         </li>
         <li>
           The Paylix indexer detects the event and updates the database row to
@@ -254,11 +264,9 @@ export default function SubscriptionsPage() {
           subscription.past_due
         </code>{" "}
         webhook is sent. The keeper will retry on the next tick. To fully end
-        a past-due subscription, still call{" "}
-        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
-          cancelSubscription()
-        </code>{" "}
-        on-chain — otherwise the schedule stays registered.
+        a past-due subscription, use any of the cancel paths above — the
+        schedule stays registered on-chain until it&apos;s explicitly
+        cancelled.
       </p>
 
       <SectionHeading>Webhooks</SectionHeading>

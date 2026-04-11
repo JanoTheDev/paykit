@@ -1,7 +1,6 @@
 export interface PaylixConfig {
   apiKey: string;
   network: "base" | "base-sepolia";
-  merchantWallet: string;
   backendUrl: string;
 }
 

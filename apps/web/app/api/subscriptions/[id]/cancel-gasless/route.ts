@@ -6,20 +6,30 @@ import { subscriptions, user as userTable } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createRelayerClient } from "@/lib/relayer";
 import { CONTRACTS, SUBSCRIPTION_MANAGER_ABI } from "@/lib/contracts";
+import { authenticateApiKey } from "@/lib/api-auth";
 
 /**
  * Merchant-initiated gasless subscription cancellation. Merchant is
- * authenticated via better-auth, ownership is verified against the DB,
- * then the relayer submits cancelSubscriptionByRelayerForMerchant on the
- * SubscriptionManager contract. The merchant never signs anything and
- * pays no gas.
+ * authenticated either via a better-auth session (dashboard) or a secret
+ * API key (SDK). Ownership is verified against the DB, then the relayer
+ * submits cancelSubscriptionByRelayerForMerchant on the SubscriptionManager
+ * contract. The merchant never signs anything and pays no gas.
  */
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
+  let merchantUserId: string | null = null;
+
+  const apiAuth = await authenticateApiKey(request, "secret");
+  if (apiAuth) {
+    merchantUserId = apiAuth.user.id;
+  } else {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (session) merchantUserId = session.user.id;
+  }
+
+  if (!merchantUserId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -32,7 +42,7 @@ export async function POST(
     .where(
       and(
         eq(subscriptions.id, id),
-        eq(subscriptions.userId, session.user.id),
+        eq(subscriptions.userId, merchantUserId),
       ),
     )
     .limit(1);
@@ -81,7 +91,7 @@ export async function POST(
   const [merchantRow] = await db
     .select({ walletAddress: userTable.walletAddress })
     .from(userTable)
-    .where(eq(userTable.id, session.user.id))
+    .where(eq(userTable.id, merchantUserId))
     .limit(1);
 
   if (!merchantRow?.walletAddress) {

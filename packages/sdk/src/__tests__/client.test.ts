@@ -5,7 +5,6 @@ describe("Paylix", () => {
   const validConfig = {
     apiKey: "pk_test_abc123",
     network: "base-sepolia" as const,
-    merchantWallet: "0x1234567890abcdef1234567890abcdef12345678",
     backendUrl: "http://localhost:3000",
   };
 
@@ -20,10 +19,6 @@ describe("Paylix", () => {
 
   it("throws if backendUrl is missing", () => {
     expect(() => new Paylix({ ...validConfig, backendUrl: "" })).toThrow("backendUrl is required");
-  });
-
-  it("throws if merchantWallet is missing", () => {
-    expect(() => new Paylix({ ...validConfig, merchantWallet: "" })).toThrow("merchantWallet is required");
   });
 
   it("throws if network is unsupported", () => {

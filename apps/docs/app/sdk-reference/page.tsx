@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import {
-  Callout,
   CodeBlock,
   DocTable,
   DocTableBody,
@@ -57,12 +56,6 @@ export default function SdkReference() {
             description="Target blockchain network."
           />
           <ParamRow
-            name="merchantWallet"
-            type="string"
-            required
-            description="Your wallet address that receives payments."
-          />
-          <ParamRow
             name="backendUrl"
             type="string"
             required
@@ -76,7 +69,6 @@ export default function SdkReference() {
 const paylix = new Paylix({
   apiKey: "sk_live_abc123",
   network: "base",
-  merchantWallet: "0x1234...abcd",
   backendUrl: "https://paylix.example.com",
 });`}</CodeBlock>
 
@@ -233,30 +225,19 @@ const paylix = new Paylix({
 
       <SectionHeading>paylix.cancelSubscription()</SectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
-        Marks a subscription as cancelled in the Paylix database so it stops
-        appearing in active lists.
+        Cancels a subscription on-chain via the Paylix relayer. The call
+        terminates the on-chain schedule in{" "}
+        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[12px] text-primary">
+          SubscriptionManager
+        </code>{" "}
+        and updates the Paylix database. The merchant signs nothing and pays no
+        gas — the promise only resolves after the on-chain transaction has been
+        mined.
       </p>
       <CodeBlock language="ts">{`paylix.cancelSubscription(params: { subscriptionId: string }): Promise<void>`}</CodeBlock>
       <CodeBlock language="ts">{`await paylix.cancelSubscription({
   subscriptionId: "sub_abc123",
 });`}</CodeBlock>
-
-      <Callout variant="warning" title="This does not stop on-chain charges">
-        Subscriptions live on the blockchain. This SDK method only updates the
-        Paylix database — it does not terminate the on-chain schedule. The
-        smart contract only allows the{" "}
-        <span className="text-foreground">subscriber&apos;s wallet</span> or the{" "}
-        <span className="text-foreground">merchant wallet</span> to call{" "}
-        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[12px] text-primary">
-          cancelSubscription()
-        </code>
-        , so to actually stop future charges someone must sign the cancel
-        transaction via the merchant dashboard or the customer portal. See{" "}
-        <a href="/subscriptions" className="text-primary hover:underline">
-          Subscriptions
-        </a>{" "}
-        for the full flow.
-      </Callout>
 
       <SectionHeading>paylix.updateSubscriptionWallet()</SectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">

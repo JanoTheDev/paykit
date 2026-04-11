@@ -21,7 +21,6 @@ export async function createSubscription(
       customerId: params.customerId,
       successUrl: params.successUrl,
       cancelUrl: params.cancelUrl,
-      merchantWallet: config.merchantWallet,
       type: "subscription",
       metadata: params.metadata,
     }),
@@ -40,7 +39,7 @@ export async function cancelSubscription(
   params: CancelSubscriptionParams
 ): Promise<void> {
   const response = await fetch(
-    `${config.backendUrl}/api/subscriptions/${params.subscriptionId}/cancel`,
+    `${config.backendUrl}/api/subscriptions/${params.subscriptionId}/cancel-gasless`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${config.apiKey}` },

@@ -15,7 +15,6 @@ export async function createCheckout(
       customerId: params.customerId,
       successUrl: params.successUrl,
       cancelUrl: params.cancelUrl,
-      merchantWallet: config.merchantWallet,
       metadata: params.metadata,
     }),
   });
