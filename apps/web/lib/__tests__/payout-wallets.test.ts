@@ -17,6 +17,7 @@ import { resolvePayoutWallet } from "../payout-wallets";
 import { db } from "@/lib/db";
 
 const user = "test-org-id";
+const userId = "test-user-id";
 const network: NetworkKey = "base-sepolia";
 
 // Typed handles for the mocked functions — cast once here so each test can
@@ -56,7 +57,7 @@ describe("resolvePayoutWallet", () => {
           ]),
       }),
     });
-    const result = await resolvePayoutWallet(user, network);
+    const result = await resolvePayoutWallet(user, network, userId);
     expect(result).toBe("0xDefaultBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
   });
 
@@ -69,7 +70,7 @@ describe("resolvePayoutWallet", () => {
         where: () => Promise.resolve([{ walletAddress: null }]),
       }),
     });
-    await expect(resolvePayoutWallet(user, network)).rejects.toThrow(
+    await expect(resolvePayoutWallet(user, network, userId)).rejects.toThrow(
       /No payout wallet/,
     );
   });
