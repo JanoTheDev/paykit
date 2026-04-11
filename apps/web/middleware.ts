@@ -6,12 +6,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const activeOrgCookie = request.cookies.get("better-auth.active_organization");
-  const activeOrgId = activeOrgCookie?.value;
-  if (!activeOrgId) {
-    return NextResponse.redirect(new URL("/onboarding", request.url));
-  }
-
   return NextResponse.next();
 }
 
