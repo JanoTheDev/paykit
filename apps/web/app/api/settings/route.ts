@@ -1,9 +1,13 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users } from "@paylix/db/schema";
+import { users, merchantPayoutWallets } from "@paylix/db/schema";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import {
+  getAvailableNetworks,
+  assertValidNetworkKey,
+} from "@paylix/config/networks";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -34,9 +38,34 @@ export async function GET() {
     phone: user.checkoutFieldDefaults?.phone ?? false,
   };
 
+  // Load all payout wallet rows for this merchant
+  const walletRows = await db
+    .select()
+    .from(merchantPayoutWallets)
+    .where(eq(merchantPayoutWallets.userId, session.user.id));
+
+  // Build the response: every available network gets an entry, with defaults
+  // if there's no row yet
+  const available = getAvailableNetworks();
+  const walletRowsByKey = new Map(
+    walletRows.map((r) => [r.networkKey, r]),
+  );
+  const networks = available.map((n) => {
+    const row = walletRowsByKey.get(n.key);
+    return {
+      networkKey: n.key,
+      chainName: n.chainName,
+      displayLabel: n.displayLabel,
+      enabled: row?.enabled ?? false,
+      usesDefault: row ? row.walletAddress === null : true,
+      overrideAddress: row?.walletAddress ?? null,
+    };
+  });
+
   return NextResponse.json({
     ...user,
     checkoutFieldDefaults: defaults,
+    networks,
   });
 }
 
@@ -86,7 +115,65 @@ export async function PATCH(request: Request) {
     };
   }
 
+  if (Array.isArray(body.networks)) {
+    for (const entry of body.networks) {
+      if (
+        typeof entry.networkKey !== "string" ||
+        typeof entry.enabled !== "boolean"
+      ) {
+        return NextResponse.json(
+          { error: "Invalid network entry" },
+          { status: 400 },
+        );
+      }
+      try {
+        assertValidNetworkKey(entry.networkKey);
+      } catch (err) {
+        return NextResponse.json(
+          { error: err instanceof Error ? err.message : "Unknown networkKey" },
+          { status: 400 },
+        );
+      }
+
+      const addr = entry.overrideAddress;
+      if (
+        addr !== null &&
+        addr !== undefined &&
+        addr !== "" &&
+        !/^0x[a-fA-F0-9]{40}$/.test(addr)
+      ) {
+        return NextResponse.json(
+          { error: `Invalid override address for ${entry.networkKey}` },
+          { status: 400 },
+        );
+      }
+
+      await db
+        .insert(merchantPayoutWallets)
+        .values({
+          userId: session.user.id,
+          networkKey: entry.networkKey,
+          enabled: entry.enabled,
+          walletAddress: addr || null,
+        })
+        .onConflictDoUpdate({
+          target: [
+            merchantPayoutWallets.userId,
+            merchantPayoutWallets.networkKey,
+          ],
+          set: {
+            enabled: entry.enabled,
+            walletAddress: addr || null,
+          },
+        });
+    }
+  }
+
+  // If only networks were updated, skip the users table update
   if (Object.keys(updates).length === 0) {
+    if (Array.isArray(body.networks)) {
+      return NextResponse.json({ success: true });
+    }
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
