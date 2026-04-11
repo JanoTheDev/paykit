@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 
 export function TeamSwitcher() {
   const router = useRouter();
@@ -21,11 +21,11 @@ export function TeamSwitcher() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900">
+      <DropdownMenuTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-1 px-3 py-2 text-sm text-foreground hover:bg-surface-2 focus:outline-none">
         <span className="truncate">{active?.name ?? "No team"}</span>
-        <ChevronDown className="h-4 w-4 text-slate-500" />
+        <ChevronDown className="h-4 w-4 text-foreground-muted" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
+      <DropdownMenuContent className="w-56 bg-surface-1 border-border shadow-lg">
         {orgs?.map((o: { id: string; name: string }) => (
           <DropdownMenuItem
             key={o.id}
@@ -34,7 +34,10 @@ export function TeamSwitcher() {
               router.refresh();
             }}
           >
-            {o.name}
+            <span className="flex-1 truncate">{o.name}</span>
+            {active?.id === o.id && (
+              <Check className="h-4 w-4 text-accent" />
+            )}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
