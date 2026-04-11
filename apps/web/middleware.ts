@@ -5,6 +5,13 @@ export async function middleware(request: NextRequest) {
   if (!sessionCookie) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
+
+  const activeOrgCookie = request.cookies.get("better-auth.active_organization");
+  const activeOrgId = activeOrgCookie?.value;
+  if (!activeOrgId) {
+    return NextResponse.redirect(new URL("/onboarding", request.url));
+  }
+
   return NextResponse.next();
 }
 
@@ -15,6 +22,7 @@ export const config = {
     "/payments/:path*",
     "/subscribers/:path*",
     "/customers/:path*",
+    "/invoices/:path*",
     "/api-keys/:path*",
     "/webhooks/:path*",
     "/settings/:path*",
