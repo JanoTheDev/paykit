@@ -23,6 +23,8 @@ export const checkoutSessions = pgTable("checkout_sessions", {
   type: text("type").notNull().default("one_time"),
   collectCountry: boolean("collect_country").notNull().default(false),
   collectTaxId: boolean("collect_tax_id").notNull().default(false),
+  buyerCountry: text("buyer_country"),
+  buyerTaxId: text("buyer_tax_id"),
   status: checkoutStatusEnum("status").notNull().default("active"),
   successUrl: text("success_url"),
   cancelUrl: text("cancel_url"),

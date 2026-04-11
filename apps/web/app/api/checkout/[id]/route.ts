@@ -122,6 +122,10 @@ export async function PATCH(
   // merchant has attached a stable customerId to the session — otherwise
   // the customer row is created by the indexer after PaymentReceived, and
   // we have no key to upsert against yet.
+  //
+  // Regardless of named/anonymous, we also stash country + taxId on the
+  // checkout_sessions row itself so the indexer can propagate them into the
+  // customer row when it creates the anon_<wallet> customer post-payment.
   let customerUpserted = false;
   if (body.customer && typeof body.customer === "object") {
     const normalized = normalizeCustomerForm(body.customer as CustomerFormPayload);
@@ -134,23 +138,35 @@ export async function PATCH(
         .from(checkoutSessions)
         .where(eq(checkoutSessions.id, id));
 
-      if (session && session.customerId) {
-        const setValues: Record<string, string> = {};
-        for (const [k, v] of Object.entries(normalized)) {
-          if (v !== null) setValues[k] = v;
+      if (session) {
+        if (normalized.country !== null || normalized.taxId !== null) {
+          await db
+            .update(checkoutSessions)
+            .set({
+              buyerCountry: normalized.country,
+              buyerTaxId: normalized.taxId,
+            })
+            .where(eq(checkoutSessions.id, id));
         }
-        await db
-          .insert(customers)
-          .values({
-            userId: session.userId,
-            customerId: session.customerId,
-            ...setValues,
-          })
-          .onConflictDoUpdate({
-            target: [customers.userId, customers.customerId],
-            set: setValues,
-          });
-        customerUpserted = true;
+
+        if (session.customerId) {
+          const setValues: Record<string, string> = {};
+          for (const [k, v] of Object.entries(normalized)) {
+            if (v !== null) setValues[k] = v;
+          }
+          await db
+            .insert(customers)
+            .values({
+              userId: session.userId,
+              customerId: session.customerId,
+              ...setValues,
+            })
+            .onConflictDoUpdate({
+              target: [customers.userId, customers.customerId],
+              set: setValues,
+            });
+          customerUpserted = true;
+        }
       }
     }
   }

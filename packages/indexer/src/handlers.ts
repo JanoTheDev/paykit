@@ -176,15 +176,25 @@ export async function handlePaymentReceived(log: Log, args: {
           userId: session.userId,
           customerId: customerIdentifier,
           walletAddress: args.payer,
+          country: session.buyerCountry,
+          taxId: session.buyerTaxId,
         })
         .returning();
       customer = created;
       console.log(`[Handler] Created customer ${customer.id}`);
-    } else if (!customer.walletAddress) {
-      await tx
-        .update(customers)
-        .set({ walletAddress: args.payer })
-        .where(eq(customers.id, customer.id));
+    } else {
+      const patch: Record<string, string | null> = {};
+      if (!customer.walletAddress) patch.walletAddress = args.payer;
+      if (session.buyerCountry && !customer.country) patch.country = session.buyerCountry;
+      if (session.buyerTaxId && !customer.taxId) patch.taxId = session.buyerTaxId;
+      if (Object.keys(patch).length > 0) {
+        const [updated] = await tx
+          .update(customers)
+          .set(patch)
+          .where(eq(customers.id, customer.id))
+          .returning();
+        customer = updated;
+      }
     }
 
     // Create payment record
@@ -448,15 +458,25 @@ export async function handleSubscriptionCreated(log: Log, args: {
           userId: session.userId,
           customerId: customerIdentifier,
           walletAddress: args.subscriber,
+          country: session.buyerCountry,
+          taxId: session.buyerTaxId,
         })
         .returning();
       customer = created;
       console.log(`[Handler] Created customer ${customer.id}`);
-    } else if (!customer.walletAddress) {
-      await tx
-        .update(customers)
-        .set({ walletAddress: args.subscriber })
-        .where(eq(customers.id, customer.id));
+    } else {
+      const patch: Record<string, string | null> = {};
+      if (!customer.walletAddress) patch.walletAddress = args.subscriber;
+      if (session.buyerCountry && !customer.country) patch.country = session.buyerCountry;
+      if (session.buyerTaxId && !customer.taxId) patch.taxId = session.buyerTaxId;
+      if (Object.keys(patch).length > 0) {
+        const [updated] = await tx
+          .update(customers)
+          .set(patch)
+          .where(eq(customers.id, customer.id))
+          .returning();
+        customer = updated;
+      }
     }
 
     // Create first payment (the initial charge happens atomically with createSubscription)
