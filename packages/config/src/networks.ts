@@ -111,3 +111,126 @@ export const NETWORKS = {
     },
   },
 } as const satisfies Record<NetworkKey, NetworkConfig>;
+
+/**
+ * Returns the active network based on NEXT_PUBLIC_NETWORK env var.
+ * Throws with a clear error listing valid keys if the env is unset or invalid.
+ *
+ * Every call to this function re-reads process.env — no module-level caching.
+ * This makes testing trivial (set env in each test) and matches the spec's
+ * "explicit over implicit" rule. The cost (a map lookup per call) is
+ * negligible.
+ */
+export function getActiveNetwork(): NetworkConfig {
+  const key = process.env.NEXT_PUBLIC_NETWORK;
+  if (!key) {
+    throw new Error(
+      `NEXT_PUBLIC_NETWORK is not set. ` +
+        `Valid keys: ${Object.keys(NETWORKS).join(", ")}`,
+    );
+  }
+  if (!(key in NETWORKS)) {
+    throw new Error(
+      `NEXT_PUBLIC_NETWORK='${key}' is not a known network. ` +
+        `Valid keys: ${Object.keys(NETWORKS).join(", ")}`,
+    );
+  }
+  return NETWORKS[key as NetworkKey];
+}
+
+/**
+ * Returns all networks matching the active environment. Used by every UI
+ * that lists networks (Settings page, product form, checkout currency
+ * picker). This is THE place where testnet/mainnet separation is enforced
+ * — a mainnet deploy cannot display a testnet network because this
+ * function literally filters them out.
+ */
+export function getAvailableNetworks(): NetworkConfig[] {
+  const active = getActiveNetwork();
+  return Object.values(NETWORKS).filter(
+    (n) => n.environment === active.environment,
+  );
+}
+
+/**
+ * Resolves a token's on-chain address. Uses the canonical `address` if set
+ * (e.g. Circle USDC), otherwise reads the per-deployment env var referenced
+ * by `addressEnvVar` (e.g. MockUSDC). Throws loudly if neither path produces
+ * a valid address — missing env vars must fail at request time, not silently
+ * return a zero address that would then cause a cryptic on-chain revert.
+ */
+export function resolveTokenAddress(token: TokenConfig): `0x${string}` {
+  if (token.address) return token.address;
+  if (token.addressEnvVar) {
+    const raw = process.env[token.addressEnvVar];
+    if (!raw || raw === "0x0000000000000000000000000000000000000000") {
+      throw new Error(
+        `${token.addressEnvVar} is not set or is the zero address. ` +
+          `Token ${token.symbol} cannot be resolved.`,
+      );
+    }
+    return raw as `0x${string}`;
+  }
+  throw new Error(
+    `Token ${token.symbol} has neither an address nor an addressEnvVar. ` +
+      `This is a registry bug — fix the entry in packages/config/src/networks.ts.`,
+  );
+}
+
+/**
+ * Runtime validator that narrows an unknown string to NetworkKey. Use at
+ * API boundaries and DB reads where TypeScript can't verify the value
+ * statically. Throws with a clear message listing valid keys.
+ */
+export function assertValidNetworkKey(k: string): asserts k is NetworkKey {
+  if (!(k in NETWORKS)) {
+    throw new Error(
+      `Invalid network key '${k}'. ` +
+        `Valid: ${Object.keys(NETWORKS).join(", ")}`,
+    );
+  }
+}
+
+/**
+ * Runtime validator for token symbols within a given network. Throws if
+ * the symbol is not registered. Does NOT check supportsPermit — that's a
+ * higher-level concern handled by the UI.
+ */
+export function assertValidTokenSymbol(
+  network: NetworkConfig,
+  symbol: string,
+): void {
+  if (!(symbol in network.tokens)) {
+    throw new Error(
+      `Token '${symbol}' is not registered on ${network.chainName}. ` +
+        `Available: ${Object.keys(network.tokens).join(", ")}`,
+    );
+  }
+}
+
+/**
+ * Convenience lookup for a specific (networkKey, tokenSymbol) pair. Throws
+ * on either invalid input. Preferred over manually dereferencing
+ * NETWORKS[key].tokens[symbol] because it produces a clear error instead
+ * of `undefined`.
+ */
+export function getToken(
+  networkKey: NetworkKey,
+  tokenSymbol: string,
+): TokenConfig {
+  if (!(networkKey in NETWORKS)) {
+    throw new Error(
+      `Unknown network key '${networkKey}'. ` +
+        `Valid: ${Object.keys(NETWORKS).join(", ")}`,
+    );
+  }
+  const network = NETWORKS[networkKey];
+  assertValidTokenSymbol(network, tokenSymbol);
+  return network.tokens[tokenSymbol];
+}
+
+// Type-level enforcement test — this block must never compile if the
+// NetworkKey union stops being a string literal union.
+// @ts-expect-error — "solana" is not a valid NetworkKey
+const _typeLevelCheck: NetworkKey = "solana";
+void _typeLevelCheck;

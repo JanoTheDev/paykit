@@ -1,6 +1,14 @@
-import { describe, it, expectTypeOf, expect } from "vitest";
+import { describe, it, expectTypeOf, expect, afterEach } from "vitest";
 import type { NetworkKey, Environment, NetworkConfig, TokenConfig } from "../networks";
-import { NETWORKS } from "../networks";
+import {
+  NETWORKS,
+  getActiveNetwork,
+  getAvailableNetworks,
+  resolveTokenAddress,
+  assertValidNetworkKey,
+  assertValidTokenSymbol,
+  getToken,
+} from "../networks";
 import { base, baseSepolia } from "viem/chains";
 
 describe("registry types", () => {
@@ -100,5 +108,157 @@ describe("NETWORKS data", () => {
         expect(token.decimals).toBeLessThanOrEqual(18);
       }
     }
+  });
+});
+
+describe("getActiveNetwork", () => {
+  const originalEnv = process.env.NEXT_PUBLIC_NETWORK;
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_NETWORK = originalEnv;
+  });
+
+  it("returns the network matching NEXT_PUBLIC_NETWORK", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "base";
+    const n = getActiveNetwork();
+    expect(n.key).toBe("base");
+  });
+
+  it("returns base-sepolia when NEXT_PUBLIC_NETWORK is base-sepolia", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "base-sepolia";
+    const n = getActiveNetwork();
+    expect(n.key).toBe("base-sepolia");
+  });
+
+  it("throws with a clear message on unknown key", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "polygon";
+    expect(() => getActiveNetwork()).toThrow(/polygon/);
+    expect(() => getActiveNetwork()).toThrow(/base/);
+  });
+
+  it("throws when NEXT_PUBLIC_NETWORK is unset", () => {
+    delete process.env.NEXT_PUBLIC_NETWORK;
+    expect(() => getActiveNetwork()).toThrow();
+  });
+});
+
+describe("getAvailableNetworks", () => {
+  const originalEnv = process.env.NEXT_PUBLIC_NETWORK;
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_NETWORK = originalEnv;
+  });
+
+  it("on a mainnet deploy, returns only mainnet networks", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "base";
+    const list = getAvailableNetworks();
+    expect(list.length).toBeGreaterThan(0);
+    for (const n of list) expect(n.environment).toBe("mainnet");
+  });
+
+  it("on a testnet deploy, returns only testnet networks", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "base-sepolia";
+    const list = getAvailableNetworks();
+    expect(list.length).toBeGreaterThan(0);
+    for (const n of list) expect(n.environment).toBe("testnet");
+  });
+
+  it("testnet deploy never sees mainnet entries", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "base-sepolia";
+    const keys = getAvailableNetworks().map((n) => n.key);
+    expect(keys).not.toContain("base");
+  });
+
+  it("mainnet deploy never sees testnet entries", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "base";
+    const keys = getAvailableNetworks().map((n) => n.key);
+    expect(keys).not.toContain("base-sepolia");
+  });
+});
+
+describe("resolveTokenAddress", () => {
+  const originalMock = process.env.NEXT_PUBLIC_MOCK_USDC_ADDRESS;
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_MOCK_USDC_ADDRESS = originalMock;
+  });
+
+  it("returns the canonical address for tokens with a hardcoded address", () => {
+    const usdc = NETWORKS.base.tokens.USDC;
+    expect(resolveTokenAddress(usdc)).toBe(
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    );
+  });
+
+  it("reads from env for tokens with addressEnvVar", () => {
+    process.env.NEXT_PUBLIC_MOCK_USDC_ADDRESS =
+      "0xABCdef0123456789ABCdef0123456789ABCdef01";
+    const usdc = NETWORKS["base-sepolia"].tokens.USDC;
+    expect(resolveTokenAddress(usdc)).toBe(
+      "0xABCdef0123456789ABCdef0123456789ABCdef01",
+    );
+  });
+
+  it("throws when the env var is unset", () => {
+    delete process.env.NEXT_PUBLIC_MOCK_USDC_ADDRESS;
+    const usdc = NETWORKS["base-sepolia"].tokens.USDC;
+    expect(() => resolveTokenAddress(usdc)).toThrow(
+      /NEXT_PUBLIC_MOCK_USDC_ADDRESS/,
+    );
+  });
+
+  it("throws when the env var is the zero address", () => {
+    process.env.NEXT_PUBLIC_MOCK_USDC_ADDRESS =
+      "0x0000000000000000000000000000000000000000";
+    const usdc = NETWORKS["base-sepolia"].tokens.USDC;
+    expect(() => resolveTokenAddress(usdc)).toThrow(
+      /NEXT_PUBLIC_MOCK_USDC_ADDRESS/,
+    );
+  });
+});
+
+describe("assertValidNetworkKey", () => {
+  it("passes for known keys", () => {
+    expect(() => assertValidNetworkKey("base")).not.toThrow();
+    expect(() => assertValidNetworkKey("base-sepolia")).not.toThrow();
+  });
+
+  it("throws on unknown keys", () => {
+    expect(() => assertValidNetworkKey("polygon")).toThrow(/polygon/);
+    expect(() => assertValidNetworkKey("")).toThrow();
+  });
+
+  it("narrows the type to NetworkKey (compile-time check)", () => {
+    const input: string = "base";
+    assertValidNetworkKey(input);
+    const _k: NetworkKey = input;
+    expect(_k).toBe("base");
+  });
+});
+
+describe("assertValidTokenSymbol", () => {
+  it("passes for known symbols on a network", () => {
+    expect(() =>
+      assertValidTokenSymbol(NETWORKS.base, "USDC"),
+    ).not.toThrow();
+  });
+
+  it("throws for unknown symbols", () => {
+    expect(() =>
+      assertValidTokenSymbol(NETWORKS.base, "DOGE"),
+    ).toThrow(/DOGE/);
+  });
+});
+
+describe("getToken", () => {
+  it("returns the token config for (network, symbol)", () => {
+    const t = getToken("base", "USDC");
+    expect(t.symbol).toBe("USDC");
+    expect(t.decimals).toBe(6);
+  });
+
+  it("throws on unknown network", () => {
+    expect(() => getToken("solana" as NetworkKey, "USDC")).toThrow();
+  });
+
+  it("throws on unknown symbol", () => {
+    expect(() => getToken("base", "DOGE")).toThrow(/DOGE/);
   });
 });
