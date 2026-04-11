@@ -247,6 +247,68 @@ app.post(
   }
 }`}</CodeBlock>
 
+      <SubsectionHeading>invoice.issued</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent the moment an invoice is created — always inside the same
+        database transaction that records the payment, so you can trust that
+        by the time this fires the payment is committed and queryable.
+        Subscribe if you want to run accounting automations, push invoices
+        to an external ledger, or notify your internal team.
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "invoice.issued",
+  "timestamp": "2026-04-11T18:23:05.166Z",
+  "data": {
+    "invoiceId": "8b2c...",
+    "invoiceNumber": "INV-000042",
+    "paymentId": "1f23...",
+    "customerId": "cust_xyz",
+    "totalCents": 1200,
+    "subtotalCents": 1000,
+    "taxCents": 200,
+    "taxLabel": "VAT 20%",
+    "currency": "USDC",
+    "hostedUrl": "https://paylix.example.com/i/abc...",
+    "invoicePdfUrl": "https://paylix.example.com/i/abc.../pdf",
+    "receiptPdfUrl": "https://paylix.example.com/i/abc.../receipt",
+    "metadata": { "orderId": "42" }
+  }
+}`}</CodeBlock>
+
+      <SubsectionHeading>invoice.email_sent</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent after the invoice email is successfully delivered to the
+        buyer via the configured mailer driver (Resend or SMTP).
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "invoice.email_sent",
+  "timestamp": "2026-04-11T18:23:08.011Z",
+  "data": {
+    "invoiceId": "8b2c...",
+    "invoiceNumber": "INV-000042",
+    "to": "customer@example.com"
+  }
+}`}</CodeBlock>
+
+      <SubsectionHeading>invoice.email_failed</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent when the mailer fails to deliver an invoice email. This is
+        the actionable one — subscribe to it and alert the merchant, or
+        auto-retry from your own side. The invoice row itself is always
+        created regardless of email outcome, so the customer can still
+        access it via the hosted link.
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "invoice.email_failed",
+  "timestamp": "2026-04-11T18:23:08.011Z",
+  "data": {
+    "invoiceId": "8b2c...",
+    "invoiceNumber": "INV-000042",
+    "to": "customer@example.com",
+    "error": "SMTP 550: mailbox full"
+  }
+}`}</CodeBlock>
+
       <SubsectionHeading>system.relayer_balance_low</SubsectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         Sent when the gasless payments relayer wallet&apos;s ETH balance drops
