@@ -7,12 +7,12 @@ import {
 import type { NetworkKey } from "@paylix/config/networks";
 
 /**
- * Resolves which wallet should receive payments for (userId, networkKey).
+ * Resolves which wallet should receive payments for (organizationId, networkKey).
  *
  * Three-state precedence:
  *   1. No row or enabled=false  → throw (network not configured)
  *   2. Row with wallet_address  → return the override
- *   3. Row with NULL wallet_address → fall back to users.walletAddress
+ *   3. Row with NULL wallet_address → fall back to users.walletAddress via userId
  *   4. Default also NULL/empty  → throw
  *
  * Called from the checkout-creation path so the merchant wallet is locked
@@ -20,12 +20,13 @@ import type { NetworkKey } from "@paylix/config/networks";
  * contract args deterministic relative to the DB row.
  */
 export async function resolvePayoutWallet(
-  userId: string,
+  organizationId: string,
   networkKey: NetworkKey,
+  userId?: string,
 ): Promise<`0x${string}`> {
   const row = await db.query.merchantPayoutWallets.findFirst({
     where: and(
-      eq(merchantPayoutWallets.userId, userId),
+      eq(merchantPayoutWallets.organizationId, organizationId),
       eq(merchantPayoutWallets.networkKey, networkKey),
       eq(merchantPayoutWallets.enabled, true),
     ),
@@ -39,6 +40,13 @@ export async function resolvePayoutWallet(
 
   if (row.walletAddress) {
     return row.walletAddress as `0x${string}`;
+  }
+
+  if (!userId) {
+    throw new Error(
+      `No payout wallet configured for network ${networkKey}: ` +
+        `the network uses the default wallet but no userId was provided`,
+    );
   }
 
   // Row exists and is enabled, but no override — use the default wallet.

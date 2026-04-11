@@ -16,7 +16,7 @@ vi.mock("@/lib/db", () => {
 import { resolvePayoutWallet } from "../payout-wallets";
 import { db } from "@/lib/db";
 
-const user = "test-user-id";
+const user = "test-org-id";
 const network: NetworkKey = "base-sepolia";
 
 // Typed handles for the mocked functions — cast once here so each test can

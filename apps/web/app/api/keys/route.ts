@@ -6,6 +6,7 @@ import { apiKeys } from "@paylix/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { generateApiKey } from "@/lib/api-key-utils";
+import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
 
 const createKeySchema = z.object({
   name: z.string().min(1).max(100),
@@ -14,8 +15,12 @@ const createKeySchema = z.object({
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const rows = await db
@@ -29,7 +34,7 @@ export async function GET() {
       createdAt: apiKeys.createdAt,
     })
     .from(apiKeys)
-    .where(eq(apiKeys.userId, session.user.id))
+    .where(eq(apiKeys.organizationId, organizationId))
     .orderBy(desc(apiKeys.createdAt));
 
   return NextResponse.json(rows);
@@ -37,8 +42,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const body = await request.json();
@@ -56,7 +65,7 @@ export async function POST(request: Request) {
   const [row] = await db
     .insert(apiKeys)
     .values({
-      userId: session.user.id,
+      organizationId,
       name,
       keyHash: hash,
       prefix,
