@@ -1,12 +1,10 @@
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { apiKeys } from "@paylix/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { generateApiKey } from "@/lib/api-key-utils";
-import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
+import { resolveActiveOrg } from "@/lib/require-active-org";
 
 const createKeySchema = z.object({
   name: z.string().min(1).max(100),
@@ -14,14 +12,9 @@ const createKeySchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId } = ctx;
 
   const rows = await db
     .select({
@@ -41,14 +34,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId } = ctx;
 
   const body = await request.json();
   const parsed = createKeySchema.safeParse(body);

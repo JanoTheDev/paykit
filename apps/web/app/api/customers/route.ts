@@ -1,11 +1,9 @@
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { customers } from "@paylix/db/schema";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { z } from "zod";
-import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
+import { resolveActiveOrg } from "@/lib/require-active-org";
 
 const createSchema = z.object({
   firstName: z.string().trim().max(100).nullish(),
@@ -18,14 +16,9 @@ const createSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId } = ctx;
 
   const body = await request.json().catch(() => null);
   const parsed = createSchema.safeParse(body);

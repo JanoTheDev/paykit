@@ -1,10 +1,8 @@
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invoices } from "@paylix/db/schema";
 import { and, eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
+import { resolveActiveOrg } from "@/lib/require-active-org";
 import { sendMail } from "@paylix/mailer";
 import { createElement } from "react";
 import { InvoiceEmail } from "@/emails/invoice-email";
@@ -14,14 +12,10 @@ interface Ctx {
 }
 
 export async function POST(_req: Request, ctx: Ctx) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const orgCtx = await resolveActiveOrg();
+  if (!orgCtx.ok) return orgCtx.response;
+  const { organizationId } = orgCtx;
+
   const { id } = await ctx.params;
   const [invoice] = await db
     .select()

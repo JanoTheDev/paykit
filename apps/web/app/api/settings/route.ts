@@ -1,4 +1,3 @@
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   users,
@@ -6,23 +5,17 @@ import {
   merchantProfiles,
 } from "@paylix/db/schema";
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   getAvailableNetworks,
   assertValidNetworkKey,
 } from "@paylix/config/networks";
-import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
+import { resolveActiveOrg } from "@/lib/require-active-org";
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId, userId, session } = ctx;
 
   const [user] = await db
     .select({
@@ -33,7 +26,7 @@ export async function GET() {
       checkoutFieldDefaults: users.checkoutFieldDefaults,
     })
     .from(users)
-    .where(eq(users.id, session!.user.id));
+    .where(eq(users.id, userId));
 
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -99,6 +92,9 @@ export async function GET() {
     };
   });
 
+  // session is used here only to satisfy TS — avoid the `session!` cast
+  void session;
+
   return NextResponse.json({
     ...user,
     checkoutFieldDefaults: defaults,
@@ -108,14 +104,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId, userId } = ctx;
 
   const body = await request.json();
   const updates: Partial<{
@@ -259,7 +250,7 @@ export async function PATCH(request: Request) {
   const [updated] = await db
     .update(users)
     .set(updates)
-    .where(eq(users.id, session!.user.id))
+    .where(eq(users.id, userId))
     .returning({
       id: users.id,
       name: users.name,

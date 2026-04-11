@@ -46,7 +46,6 @@ export async function POST(
 
   const { id } = await params;
 
-  // Verify the merchant owns this subscription
   const [sub] = await db
     .select()
     .from(subscriptions)
@@ -91,7 +90,6 @@ export async function POST(
       merchantUserId ?? undefined,
     );
   } catch {
-    // Fall back to users.walletAddress if payout wallet not configured
     if (!merchantUserId) {
       return NextResponse.json(
         { error: "Merchant wallet not configured in settings" },

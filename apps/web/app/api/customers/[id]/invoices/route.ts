@@ -11,7 +11,6 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Accept either a dashboard session or a secret API key.
   let organizationId: string | null = null;
   const session = await auth.api.getSession({ headers: await headers() });
   if (session) {

@@ -1,10 +1,8 @@
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { products, productPrices } from "@paylix/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
+import { resolveActiveOrg } from "@/lib/require-active-org";
 import { z } from "zod";
 import {
   NETWORKS,
@@ -35,7 +33,7 @@ const createProductSchema = z
         z.object({
           networkKey: z.string(),
           tokenSymbol: z.string(),
-          amount: z.string(), // bigint as string over the wire
+          amount: z.string(),
         }),
       )
       .min(1, "At least one price is required"),
@@ -49,14 +47,9 @@ const createProductSchema = z
   });
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId } = ctx;
 
   const rows = await db
     .select()
@@ -90,21 +83,16 @@ export async function GET() {
       ...p,
       prices: (pricesByProduct.get(p.id) ?? []).map((pr) => ({
         ...pr,
-        amount: pr.amount.toString(), // bigint → string over JSON
+        amount: pr.amount.toString(),
       })),
     })),
   );
 }
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId } = ctx;
 
   const body = await request.json();
   const parsed = createProductSchema.safeParse(body);
@@ -117,7 +105,6 @@ export async function POST(request: Request) {
 
   const data = parsed.data;
 
-  // Validate every price against the registry before creating the product
   for (const price of data.prices) {
     try {
       assertValidNetworkKey(price.networkKey);

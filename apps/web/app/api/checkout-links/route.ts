@@ -1,13 +1,11 @@
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { checkoutSessions, products, productPrices } from "@paylix/db/schema";
 import { and, eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { resolvePayoutWallet } from "@/lib/payout-wallets";
 import type { NetworkKey } from "@paylix/config/networks";
-import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
+import { resolveActiveOrg } from "@/lib/require-active-org";
 
 const createCheckoutLinkSchema = z.object({
   productId: z.string().uuid(),
@@ -17,14 +15,9 @@ const createCheckoutLinkSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId } = ctx;
 
   const rows = await db
     .select({
@@ -57,14 +50,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId, session } = ctx;
 
   const body = await request.json();
   const parsed = createCheckoutLinkSchema.safeParse(body);
@@ -77,7 +65,6 @@ export async function POST(request: Request) {
 
   const data = parsed.data;
 
-  // Fetch the product
   const [product] = await db
     .select()
     .from(products)
@@ -91,7 +78,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  // Load all active prices for the product
   const prices = await db
     .select()
     .from(productPrices)
@@ -110,9 +96,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Default: lock to the first (oldest) active price. The dashboard link
-  // generator is single-currency — merchants who want a currency picker
-  // should use the SDK's createCheckout without passing network/token.
   const defaultPrice = prices[0];
 
   let merchantWallet: `0x${string}`;
@@ -120,7 +103,7 @@ export async function POST(request: Request) {
     merchantWallet = await resolvePayoutWallet(
       organizationId,
       defaultPrice.networkKey as NetworkKey,
-      session?.user.id,
+      session.user.id,
     );
   } catch (err) {
     return NextResponse.json(

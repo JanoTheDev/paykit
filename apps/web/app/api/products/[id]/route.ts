@@ -1,10 +1,8 @@
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { products, productPrices } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
-import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
+import { resolveActiveOrg } from "@/lib/require-active-org";
 import { z } from "zod";
 import {
   NETWORKS,
@@ -47,14 +45,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId } = ctx;
 
   const { id } = await params;
   const body = await request.json();
@@ -88,7 +81,6 @@ export async function PATCH(
     if (!row) return null;
 
     if (data.prices) {
-      // Validate every price first
       for (const p of data.prices) {
         assertValidNetworkKey(p.networkKey);
         assertValidTokenSymbol(
@@ -97,8 +89,6 @@ export async function PATCH(
         );
       }
 
-      // Replace: mark old prices inactive, insert new rows. Not a hard delete
-      // so historical checkout_sessions still reference valid rows.
       await tx
         .update(productPrices)
         .set({ isActive: false })
@@ -129,14 +119,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  let organizationId: string;
-  try {
-    organizationId = requireActiveOrg(session);
-  } catch (e) {
-    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
-  }
+  const ctx = await resolveActiveOrg();
+  if (!ctx.ok) return ctx.response;
+  const { organizationId } = ctx;
 
   const { id } = await params;
 
