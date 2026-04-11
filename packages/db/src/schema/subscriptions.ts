@@ -5,8 +5,38 @@ import { customers } from "./customers";
 import { payments } from "./payments";
 
 export const subscriptionStatusEnum = pgEnum("subscription_status", [
-  "active", "past_due", "cancelled", "expired",
+  "active",
+  "past_due",
+  "cancelled",
+  "expired",
+  "trialing",
+  "trial_conversion_failed",
 ]);
+
+export type PendingPermitSignature = {
+  permit: {
+    value: string;
+    deadline: number;
+    v: number;
+    r: `0x${string}`;
+    s: `0x${string}`;
+  };
+  intent: {
+    merchantId: string;
+    amount: string;
+    interval: number;
+    nonce: string;
+    deadline: number;
+    signature: `0x${string}`;
+    productIdBytes: `0x${string}`;
+    customerIdBytes: `0x${string}`;
+  };
+  priceSnapshot: {
+    networkKey: string;
+    tokenSymbol: string;
+    amount: string;
+  };
+};
 
 export const subscriptions = pgTable(
   "subscriptions",
@@ -16,9 +46,6 @@ export const subscriptions = pgTable(
     organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
     customerId: uuid("customer_id").notNull().references(() => customers.id),
     subscriberAddress: text("subscriber_address").notNull(),
-    // The SubscriptionManager contract instance that emitted the
-    // SubscriptionCreated event this row tracks. Required so redeployed
-    // contracts don't collide with stale rows on their onChainId sequences.
     contractAddress: text("contract_address").notNull(),
     networkKey: text("network_key").notNull(),
     tokenSymbol: text("token_symbol").notNull(),
@@ -31,12 +58,15 @@ export const subscriptions = pgTable(
     onChainId: text("on_chain_id"),
     intervalSeconds: integer("interval_seconds"),
     metadata: jsonb("metadata").$type<Record<string, string>>().default({}),
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+    pendingPermitSignature: jsonb("pending_permit_signature").$type<PendingPermitSignature>(),
+    trialConversionAttempts: integer("trial_conversion_attempts").notNull().default(0),
+    trialConversionLastError: text("trial_conversion_last_error"),
+    trialReminderSentAt: timestamp("trial_reminder_sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (table) => [
-    // Composite unique: onChainId is only unique per SubscriptionManager
-    // deployment. After a redeploy the counter resets to 0.
     uniqueIndex("subscriptions_contract_on_chain_id_idx").on(
       table.contractAddress,
       table.onChainId,
