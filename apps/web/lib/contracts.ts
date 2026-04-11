@@ -37,10 +37,10 @@ export const CONTRACTS = {
       process.env.SUBSCRIPTION_MANAGER_ADDRESS,
     "SUBSCRIPTION_MANAGER_ADDRESS",
   ),
-  // USDC comes from chain.ts: Circle's canonical address on mainnet, or the
-  // merchant's MockUSDC deployment on testnet.
-  usdc: (USDC_ADDRESS ||
-    "0x0000000000000000000000000000000000000000") as `0x${string}`,
+  // USDC address comes from the active network's registry entry via
+  // resolveTokenAddress(). No hardcoded fallback — if the env isn't set,
+  // resolveTokenAddress throws loudly from chain.ts.
+  usdc: USDC_ADDRESS,
 };
 
 // ERC20 approve ABI
