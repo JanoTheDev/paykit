@@ -58,6 +58,7 @@ export async function POST(
   const parsed = parseRelayBody(body);
   if (!parsed.ok) return errorResponse(parsed.error);
   const { buyer, deadline, v, r, s, permitValue, intentSignature } = parsed.value;
+  // (networkKey and tokenSymbol also in parsed.value, validated below after session load)
 
   // 2. Deadline sanity check (cheap — avoids a DB roundtrip on stale signatures)
   const deadlineCheck = validateDeadline(deadline);
@@ -73,6 +74,8 @@ export async function POST(
       subscriptionId: checkoutSessions.subscriptionId,
       type: checkoutSessions.type,
       amount: checkoutSessions.amount,
+      networkKey: checkoutSessions.networkKey,
+      tokenSymbol: checkoutSessions.tokenSymbol,
       merchantWallet: checkoutSessions.merchantWallet,
       productId: checkoutSessions.productId,
       billingInterval: products.billingInterval,
@@ -96,6 +99,43 @@ export async function POST(
     return errorResponse(sessionCheck.error, status);
   }
 
+  // Guard: session must have a locked currency before it can be relayed
+  if (!session.networkKey || !session.tokenSymbol) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "currency_not_selected",
+          message: "Buyer must pick a currency before paying this session.",
+        },
+      },
+      { status: 409 },
+    );
+  }
+
+  // Verify the request's networkKey/tokenSymbol matches the session
+  if (parsed.value.networkKey !== session.networkKey) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "invalid_body",
+          message: "networkKey does not match the session",
+        },
+      },
+      { status: 400 },
+    );
+  }
+  if (parsed.value.tokenSymbol !== session.tokenSymbol) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "invalid_body",
+          message: "tokenSymbol does not match the session",
+        },
+      },
+      { status: 400 },
+    );
+  }
+
   // Acquire an atomic lock on the session so two concurrent relay attempts
   // can't both reach the contract call. The lock is released on terminal
   // failure (below); on success the indexer's session-completed update
@@ -109,8 +149,11 @@ export async function POST(
   }
 
   // 4. Compute on-chain args
-  // session.amount is in cents; USDC has 6 decimals; $1.00 = 1,000,000 units = 100 cents
-  const usdcAmount = BigInt(session.amount) * BigInt(10_000);
+  // session.amount is now stored in native token units (bigint), no
+  // conversion needed. The old cents × 10_000 math is gone — amounts are
+  // whatever the merchant set in the product_prices entry for this
+  // (networkKey, tokenSymbol) pair.
+  const tokenAmount = session.amount as bigint;
   const productIdBytes = keccak256(stringToBytes(session.productId));
   // Use the session UUID as the on-chain customerId — avoids collisions
   // across concurrent checkouts and matches the existing direct-flow pattern
@@ -139,7 +182,7 @@ export async function POST(
             token: CONTRACTS.usdc,
             buyer,
             merchant: session.merchantWallet as `0x${string}`,
-            amount: usdcAmount,
+            amount: tokenAmount,
             interval: intervalSeconds,
             productId: productIdBytes,
             customerId: customerIdBytes,
@@ -161,7 +204,7 @@ export async function POST(
           CONTRACTS.usdc,
           buyer,
           session.merchantWallet as `0x${string}`,
-          usdcAmount,
+          tokenAmount,
           productIdBytes,
           customerIdBytes,
           { deadline, v, r, s },
