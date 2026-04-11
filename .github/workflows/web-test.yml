@@ -1,0 +1,68 @@
+name: Web Test
+
+# Runs the TypeScript side of the monorepo: vitest tests, lint, typecheck,
+# and build. Uses the repo's existing top-level turbo commands so CI stays
+# consistent with `pnpm dev` / `pnpm build` / `pnpm test` on local.
+#
+# Triggers on any change that could affect compiled output or runtime —
+# contracts-only changes are handled by forge-test.yml and don't need this.
+
+on:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "packages/sdk/**"
+      - "packages/db/**"
+      - "packages/indexer/**"
+      - "packages/config/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "turbo.json"
+      - ".github/workflows/web-test.yml"
+  push:
+    branches: [master]
+    paths:
+      - "apps/**"
+      - "packages/sdk/**"
+      - "packages/db/**"
+      - "packages/indexer/**"
+      - "packages/config/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - "turbo.json"
+      - ".github/workflows/web-test.yml"
+
+concurrency:
+  group: web-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build · Lint · Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        # Pinned to commit SHA (third-party action — CWE-829).
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test

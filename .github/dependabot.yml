@@ -1,0 +1,42 @@
+version: 2
+updates:
+  # npm packages across the entire pnpm workspace. Grouping minor/patch
+  # bumps keeps PR noise manageable — majors still get their own PR each
+  # so breaking changes are reviewed in isolation.
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /apps/web
+      - /apps/docs
+      - /packages/sdk
+      - /packages/db
+      - /packages/indexer
+      - /packages/config
+      - /packages/contracts
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 10
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types:
+          - minor
+          - patch
+    # Security-critical deps get bumped on any vuln advisory regardless of
+    # schedule — Dependabot opens those PRs immediately.
+
+  # GitHub Actions used in .github/workflows/**. Grouped because a typical
+  # weekly bump touches multiple workflows at once and reviewing them one
+  # at a time is churn.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]

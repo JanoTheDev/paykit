@@ -1,0 +1,50 @@
+name: Forge Test
+
+# Runs the full contract test suite (minus the mainnet-fork tests, which
+# require a live RPC) on every PR and push touching `packages/contracts/**`.
+# Fuzz runs are bumped above the default 256 to catch arithmetic edge cases
+# the unit tests won't hit on their own.
+
+on:
+  pull_request:
+    paths:
+      - "packages/contracts/**"
+      - ".github/workflows/forge-test.yml"
+  push:
+    branches: [master]
+    paths:
+      - "packages/contracts/**"
+      - ".github/workflows/forge-test.yml"
+
+concurrency:
+  group: forge-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Forge Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/contracts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        # Pinned to commit SHA to prevent supply-chain attacks via tag force-push.
+        uses: foundry-rs/foundry-toolchain@8789b3e21e6c11b2697f5eb56eddae542f746c10 # v1
+        with:
+          version: stable
+
+      - name: Show forge version
+        run: forge --version
+
+      - name: Build
+        run: forge build --sizes
+
+      - name: Test (with deep fuzzing)
+        run: forge test --no-match-path 'test/mainnet-fork/*' --fuzz-runs 1000 -vv
