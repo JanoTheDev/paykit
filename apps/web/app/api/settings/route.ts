@@ -12,11 +12,16 @@ import {
   getAvailableNetworks,
   assertValidNetworkKey,
 } from "@paylix/config/networks";
+import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const [user] = await db
@@ -28,7 +33,7 @@ export async function GET() {
       checkoutFieldDefaults: users.checkoutFieldDefaults,
     })
     .from(users)
-    .where(eq(users.id, session.user.id));
+    .where(eq(users.id, session!.user.id));
 
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -42,22 +47,22 @@ export async function GET() {
     phone: user.checkoutFieldDefaults?.phone ?? false,
   };
 
-  // Load all payout wallet rows for this merchant
+  // Load all payout wallet rows for this org
   const walletRows = await db
     .select()
     .from(merchantPayoutWallets)
-    .where(eq(merchantPayoutWallets.userId, session.user.id));
+    .where(eq(merchantPayoutWallets.organizationId, organizationId));
 
   let [profile] = await db
     .select()
     .from(merchantProfiles)
-    .where(eq(merchantProfiles.userId, session.user.id))
+    .where(eq(merchantProfiles.organizationId, organizationId))
     .limit(1);
 
   if (!profile) {
     const [created] = await db
       .insert(merchantProfiles)
-      .values({ userId: session.user.id })
+      .values({ organizationId })
       .returning();
     profile = created;
   }
@@ -104,8 +109,12 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const body = await request.json();
@@ -184,14 +193,14 @@ export async function PATCH(request: Request) {
       await db
         .insert(merchantPayoutWallets)
         .values({
-          userId: session.user.id,
+          organizationId,
           networkKey: entry.networkKey,
           enabled: entry.enabled,
           walletAddress: addr || null,
         })
         .onConflictDoUpdate({
           target: [
-            merchantPayoutWallets.userId,
+            merchantPayoutWallets.organizationId,
             merchantPayoutWallets.networkKey,
           ],
           set: {
@@ -207,7 +216,7 @@ export async function PATCH(request: Request) {
     await db
       .insert(merchantProfiles)
       .values({
-        userId: session.user.id,
+        organizationId,
         legalName: String(bp.legalName ?? ""),
         addressLine1: String(bp.addressLine1 ?? ""),
         addressLine2: bp.addressLine2 ?? null,
@@ -221,7 +230,7 @@ export async function PATCH(request: Request) {
         invoiceFooter: bp.invoiceFooter ?? null,
       })
       .onConflictDoUpdate({
-        target: merchantProfiles.userId,
+        target: merchantProfiles.organizationId,
         set: {
           legalName: String(bp.legalName ?? ""),
           addressLine1: String(bp.addressLine1 ?? ""),
@@ -250,7 +259,7 @@ export async function PATCH(request: Request) {
   const [updated] = await db
     .update(users)
     .set(updates)
-    .where(eq(users.id, session.user.id))
+    .where(eq(users.id, session!.user.id))
     .returning({
       id: users.id,
       name: users.name,
