@@ -55,6 +55,22 @@ const schema = z
       ])
       .optional()
       .or(z.literal("")),
+    taxRateBps: z
+      .union([
+        z
+          .number()
+          .int()
+          .min(0, "Tax rate must be 0 or greater")
+          .max(10000, "Tax rate cannot exceed 10000 bps (100%)"),
+        z.null(),
+      ])
+      .optional(),
+    taxLabel: z
+      .string()
+      .max(64, "Tax label must be 64 characters or less")
+      .nullable()
+      .optional(),
+    reverseChargeEligible: z.boolean().optional(),
   })
   .refine(
     (d) => d.type !== "subscription" || !!d.billingInterval,
@@ -89,6 +105,9 @@ export type ProductFormData = {
     tokenSymbol: string;
     amount: string; // human-readable decimal, converted to native units on save
   }>;
+  taxRateBps?: number | null;
+  taxLabel?: string | null;
+  reverseChargeEligible?: boolean;
 };
 
 interface ProductFormProps {
@@ -107,6 +126,9 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
       description: initialData?.description ?? "",
       type: initialData?.type ?? "one_time",
       billingInterval: initialData?.billingInterval ?? "",
+      taxRateBps: initialData?.taxRateBps ?? null,
+      taxLabel: initialData?.taxLabel ?? null,
+      reverseChargeEligible: initialData?.reverseChargeEligible ?? false,
     },
   });
 
@@ -297,6 +319,9 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
       metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       checkoutFields,
       prices: convertedPrices,
+      taxRateBps: values.taxRateBps ?? null,
+      taxLabel: values.taxLabel ?? null,
+      reverseChargeEligible: Boolean(values.reverseChargeEligible),
     };
     if (values.type === "subscription" && values.billingInterval) {
       payload.billingInterval = values.billingInterval;
@@ -576,6 +601,84 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
               <Plus size={16} strokeWidth={1.5} />
               Add field
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium">Tax</h3>
+              <p className="text-xs text-muted-foreground">
+                Optional. Applied to invoices issued for this product. Rate is
+                in basis points — e.g. 2000 = 20%.
+              </p>
+            </div>
+
+            <FormField
+              control={form.control}
+              name="taxRateBps"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tax rate (bps)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={10000}
+                      step={1}
+                      placeholder="2000"
+                      value={field.value ?? ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        field.onChange(v === "" ? null : Number(v));
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="taxLabel"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tax label</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      maxLength={64}
+                      placeholder="VAT"
+                      value={field.value ?? ""}
+                      onChange={(e) =>
+                        field.onChange(e.target.value === "" ? null : e.target.value)
+                      }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="reverseChargeEligible"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel className="mb-0">
+                      Reverse charge eligible
+                    </FormLabel>
+                    <Switch
+                      checked={Boolean(field.value)}
+                      onCheckedChange={field.onChange}
+                    />
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </CardContent>
         </Card>
 

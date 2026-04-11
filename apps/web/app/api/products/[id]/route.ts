@@ -37,6 +37,9 @@ const updateProductSchema = z.object({
       }),
     )
     .optional(),
+  taxRateBps: z.number().int().min(0).max(10000).nullable().optional(),
+  taxLabel: z.string().max(64).nullable().optional(),
+  reverseChargeEligible: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -70,6 +73,9 @@ export async function PATCH(
         billingInterval: data.type === "one_time" ? null : data.billingInterval,
         metadata: data.metadata,
         checkoutFields: data.checkoutFields,
+        taxRateBps: data.taxRateBps,
+        taxLabel: data.taxLabel,
+        reverseChargeEligible: data.reverseChargeEligible,
       })
       .where(and(eq(products.id, id), eq(products.userId, session.user.id)))
       .returning();

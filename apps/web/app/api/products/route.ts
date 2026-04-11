@@ -38,6 +38,9 @@ const createProductSchema = z
         }),
       )
       .min(1, "At least one price is required"),
+    taxRateBps: z.number().int().min(0).max(10000).nullable().optional(),
+    taxLabel: z.string().max(64).nullable().optional(),
+    reverseChargeEligible: z.boolean().optional(),
   })
   .refine((d) => d.type !== "subscription" || !!d.billingInterval, {
     message: "billingInterval is required for subscription products",
@@ -133,6 +136,9 @@ export async function POST(request: Request) {
           data.type === "subscription" ? (data.billingInterval ?? null) : null,
         metadata: data.metadata ?? {},
         checkoutFields: data.checkoutFields ?? {},
+        taxRateBps: data.taxRateBps ?? null,
+        taxLabel: data.taxLabel ?? null,
+        reverseChargeEligible: data.reverseChargeEligible ?? false,
       })
       .returning();
 
