@@ -2,18 +2,37 @@
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { base, baseSepolia } from "@reown/appkit/networks";
 import type { AppKitNetwork } from "@reown/appkit/networks";
-import { IS_MAINNET } from "./chain";
+import { getAvailableNetworks } from "@paylix/config/networks";
 
 export const projectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
   "b56e18d47c72ab683b10814fe9495694"; // public fallback for localhost testing
 
-// Put the active network FIRST in the array so AppKit defaults to it in the
-// wallet modal. A mainnet deploy shouldn't show "Base Sepolia" as the
-// default option, and vice versa.
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = IS_MAINNET
-  ? [base, baseSepolia]
-  : [baseSepolia, base];
+/**
+ * Build the AppKit network list from the registry, filtered to the active
+ * environment. Reown's AppKit uses its own Chain shape that happens to match
+ * viem's for Base and Base Sepolia, so we map by chainId. If you add a
+ * network to the registry that AppKit doesn't support natively, this
+ * mapping needs updating.
+ */
+const APPKIT_CHAINS: Record<number, AppKitNetwork> = {
+  [base.id]: base,
+  [baseSepolia.id]: baseSepolia,
+};
+
+const available = getAvailableNetworks();
+const appKitNetworks = available
+  .map((n) => APPKIT_CHAINS[n.chainId])
+  .filter((c): c is AppKitNetwork => c !== undefined);
+
+if (appKitNetworks.length === 0) {
+  throw new Error(
+    "No AppKit-supported networks in the active environment. " +
+      "Check packages/config/src/networks.ts and the APPKIT_CHAINS map above.",
+  );
+}
+
+export const networks = appKitNetworks as [AppKitNetwork, ...AppKitNetwork[]];
 
 export const wagmiAdapter = new WagmiAdapter({
   networks,
