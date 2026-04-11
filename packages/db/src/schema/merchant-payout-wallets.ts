@@ -6,7 +6,7 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
-import { users } from "./users";
+import { organization } from "./auth";
 
 /**
  * Per-merchant per-network payout wallet configuration.
@@ -23,9 +23,9 @@ export const merchantPayoutWallets = pgTable(
   "merchant_payout_wallets",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id")
+    organizationId: text("organization_id")
       .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+      .references(() => organization.id, { onDelete: "cascade" }),
     networkKey: text("network_key").notNull(),
     walletAddress: text("wallet_address"), // nullable: NULL means "use default"
     enabled: boolean("enabled").notNull().default(true),
@@ -37,7 +37,7 @@ export const merchantPayoutWallets = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (t) => [unique("merchant_payout_wallets_unique").on(t.userId, t.networkKey)],
+  (t) => [unique("merchant_payout_wallets_unique").on(t.organizationId, t.networkKey)],
 );
 
 export type MerchantPayoutWallet = typeof merchantPayoutWallets.$inferSelect;
