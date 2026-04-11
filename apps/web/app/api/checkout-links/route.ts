@@ -2,9 +2,11 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { checkoutSessions, products, users } from "@paylix/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { checkoutSessions, products, productPrices } from "@paylix/db/schema";
+import { and, eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import { resolvePayoutWallet } from "@/lib/payout-wallets";
+import type { NetworkKey } from "@paylix/config/networks";
 
 const createCheckoutLinkSchema = z.object({
   productId: z.string().uuid(),
@@ -27,8 +29,8 @@ export async function GET() {
       customerId: checkoutSessions.customerId,
       merchantWallet: checkoutSessions.merchantWallet,
       amount: checkoutSessions.amount,
-      currency: checkoutSessions.currency,
-      chain: checkoutSessions.chain,
+      networkKey: checkoutSessions.networkKey,
+      tokenSymbol: checkoutSessions.tokenSymbol,
       type: checkoutSessions.type,
       status: checkoutSessions.status,
       successUrl: checkoutSessions.successUrl,
@@ -80,16 +82,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  // Get user's wallet address
-  const [userRow] = await db
-    .select({ walletAddress: users.walletAddress })
-    .from(users)
-    .where(eq(users.id, session.user.id));
+  // Load all active prices for the product
+  const prices = await db
+    .select()
+    .from(productPrices)
+    .where(
+      and(
+        eq(productPrices.productId, product.id),
+        eq(productPrices.isActive, true),
+      ),
+    )
+    .orderBy(productPrices.createdAt);
 
-  if (!userRow?.walletAddress) {
+  if (prices.length === 0) {
     return NextResponse.json(
-      { error: "Wallet address not configured. Go to Settings to add your wallet." },
-      { status: 400 }
+      { error: "Product has no active prices. Add a price before generating a link." },
+      { status: 400 },
+    );
+  }
+
+  // Default: lock to the first (oldest) active price. The dashboard link
+  // generator is single-currency — merchants who want a currency picker
+  // should use the SDK's createCheckout without passing network/token.
+  const defaultPrice = prices[0];
+
+  let merchantWallet: `0x${string}`;
+  try {
+    merchantWallet = await resolvePayoutWallet(
+      session.user.id,
+      defaultPrice.networkKey as NetworkKey,
+    );
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Payout wallet error" },
+      { status: 400 },
     );
   }
 
@@ -101,12 +127,12 @@ export async function POST(request: Request) {
       userId: session.user.id,
       productId: product.id,
       customerId: data.customerId ?? null,
-      merchantWallet: userRow.walletAddress,
-      amount: product.price,
-      currency: product.currency,
-      chain: product.chain,
-      type: product.type,
+      merchantWallet,
+      amount: defaultPrice.amount,
+      networkKey: defaultPrice.networkKey,
+      tokenSymbol: defaultPrice.tokenSymbol,
       status: "active",
+      type: product.type,
       successUrl: data.successUrl ?? null,
       cancelUrl: data.cancelUrl ?? null,
       expiresAt,
