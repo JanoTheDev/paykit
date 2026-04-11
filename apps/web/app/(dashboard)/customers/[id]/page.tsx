@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import {
   customers,
+  invoices,
   payments,
   products,
   subscriptions,
@@ -29,46 +30,63 @@ export default async function CustomerDetailPage({
 
   if (!customer) notFound();
 
-  const [customerPayments, customerSubscriptions] = await Promise.all([
-    db
-      .select({
-        id: payments.id,
-        amount: payments.amount,
-        fee: payments.fee,
-        status: payments.status,
-        txHash: payments.txHash,
-        createdAt: payments.createdAt,
-        productName: products.name,
-      })
-      .from(payments)
-      .leftJoin(products, eq(payments.productId, products.id))
-      .where(and(eq(payments.customerId, id), eq(payments.userId, userId)))
-      .orderBy(desc(payments.createdAt)),
-    db
-      .select({
-        id: subscriptions.id,
-        status: subscriptions.status,
-        createdAt: subscriptions.createdAt,
-        nextChargeDate: subscriptions.nextChargeDate,
-        productName: products.name,
-      })
-      .from(subscriptions)
-      .leftJoin(products, eq(subscriptions.productId, products.id))
-      .where(
-        and(
-          eq(subscriptions.customerId, id),
-          eq(subscriptions.userId, userId),
-        ),
-      )
-      .orderBy(desc(subscriptions.createdAt)),
-  ]);
+  const [customerPayments, customerSubscriptions, customerInvoices] =
+    await Promise.all([
+      db
+        .select({
+          id: payments.id,
+          amount: payments.amount,
+          fee: payments.fee,
+          status: payments.status,
+          txHash: payments.txHash,
+          createdAt: payments.createdAt,
+          productName: products.name,
+        })
+        .from(payments)
+        .leftJoin(products, eq(payments.productId, products.id))
+        .where(and(eq(payments.customerId, id), eq(payments.userId, userId)))
+        .orderBy(desc(payments.createdAt)),
+      db
+        .select({
+          id: subscriptions.id,
+          status: subscriptions.status,
+          createdAt: subscriptions.createdAt,
+          nextChargeDate: subscriptions.nextChargeDate,
+          productName: products.name,
+          metadata: subscriptions.metadata,
+        })
+        .from(subscriptions)
+        .leftJoin(products, eq(subscriptions.productId, products.id))
+        .where(
+          and(
+            eq(subscriptions.customerId, id),
+            eq(subscriptions.userId, userId),
+          ),
+        )
+        .orderBy(desc(subscriptions.createdAt)),
+      db
+        .select({
+          id: invoices.id,
+          number: invoices.number,
+          totalCents: invoices.totalCents,
+          currency: invoices.currency,
+          issuedAt: invoices.issuedAt,
+          emailStatus: invoices.emailStatus,
+          hostedToken: invoices.hostedToken,
+        })
+        .from(invoices)
+        .where(
+          and(eq(invoices.customerId, id), eq(invoices.merchantId, userId)),
+        )
+        .orderBy(desc(invoices.issuedAt)),
+    ]);
 
   const name =
     customer.firstName || customer.lastName
       ? [customer.firstName, customer.lastName].filter(Boolean).join(" ")
       : null;
 
-  const metadata = customer.metadata as Record<string, string> | null;
+  const metadata = (customer.metadata as Record<string, string> | null) ?? {};
 
   return (
     <CustomerDetailView
@@ -78,10 +96,33 @@ export default async function CustomerDetailPage({
         email: customer.email,
         phone: customer.phone,
         walletAddress: customer.walletAddress,
+        country: customer.country,
+        taxId: customer.taxId,
+        source: customer.source,
       }}
       metadata={metadata}
       payments={customerPayments}
-      subscriptions={customerSubscriptions}
+      subscriptions={customerSubscriptions.map((s) => ({
+        id: s.id,
+        status: s.status,
+        createdAt: s.createdAt,
+        nextChargeDate: s.nextChargeDate,
+        productName: s.productName,
+        metadata: (s.metadata as Record<string, string> | null) ?? {},
+      }))}
+      invoices={customerInvoices.map((i) => ({
+        id: i.id,
+        number: i.number,
+        totalCents: i.totalCents,
+        currency: i.currency,
+        issuedAt: i.issuedAt,
+        emailStatus: i.emailStatus as
+          | "pending"
+          | "sent"
+          | "failed"
+          | "skipped",
+        hostedToken: i.hostedToken,
+      }))}
     />
   );
 }

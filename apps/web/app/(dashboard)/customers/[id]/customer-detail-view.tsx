@@ -1,8 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   PageShell,
   PageHeader,
@@ -14,6 +18,8 @@ import {
   AddressText,
   col,
 } from "@/components/paykit";
+import { MetadataEditor } from "@/components/metadata-editor";
+import { CancelSubscriptionButton } from "@/components/subscriptions/cancel-subscription-button";
 
 type CustomerPaymentRow = {
   id: string;
@@ -31,6 +37,17 @@ type CustomerSubscriptionRow = {
   createdAt: Date;
   nextChargeDate: Date | null;
   productName: string | null;
+  metadata: Record<string, string>;
+};
+
+type CustomerInvoiceRow = {
+  id: string;
+  number: string;
+  totalCents: number;
+  currency: string;
+  issuedAt: Date;
+  emailStatus: "pending" | "sent" | "failed" | "skipped";
+  hostedToken: string;
 };
 
 const paymentColumns = [
@@ -42,12 +59,19 @@ const paymentColumns = [
   col.hash<CustomerPaymentRow>("txHash", "Tx Hash"),
 ];
 
-const subscriptionColumns = [
-  col.text<CustomerSubscriptionRow>("productName", "Plan"),
-  col.status<CustomerSubscriptionRow>("status", "Status", "subscription"),
-  col.date<CustomerSubscriptionRow>("createdAt", "Started"),
-  col.date<CustomerSubscriptionRow>("nextChargeDate", "Next Charge"),
-];
+function money(cents: number, currency: string) {
+  return `${(cents / 100).toFixed(2)} ${currency}`;
+}
+
+const statusVariant: Record<
+  CustomerInvoiceRow["emailStatus"],
+  "success" | "info" | "warning" | "destructive"
+> = {
+  sent: "success",
+  pending: "info",
+  skipped: "warning",
+  failed: "destructive",
+};
 
 interface CustomerDetailViewProps {
   customer: {
@@ -56,18 +80,56 @@ interface CustomerDetailViewProps {
     email: string | null;
     phone: string | null;
     walletAddress: string | null;
+    country: string | null;
+    taxId: string | null;
+    source: string;
   };
-  metadata: Record<string, string> | null;
+  metadata: Record<string, string>;
   payments: CustomerPaymentRow[];
   subscriptions: CustomerSubscriptionRow[];
+  invoices: CustomerInvoiceRow[];
 }
 
 export default function CustomerDetailView({
   customer,
-  metadata,
+  metadata: initialMetadata,
   payments,
   subscriptions,
+  invoices,
 }: CustomerDetailViewProps) {
+  const router = useRouter();
+  const [metadata, setMetadata] = useState<Record<string, string>>(
+    initialMetadata,
+  );
+  const [metadataDirty, setMetadataDirty] = useState(false);
+  const [savingMetadata, setSavingMetadata] = useState(false);
+  const [metadataError, setMetadataError] = useState<string>("");
+  const [metadataSaved, setMetadataSaved] = useState(false);
+
+  async function saveMetadata() {
+    setSavingMetadata(true);
+    setMetadataError("");
+    setMetadataSaved(false);
+    try {
+      const res = await fetch(`/api/customers/${customer.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metadata }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setMetadataError(data.error ?? "Failed to save metadata");
+        return;
+      }
+      setMetadataDirty(false);
+      setMetadataSaved(true);
+      setTimeout(() => setMetadataSaved(false), 2000);
+      router.refresh();
+    } finally {
+      setSavingMetadata(false);
+    }
+  }
+
   const infoItems = [
     { label: "Name", value: customer.name ?? "—" },
     { label: "Email", value: customer.email ?? "—" },
@@ -80,6 +142,25 @@ export default function CustomerDetailView({
         "—"
       ),
     },
+    { label: "Country", value: customer.country ?? "—" },
+    { label: "Tax ID", value: customer.taxId ?? "—" },
+  ];
+
+  const subscriptionColumns = [
+    col.text<CustomerSubscriptionRow>("productName", "Plan"),
+    col.status<CustomerSubscriptionRow>("status", "Status", "subscription"),
+    col.date<CustomerSubscriptionRow>("createdAt", "Started"),
+    col.date<CustomerSubscriptionRow>("nextChargeDate", "Next Charge"),
+    col.actions<CustomerSubscriptionRow>((row) =>
+      row.status === "active" || row.status === "past_due" ? (
+        <CancelSubscriptionButton
+          subscriptionId={row.id}
+          productName={row.productName}
+        />
+      ) : (
+        <span className="text-foreground-dim">—</span>
+      ),
+    ),
   ];
 
   return (
@@ -93,7 +174,14 @@ export default function CustomerDetailView({
         </Button>
       </div>
 
-      <PageHeader title={customer.name ?? "Customer"} />
+      <PageHeader
+        title={customer.name ?? "Customer"}
+        action={
+          customer.source === "manual" ? (
+            <Badge variant="info">Manually added</Badge>
+          ) : undefined
+        }
+      />
 
       <Section title="Details">
         <div className="rounded-lg border border-border bg-surface-1 p-6">
@@ -106,22 +194,35 @@ export default function CustomerDetailView({
               />
             </div>
           )}
-          {metadata && Object.keys(metadata).length > 0 && (
-            <div className="mt-6">
-              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-foreground-dim">
-                Metadata
-              </div>
-              <div className="flex flex-col gap-1">
-                {Object.entries(metadata).map(([key, value]) => (
-                  <div key={key} className="font-mono text-xs">
-                    <span className="text-foreground-dim">{key}</span>
-                    <span className="mx-2 text-foreground-dim">=</span>
-                    <span className="text-foreground">{value}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="mt-6">
+            <MetadataEditor
+              value={metadata}
+              onChange={(next) => {
+                setMetadata(next);
+                setMetadataDirty(true);
+              }}
+              description="Arbitrary tags attached to this customer. Visible via the SDK."
+            />
+            {metadataError && (
+              <Alert variant="destructive" className="mt-3">
+                <AlertDescription>{metadataError}</AlertDescription>
+              </Alert>
+            )}
+            <div className="mt-3 flex items-center gap-3">
+              <Button
+                size="sm"
+                onClick={saveMetadata}
+                disabled={!metadataDirty || savingMetadata}
+              >
+                {savingMetadata ? "Saving…" : "Save metadata"}
+              </Button>
+              {metadataSaved && (
+                <span className="text-xs font-medium text-success">
+                  Saved
+                </span>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </Section>
 
@@ -149,6 +250,75 @@ export default function CustomerDetailView({
             />
           }
         />
+      </Section>
+
+      <Section title="Invoices">
+        {invoices.length === 0 ? (
+          <EmptyState
+            title="No invoices yet"
+            description="Invoices appear automatically after every successful payment."
+          />
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-border">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-1">
+                <tr className="text-xs uppercase tracking-wide text-foreground-muted">
+                  <th className="px-4 py-2.5 text-left">Number</th>
+                  <th className="px-4 py-2.5 text-right">Total</th>
+                  <th className="px-4 py-2.5 text-left">Issued</th>
+                  <th className="px-4 py-2.5 text-left">Email</th>
+                  <th className="px-4 py-2.5 text-right">Downloads</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((i) => (
+                  <tr
+                    key={i.id}
+                    className="border-t border-border/60 transition-colors hover:bg-surface-1"
+                  >
+                    <td className="px-4 py-2.5 font-mono">
+                      <Link
+                        href={`/invoices/${i.id}`}
+                        className="hover:text-accent"
+                      >
+                        {i.number}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono">
+                      {money(i.totalCents, i.currency)}
+                    </td>
+                    <td className="px-4 py-2.5 text-foreground-muted">
+                      {i.issuedAt.toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <Badge variant={statusVariant[i.emailStatus]}>
+                        {i.emailStatus}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-3 text-xs">
+                        <a
+                          href={`/i/${i.hostedToken}/pdf`}
+                          className="inline-flex items-center gap-1 text-accent hover:underline"
+                        >
+                          <Download className="h-3 w-3" />
+                          Invoice
+                        </a>
+                        <a
+                          href={`/i/${i.hostedToken}/receipt`}
+                          className="inline-flex items-center gap-1 text-foreground-muted hover:text-foreground"
+                        >
+                          <Download className="h-3 w-3" />
+                          Receipt
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Section>
     </PageShell>
   );

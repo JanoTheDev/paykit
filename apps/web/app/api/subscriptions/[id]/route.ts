@@ -1,0 +1,44 @@
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { subscriptions } from "@paylix/db/schema";
+import { and, eq } from "drizzle-orm";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+const patchSchema = z.object({
+  metadata: z.record(z.string(), z.string()),
+});
+
+export async function PATCH(
+  request: Request,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+  const body = await request.json().catch(() => null);
+  const parsed = patchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const [updated] = await db
+    .update(subscriptions)
+    .set({ metadata: parsed.data.metadata })
+    .where(
+      and(
+        eq(subscriptions.id, id),
+        eq(subscriptions.userId, session.user.id),
+      ),
+    )
+    .returning();
+
+  if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  return NextResponse.json({ subscription: updated });
+}
