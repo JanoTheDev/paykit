@@ -19,31 +19,30 @@ export default async function TeamSettingsPage() {
     redirect("/onboarding");
   }
 
-  const members = await db
-    .select({
-      memberId: member.id,
-      role: member.role,
-      joinedAt: member.createdAt,
-      userId: user.id,
-      name: user.name,
-      email: user.email,
-      image: user.image,
-    })
-    .from(member)
-    .leftJoin(user, eq(member.userId, user.id))
-    .where(eq(member.organizationId, orgId));
-
-  const pending = await db
-    .select()
-    .from(invitation)
-    .where(
-      and(eq(invitation.organizationId, orgId), eq(invitation.status, "pending")),
-    );
-
-  const [org] = await db
-    .select()
-    .from(orgTable)
-    .where(eq(orgTable.id, orgId));
+  const [members, pending, [org]] = await Promise.all([
+    db
+      .select({
+        memberId: member.id,
+        role: member.role,
+        joinedAt: member.createdAt,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+      })
+      .from(member)
+      .leftJoin(user, eq(member.userId, user.id))
+      .where(eq(member.organizationId, orgId)),
+    db
+      .select()
+      .from(invitation)
+      .where(
+        and(eq(invitation.organizationId, orgId), eq(invitation.status, "pending")),
+      ),
+    db
+      .select()
+      .from(orgTable)
+      .where(eq(orgTable.id, orgId)),
+  ]);
 
   const currentUserMember = members.find((m) => m.userId === session!.user.id);
   const isOwner = currentUserMember?.role === "owner";

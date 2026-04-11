@@ -16,16 +16,20 @@ export default function InvitePage() {
     setSubmitting(true);
     setError(null);
     const emails = rows.map((r) => r.trim()).filter(Boolean);
-    for (const email of emails) {
-      const res = await authClient.organization.inviteMember({
-        email,
-        role: "member",
-      });
-      if (res.error) {
-        setError(`Failed to invite ${email}: ${res.error.message}`);
-        setSubmitting(false);
-        return;
-      }
+    const results = await Promise.all(
+      emails.map((email) =>
+        authClient.organization.inviteMember({ email, role: "member" }),
+      ),
+    );
+    const failures = results
+      .map((r, i) => ({ res: r, email: emails[i] }))
+      .filter((x) => x.res.error);
+    if (failures.length > 0) {
+      setError(
+        `Failed to invite ${failures.map((f) => f.email).join(", ")}: ${failures[0].res.error!.message}`,
+      );
+      setSubmitting(false);
+      return;
     }
     router.push("/overview");
   }

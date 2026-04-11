@@ -27,6 +27,8 @@ export default async function OverviewPage() {
     paymentCountResult,
     activeSubsResult,
     recentPayments,
+    [profile],
+    [wallet],
   ] = await Promise.all([
     db
       .select({ total: sum(payments.amount) })
@@ -69,21 +71,20 @@ export default async function OverviewPage() {
       .where(eq(payments.organizationId, organizationId))
       .orderBy(sql`${payments.createdAt} desc`)
       .limit(10),
+    db
+      .select()
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.organizationId, organizationId)),
+    db
+      .select()
+      .from(merchantPayoutWallets)
+      .where(eq(merchantPayoutWallets.organizationId, organizationId)),
   ]);
 
   const totalRevenue = Number(totalRevenueResult[0]?.total ?? 0);
   const revenue30d = Number(revenue30dResult[0]?.total ?? 0);
   const paymentCount = paymentCountResult[0]?.count ?? 0;
   const activeSubs = activeSubsResult[0]?.count ?? 0;
-
-  const [profile] = await db
-    .select()
-    .from(merchantProfiles)
-    .where(eq(merchantProfiles.organizationId, organizationId));
-  const [wallet] = await db
-    .select()
-    .from(merchantPayoutWallets)
-    .where(eq(merchantPayoutWallets.organizationId, organizationId));
 
   const needsProfile = !profile || !profile.legalName;
   const needsWallet = !wallet;
