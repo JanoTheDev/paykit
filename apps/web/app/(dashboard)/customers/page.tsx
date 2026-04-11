@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { count, desc, eq, max, sql, sum } from "drizzle-orm";
-import { customers, payments } from "@paylix/db/schema";
+import { customers, payments, subscriptions } from "@paylix/db/schema";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import CustomersView, { type CustomerRow } from "./customers-view";
@@ -18,6 +18,7 @@ export default async function CustomersPage() {
       lastName: customers.lastName,
       email: customers.email,
       walletAddress: customers.walletAddress,
+      source: customers.source,
       totalSpent: sum(
         sql`CASE WHEN ${payments.status} = 'confirmed' THEN ${payments.amount} ELSE 0 END`,
       ),
@@ -30,18 +31,40 @@ export default async function CustomersPage() {
     .groupBy(customers.id)
     .orderBy(desc(customers.createdAt));
 
-  const rows: CustomerRow[] = raw.map((r) => ({
-    id: r.id,
-    name:
-      r.firstName || r.lastName
-        ? [r.firstName, r.lastName].filter(Boolean).join(" ")
-        : "—",
-    email: r.email,
-    walletAddress: r.walletAddress,
-    totalSpent: Number(r.totalSpent ?? 0),
-    paymentCount: Number(r.paymentCount ?? 0),
-    lastPayment: r.lastPayment ? new Date(r.lastPayment) : null,
-  }));
+  const subRows = await db
+    .select({
+      customerId: subscriptions.customerId,
+      status: subscriptions.status,
+    })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId));
+
+  const subByCustomer = new Map<string, { active: number; pastDue: number }>();
+  for (const s of subRows) {
+    const agg = subByCustomer.get(s.customerId) ?? { active: 0, pastDue: 0 };
+    if (s.status === "active") agg.active += 1;
+    if (s.status === "past_due") agg.pastDue += 1;
+    subByCustomer.set(s.customerId, agg);
+  }
+
+  const rows: CustomerRow[] = raw.map((r) => {
+    const agg = subByCustomer.get(r.id) ?? { active: 0, pastDue: 0 };
+    return {
+      id: r.id,
+      name:
+        r.firstName || r.lastName
+          ? [r.firstName, r.lastName].filter(Boolean).join(" ")
+          : "—",
+      email: r.email,
+      walletAddress: r.walletAddress,
+      source: r.source,
+      totalSpent: Number(r.totalSpent ?? 0),
+      paymentCount: Number(r.paymentCount ?? 0),
+      lastPayment: r.lastPayment ? new Date(r.lastPayment) : null,
+      activeSubscriptionCount: agg.active,
+      hasPastDue: agg.pastDue > 0,
+    };
+  });
 
   return <CustomersView rows={rows} />;
 }
