@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { subscriptions } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
+import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
 
 // Force-cancel: DB-only update. Used as a manual fallback when the on-chain
 // cancel transaction cannot be executed. The normal flow is for the merchant
@@ -16,8 +17,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const { id } = await params;
@@ -26,7 +31,7 @@ export async function POST(
     .update(subscriptions)
     .set({ status: "cancelled" })
     .where(
-      and(eq(subscriptions.id, id), eq(subscriptions.userId, session.user.id))
+      and(eq(subscriptions.id, id), eq(subscriptions.organizationId, organizationId))
     )
     .returning();
 

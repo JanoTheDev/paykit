@@ -7,6 +7,9 @@ import { eq, and } from "drizzle-orm";
 import { createRelayerClient } from "@/lib/relayer";
 import { CONTRACTS, SUBSCRIPTION_MANAGER_ABI } from "@/lib/contracts";
 import { authenticateApiKey } from "@/lib/api-auth";
+import { requireActiveOrg } from "@/lib/require-active-org";
+import { resolvePayoutWallet } from "@/lib/payout-wallets";
+import type { NetworkKey } from "@paylix/config/networks";
 
 /**
  * Merchant-initiated gasless subscription cancellation. Merchant is
@@ -19,17 +22,25 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  let merchantOrgId: string | null = null;
   let merchantUserId: string | null = null;
 
   const apiAuth = await authenticateApiKey(request, "secret");
   if (apiAuth) {
-    merchantUserId = apiAuth.user.id;
+    merchantOrgId = apiAuth.organizationId;
   } else {
     const session = await auth.api.getSession({ headers: await headers() });
-    if (session) merchantUserId = session.user.id;
+    if (session) {
+      try {
+        merchantOrgId = requireActiveOrg(session);
+        merchantUserId = session.user.id;
+      } catch {
+        return NextResponse.json({ error: "No active team selected" }, { status: 400 });
+      }
+    }
   }
 
-  if (!merchantUserId) {
+  if (!merchantOrgId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -42,7 +53,7 @@ export async function POST(
     .where(
       and(
         eq(subscriptions.id, id),
-        eq(subscriptions.userId, merchantUserId),
+        eq(subscriptions.organizationId, merchantOrgId),
       ),
     )
     .limit(1);
@@ -71,29 +82,44 @@ export async function POST(
   const contractAddress = (sub.contractAddress ||
     CONTRACTS.subscriptionManager) as `0x${string}`;
 
-  // Fetch the merchant's wallet address from the user table. The better-auth
-  // session.user object doesn't include the walletAddress column by default,
-  // so we query it directly.
-  const [merchantRow] = await db
-    .select({ walletAddress: userTable.walletAddress })
-    .from(userTable)
-    .where(eq(userTable.id, merchantUserId))
-    .limit(1);
-
-  if (!merchantRow?.walletAddress) {
-    return NextResponse.json(
-      { error: "Merchant wallet not configured in settings" },
-      { status: 400 },
+  // Resolve merchant wallet: prefer payout-wallet config, fall back to user row.
+  let resolvedWallet: `0x${string}`;
+  try {
+    resolvedWallet = await resolvePayoutWallet(
+      merchantOrgId,
+      sub.networkKey as NetworkKey,
+      merchantUserId ?? undefined,
     );
+  } catch {
+    // Fall back to users.walletAddress if payout wallet not configured
+    if (!merchantUserId) {
+      return NextResponse.json(
+        { error: "Merchant wallet not configured in settings" },
+        { status: 400 },
+      );
+    }
+    const [merchantRow] = await db
+      .select({ walletAddress: userTable.walletAddress })
+      .from(userTable)
+      .where(eq(userTable.id, merchantUserId))
+      .limit(1);
+
+    if (!merchantRow?.walletAddress) {
+      return NextResponse.json(
+        { error: "Merchant wallet not configured in settings" },
+        { status: 400 },
+      );
+    }
+    resolvedWallet = merchantRow.walletAddress as `0x${string}`;
   }
 
   try {
     const relayer = createRelayerClient();
     const txHash = await relayer.writeContract({
-      address: contractAddress, // was: CONTRACTS.subscriptionManager
+      address: contractAddress,
       abi: SUBSCRIPTION_MANAGER_ABI,
       functionName: "cancelSubscriptionByRelayerForMerchant",
-      args: [BigInt(sub.onChainId), merchantRow.walletAddress as `0x${string}`],
+      args: [BigInt(sub.onChainId), resolvedWallet],
     });
 
     // Wait for the tx to actually mine so we know the on-chain state is
