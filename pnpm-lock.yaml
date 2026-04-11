@@ -224,12 +224,18 @@ importers:
       '@paylix/db':
         specifier: workspace:*
         version: link:../db
+      '@paylix/mailer':
+        specifier: workspace:*
+        version: link:../mailer
       drizzle-orm:
         specifier: ^0.38
         version: 0.38.4(@opentelemetry/api@1.9.1)(@types/react@19.2.14)(kysely@0.28.15)(postgres@3.4.9)(react@19.2.5)
       postgres:
         specifier: ^3.4
         version: 3.4.9
+      react:
+        specifier: ^19
+        version: 19.2.5
       viem:
         specifier: ^2
         version: 2.47.11(typescript@5.9.3)(zod@4.3.6)
@@ -237,6 +243,9 @@ importers:
       '@types/node':
         specifier: 25.5.2
         version: 25.5.2
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
       dotenv-cli:
         specifier: ^11.0.0
         version: 11.0.0

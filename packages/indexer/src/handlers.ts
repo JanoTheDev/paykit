@@ -5,6 +5,10 @@ import {
   checkoutSessions,
   customers,
   unmatchedEvents,
+  products,
+  merchantProfiles,
+  invoices,
+  invoiceLineItems,
 } from "@paylix/db/schema";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { keccak256, stringToBytes, type Log } from "viem";
@@ -12,6 +16,8 @@ import { NETWORKS, getToken } from "@paylix/config/networks";
 import type { NetworkKey } from "@paylix/config/networks";
 import { config } from "./config";
 import { dispatchWebhooks } from "./webhook-dispatch";
+import { buildInvoice } from "./invoices/create";
+import { sendInvoiceEmail } from "./invoices/send-email";
 
 function currentSubscriptionManagerAddress(): string {
   return config.subscriptionManagerAddress.toLowerCase();
@@ -216,7 +222,92 @@ export async function handlePaymentReceived(log: Log, args: {
 
     console.log(`[Handler] Checkout session ${session.id} marked completed`);
 
-    return { customer, payment };
+    // Load product (for tax fields) + merchant profile (for snapshot).
+    const [product] = await tx
+      .select()
+      .from(products)
+      .where(eq(products.id, session.productId))
+      .limit(1);
+    if (!product) throw new Error(`Product ${session.productId} not found`);
+
+    // Upsert a blank profile if none exists so we always have a row to
+    // atomically increment invoiceSequence against.
+    await tx
+      .insert(merchantProfiles)
+      .values({ userId: session.userId })
+      .onConflictDoNothing({ target: merchantProfiles.userId });
+
+    const [profile] = await tx
+      .select()
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.userId, session.userId))
+      .limit(1);
+    if (!profile) throw new Error("merchant_profiles row missing after upsert");
+
+    const built = buildInvoice({
+      profile: {
+        userId: profile.userId,
+        legalName: profile.legalName,
+        addressLine1: profile.addressLine1,
+        addressLine2: profile.addressLine2,
+        city: profile.city,
+        postalCode: profile.postalCode,
+        country: profile.country,
+        taxId: profile.taxId,
+        supportEmail: profile.supportEmail,
+        logoUrl: profile.logoUrl,
+        invoicePrefix: profile.invoicePrefix,
+        invoiceFooter: profile.invoiceFooter,
+        invoiceSequence: profile.invoiceSequence,
+      },
+      product: {
+        id: product.id,
+        name: product.name,
+        taxRateBps: product.taxRateBps,
+        taxLabel: product.taxLabel,
+        reverseChargeEligible: product.reverseChargeEligible,
+      },
+      customer: {
+        id: customer.id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email,
+        country: customer.country,
+        taxId: customer.taxId,
+      },
+      payment: { id: payment.id, amount: payment.amount },
+    });
+
+    await tx
+      .update(merchantProfiles)
+      .set({ invoiceSequence: built.nextSequence })
+      .where(eq(merchantProfiles.userId, session.userId));
+
+    // If merchant has not filled their profile, mark the email as skipped —
+    // we still create the invoice so numbering stays sequential.
+    const hasProfile =
+      profile.legalName.trim().length > 0 &&
+      profile.supportEmail.trim().length > 0;
+
+    const [invoice] = await tx
+      .insert(invoices)
+      .values({
+        ...built.invoice,
+        emailStatus: hasProfile ? "pending" : "skipped",
+      })
+      .returning();
+
+    await tx.insert(invoiceLineItems).values(
+      built.lineItems.map((li) => ({
+        invoiceId: invoice.id,
+        description: li.description,
+        quantity: li.quantity,
+        unitAmountCents: li.unitAmountCents,
+        amountCents: li.amountCents,
+      })),
+    );
+
+    return { customer, payment, invoice, emailable: hasProfile };
   });
 
   // Dispatch webhook AFTER the tx commits — webhook HTTP calls can be slow
@@ -235,6 +326,23 @@ export async function handlePaymentReceived(log: Log, args: {
     toAddress: args.merchant,
     metadata: session.metadata ?? {},
   });
+  await dispatchWebhooks(session.userId, "invoice.issued", {
+    invoiceId: result.invoice.id,
+    number: result.invoice.number,
+    paymentId: result.payment.id,
+    customerId: result.customer.customerId,
+    totalCents: result.invoice.totalCents,
+    currency: result.invoice.currency,
+    hostedUrl: `/i/${result.invoice.hostedToken}`,
+  });
+  if (result.emailable) {
+    await sendInvoiceEmail({
+      invoiceId: result.invoice.id,
+      merchantId: session.userId,
+    }).catch((err) => {
+      console.error("[Handler] sendInvoiceEmail failed:", err);
+    });
+  }
 }
 
 export async function handleSubscriptionCreated(log: Log, args: {
@@ -374,6 +482,87 @@ export async function handleSubscriptionCreated(log: Log, args: {
 
     console.log(`[Handler] Created initial subscription payment ${payment.id}`);
 
+    // Load product + merchant profile for invoice snapshot.
+    const [subProduct] = await tx
+      .select()
+      .from(products)
+      .where(eq(products.id, session.productId))
+      .limit(1);
+    if (!subProduct) throw new Error(`Product ${session.productId} not found`);
+
+    await tx
+      .insert(merchantProfiles)
+      .values({ userId: session.userId })
+      .onConflictDoNothing({ target: merchantProfiles.userId });
+
+    const [subProfile] = await tx
+      .select()
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.userId, session.userId))
+      .limit(1);
+    if (!subProfile) throw new Error("merchant_profiles row missing after upsert");
+
+    const subBuilt = buildInvoice({
+      profile: {
+        userId: subProfile.userId,
+        legalName: subProfile.legalName,
+        addressLine1: subProfile.addressLine1,
+        addressLine2: subProfile.addressLine2,
+        city: subProfile.city,
+        postalCode: subProfile.postalCode,
+        country: subProfile.country,
+        taxId: subProfile.taxId,
+        supportEmail: subProfile.supportEmail,
+        logoUrl: subProfile.logoUrl,
+        invoicePrefix: subProfile.invoicePrefix,
+        invoiceFooter: subProfile.invoiceFooter,
+        invoiceSequence: subProfile.invoiceSequence,
+      },
+      product: {
+        id: subProduct.id,
+        name: subProduct.name,
+        taxRateBps: subProduct.taxRateBps,
+        taxLabel: subProduct.taxLabel,
+        reverseChargeEligible: subProduct.reverseChargeEligible,
+      },
+      customer: {
+        id: customer.id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email,
+        country: customer.country,
+        taxId: customer.taxId,
+      },
+      payment: { id: payment.id, amount: payment.amount },
+    });
+
+    await tx
+      .update(merchantProfiles)
+      .set({ invoiceSequence: subBuilt.nextSequence })
+      .where(eq(merchantProfiles.userId, session.userId));
+
+    const subHasProfile =
+      subProfile.legalName.trim().length > 0 &&
+      subProfile.supportEmail.trim().length > 0;
+
+    const [subInvoice] = await tx
+      .insert(invoices)
+      .values({
+        ...subBuilt.invoice,
+        emailStatus: subHasProfile ? "pending" : "skipped",
+      })
+      .returning();
+
+    await tx.insert(invoiceLineItems).values(
+      subBuilt.lineItems.map((li) => ({
+        invoiceId: subInvoice.id,
+        description: li.description,
+        quantity: li.quantity,
+        unitAmountCents: li.unitAmountCents,
+        amountCents: li.amountCents,
+      })),
+    );
+
     const now = new Date();
     const nextCharge = new Date(now.getTime() + intervalSeconds * 1000);
 
@@ -413,7 +602,7 @@ export async function handleSubscriptionCreated(log: Log, args: {
 
     console.log(`[Handler] Checkout session ${session.id} marked completed`);
 
-    return { customer, payment, subscription };
+    return { customer, payment, subscription, invoice: subInvoice, emailable: subHasProfile };
   });
 
   // Dispatch webhook AFTER the tx commits.
@@ -432,6 +621,24 @@ export async function handleSubscriptionCreated(log: Log, args: {
     txHash: log.transactionHash,
     metadata: result.subscription.metadata ?? {},
   });
+  await dispatchWebhooks(session.userId, "invoice.issued", {
+    invoiceId: result.invoice.id,
+    number: result.invoice.number,
+    paymentId: result.payment.id,
+    subscriptionId: result.subscription.id,
+    customerId: result.customer.customerId,
+    totalCents: result.invoice.totalCents,
+    currency: result.invoice.currency,
+    hostedUrl: `/i/${result.invoice.hostedToken}`,
+  });
+  if (result.emailable) {
+    await sendInvoiceEmail({
+      invoiceId: result.invoice.id,
+      merchantId: session.userId,
+    }).catch((err) => {
+      console.error("[Handler] sendInvoiceEmail failed:", err);
+    });
+  }
 }
 
 export async function handleSubscriptionPaymentReceived(log: Log, args: {
@@ -521,6 +728,94 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
 
     console.log(`[Handler] Created recurring subscription payment ${payment.id}`);
 
+    // Load product and customer for invoice snapshot.
+    const [recurringProduct] = await tx
+      .select()
+      .from(products)
+      .where(eq(products.id, subscription.productId))
+      .limit(1);
+    if (!recurringProduct) throw new Error(`Product ${subscription.productId} not found`);
+
+    const [customerRow] = await tx
+      .select()
+      .from(customers)
+      .where(eq(customers.id, subscription.customerId))
+      .limit(1);
+    if (!customerRow) throw new Error(`Customer ${subscription.customerId} not found`);
+
+    await tx
+      .insert(merchantProfiles)
+      .values({ userId: subscription.userId })
+      .onConflictDoNothing({ target: merchantProfiles.userId });
+
+    const [recurringProfile] = await tx
+      .select()
+      .from(merchantProfiles)
+      .where(eq(merchantProfiles.userId, subscription.userId))
+      .limit(1);
+    if (!recurringProfile) throw new Error("merchant_profiles row missing after upsert");
+
+    const recurringBuilt = buildInvoice({
+      profile: {
+        userId: recurringProfile.userId,
+        legalName: recurringProfile.legalName,
+        addressLine1: recurringProfile.addressLine1,
+        addressLine2: recurringProfile.addressLine2,
+        city: recurringProfile.city,
+        postalCode: recurringProfile.postalCode,
+        country: recurringProfile.country,
+        taxId: recurringProfile.taxId,
+        supportEmail: recurringProfile.supportEmail,
+        logoUrl: recurringProfile.logoUrl,
+        invoicePrefix: recurringProfile.invoicePrefix,
+        invoiceFooter: recurringProfile.invoiceFooter,
+        invoiceSequence: recurringProfile.invoiceSequence,
+      },
+      product: {
+        id: recurringProduct.id,
+        name: recurringProduct.name,
+        taxRateBps: recurringProduct.taxRateBps,
+        taxLabel: recurringProduct.taxLabel,
+        reverseChargeEligible: recurringProduct.reverseChargeEligible,
+      },
+      customer: {
+        id: customerRow.id,
+        firstName: customerRow.firstName,
+        lastName: customerRow.lastName,
+        email: customerRow.email,
+        country: customerRow.country,
+        taxId: customerRow.taxId,
+      },
+      payment: { id: payment.id, amount: payment.amount },
+    });
+
+    await tx
+      .update(merchantProfiles)
+      .set({ invoiceSequence: recurringBuilt.nextSequence })
+      .where(eq(merchantProfiles.userId, subscription.userId));
+
+    const recurringHasProfile =
+      recurringProfile.legalName.trim().length > 0 &&
+      recurringProfile.supportEmail.trim().length > 0;
+
+    const [recurringInvoice] = await tx
+      .insert(invoices)
+      .values({
+        ...recurringBuilt.invoice,
+        emailStatus: recurringHasProfile ? "pending" : "skipped",
+      })
+      .returning();
+
+    await tx.insert(invoiceLineItems).values(
+      recurringBuilt.lineItems.map((li) => ({
+        invoiceId: recurringInvoice.id,
+        description: li.description,
+        quantity: li.quantity,
+        unitAmountCents: li.unitAmountCents,
+        amountCents: li.amountCents,
+      })),
+    );
+
     // Update subscription: advance nextChargeDate by interval
     // We compute the new nextChargeDate from the existing one if possible (so
     // schedules don't drift), else from now.
@@ -554,7 +849,7 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
       `[Handler] Subscription ${subscription.id} advanced to next charge ${nextCharge.toISOString()}`
     );
 
-    return { payment, nextCharge };
+    return { payment, nextCharge, invoice: recurringInvoice, emailable: recurringHasProfile };
   });
 
   await dispatchWebhooks(subscription.userId, "subscription.charged", {
@@ -567,6 +862,24 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
     nextChargeDate: result.nextCharge.toISOString(),
     metadata: subscription.metadata ?? {},
   });
+  await dispatchWebhooks(subscription.userId, "invoice.issued", {
+    invoiceId: result.invoice.id,
+    number: result.invoice.number,
+    paymentId: result.payment.id,
+    subscriptionId: subscription.id,
+    customerId: subscription.customerId,
+    totalCents: result.invoice.totalCents,
+    currency: result.invoice.currency,
+    hostedUrl: `/i/${result.invoice.hostedToken}`,
+  });
+  if (result.emailable) {
+    await sendInvoiceEmail({
+      invoiceId: result.invoice.id,
+      merchantId: subscription.userId,
+    }).catch((err) => {
+      console.error("[Handler] sendInvoiceEmail failed:", err);
+    });
+  }
 }
 
 export async function handleSubscriptionPastDue(log: Log, args: {
