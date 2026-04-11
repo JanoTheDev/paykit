@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invitation, organization, user } from "@paylix/db/schema";
 import { eq } from "drizzle-orm";
+import { EmptyState } from "@/components/paykit/empty-state";
 
 export default async function InviteAcceptPage({
   params,
@@ -12,7 +13,7 @@ export default async function InviteAcceptPage({
   params: Promise<{ invitationId: string }>;
 }) {
   const { invitationId } = await params;
-  const row = await db
+  const [row] = await db
     .select({
       invitation,
       organization,
@@ -21,31 +22,36 @@ export default async function InviteAcceptPage({
     .from(invitation)
     .leftJoin(organization, eq(invitation.organizationId, organization.id))
     .leftJoin(user, eq(invitation.inviterId, user.id))
-    .where(eq(invitation.id, invitationId))
-    .then((r) => r[0]);
+    .where(eq(invitation.id, invitationId));
 
   if (!row) {
     return (
-      <Notice
-        title="Invitation not found"
-        body="This link is invalid or has been deleted."
-      />
+      <FullScreen>
+        <EmptyState
+          title="Invitation not found"
+          description="This link is invalid or has been deleted."
+        />
+      </FullScreen>
     );
   }
   if (row.invitation.status !== "pending") {
     return (
-      <Notice
-        title="Invitation unavailable"
-        body="This invitation has already been used or canceled."
-      />
+      <FullScreen>
+        <EmptyState
+          title="Invitation unavailable"
+          description="This invitation has already been used or canceled."
+        />
+      </FullScreen>
     );
   }
   if (row.invitation.expiresAt < new Date()) {
     return (
-      <Notice
-        title="Invitation expired"
-        body={`Ask ${row.inviter?.name ?? row.inviter?.email ?? "the inviter"} to send you a new one.`}
-      />
+      <FullScreen>
+        <EmptyState
+          title="Invitation expired"
+          description={`Ask ${row.inviter?.name ?? row.inviter?.email ?? "the inviter"} to send you a new one.`}
+        />
+      </FullScreen>
     );
   }
 
@@ -60,11 +66,17 @@ export default async function InviteAcceptPage({
 
   if (session.user.email !== row.invitation.email) {
     return (
-      <Notice
-        title="Wrong account"
-        body={`This invite is for ${row.invitation.email}, but you're signed in as ${session.user.email}.`}
-        cta={{ href: "/auth/logout", label: "Sign out" }}
-      />
+      <FullScreen>
+        <EmptyState
+          title="Wrong account"
+          description={`This invite is for ${row.invitation.email}, but you're signed in as ${session.user.email}.`}
+          action={
+            <Link href="/auth/logout" className="text-[#06d6a0] hover:underline text-sm">
+              Sign out
+            </Link>
+          }
+        />
+      </FullScreen>
     );
   }
 
@@ -76,28 +88,11 @@ export default async function InviteAcceptPage({
   redirect("/overview");
 }
 
-function Notice({
-  title,
-  body,
-  cta,
-}: {
-  title: string;
-  body: string;
-  cta?: { href: string; label: string };
-}) {
+function FullScreen({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#07070a] flex items-center justify-center px-4">
-      <div className="max-w-md space-y-4 text-center">
-        <h1 className="text-xl font-semibold text-slate-100">{title}</h1>
-        <p className="text-sm text-slate-400">{body}</p>
-        {cta && (
-          <Link
-            href={cta.href}
-            className="inline-block text-[#06d6a0] hover:underline"
-          >
-            {cta.label}
-          </Link>
-        )}
+      <div className="max-w-md w-full">
+        {children}
       </div>
     </div>
   );
