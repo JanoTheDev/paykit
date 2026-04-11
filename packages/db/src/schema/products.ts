@@ -8,7 +8,7 @@ import {
   jsonb,
   pgEnum,
 } from "drizzle-orm/pg-core";
-import { users } from "./users";
+import { organization } from "./auth";
 
 export const productTypeEnum = pgEnum("product_type", [
   "one_time",
@@ -25,9 +25,9 @@ export const billingIntervalEnum = pgEnum("billing_interval", [
 
 export const products = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
+  organizationId: text("organization_id")
     .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
+    .references(() => organization.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   type: productTypeEnum("type").notNull(),
