@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { invoices, invoiceLineItems } from "@paylix/db/schema";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoicePdfDocument } from "@/components/invoice/pdf-document";
-import { createElement } from "react";
 
 interface Ctx {
   params: Promise<{ token: string }>;
@@ -25,7 +24,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     .where(eq(invoiceLineItems.invoiceId, invoice.id));
 
   const buffer = await renderToBuffer(
-    createElement(InvoicePdfDocument, { invoice, lineItems }),
+    InvoicePdfDocument({ invoice, lineItems }),
   );
 
   return new Response(new Uint8Array(buffer), {
