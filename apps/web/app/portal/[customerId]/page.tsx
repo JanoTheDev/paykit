@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import {
   customers,
+  invoices,
   payments,
   products,
   subscriptions,
@@ -9,6 +10,7 @@ import { db } from "@/lib/db";
 import { Web3Providers } from "@/components/providers";
 import {
   PortalClient,
+  type PortalInvoice,
   type PortalPayment,
   type PortalSubscription,
 } from "./portal-client";
@@ -90,6 +92,29 @@ export default async function PortalPage({
     .orderBy(desc(payments.createdAt))
     .limit(50);
 
+  const invRows = await db
+    .select({
+      id: invoices.id,
+      number: invoices.number,
+      totalCents: invoices.totalCents,
+      currency: invoices.currency,
+      issuedAt: invoices.issuedAt,
+      hostedToken: invoices.hostedToken,
+    })
+    .from(invoices)
+    .where(eq(invoices.customerId, customer.id))
+    .orderBy(desc(invoices.issuedAt))
+    .limit(100);
+
+  const portalInvoices: PortalInvoice[] = invRows.map((r) => ({
+    id: r.id,
+    number: r.number,
+    totalCents: r.totalCents,
+    currency: r.currency,
+    issuedAt: r.issuedAt.toISOString(),
+    hostedToken: r.hostedToken,
+  }));
+
   const portalSubs: PortalSubscription[] = subRows.map((r) => ({
     id: r.id,
     status: r.status,
@@ -124,6 +149,7 @@ export default async function PortalPage({
         portalToken={token}
         subscriptions={portalSubs}
         payments={portalPayments}
+        invoices={portalInvoices}
       />
     </Web3Providers>
   );

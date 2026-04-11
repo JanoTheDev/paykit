@@ -35,12 +35,22 @@ export interface PortalPayment {
   createdAt: string;
 }
 
+export interface PortalInvoice {
+  id: string;
+  number: string;
+  totalCents: number;
+  currency: string;
+  issuedAt: string;
+  hostedToken: string;
+}
+
 interface PortalClientProps {
   customerLabel: string;
   customerId: string;
   portalToken: string;
   subscriptions: PortalSubscription[];
   payments: PortalPayment[];
+  invoices: PortalInvoice[];
 }
 
 type PortalPaymentRow = {
@@ -69,12 +79,17 @@ function formatDate(iso: string | null): string {
   });
 }
 
+function formatMoney(cents: number, currency: string): string {
+  return `${(cents / 100).toFixed(2)} ${currency}`;
+}
+
 export function PortalClient({
   customerLabel,
   customerId,
   portalToken,
   subscriptions,
   payments,
+  invoices,
 }: PortalClientProps) {
   const router = useRouter();
   const [cancelTarget, setCancelTarget] = useState<PortalSubscription | null>(
@@ -187,6 +202,55 @@ export function PortalClient({
             />
           }
         />
+      </Section>
+
+      <Section title="Invoices">
+        {invoices.length === 0 ? (
+          <div className="rounded-lg border border-border bg-surface-1 px-5 py-4 text-sm text-foreground-muted">
+            No invoices yet.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-border bg-surface-1">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-foreground-muted">
+                  <th className="px-4 py-3 font-medium">Number</th>
+                  <th className="px-4 py-3 font-medium text-right">Total</th>
+                  <th className="px-4 py-3 font-medium">Issued</th>
+                  <th className="px-4 py-3 font-medium text-right">PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((inv) => (
+                  <tr
+                    key={inv.id}
+                    className="border-b border-border last:border-0"
+                  >
+                    <td className="px-4 py-3 font-mono text-foreground">
+                      {inv.number}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono tabular-nums text-foreground">
+                      {formatMoney(inv.totalCents, inv.currency)}
+                    </td>
+                    <td className="px-4 py-3 text-foreground-muted">
+                      {formatDate(inv.issuedAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <a
+                        href={`/i/${inv.hostedToken}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Download
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Section>
 
       <ConfirmDialog
