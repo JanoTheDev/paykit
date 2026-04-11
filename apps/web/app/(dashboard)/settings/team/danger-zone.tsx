@@ -1,9 +1,18 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { FormRow } from "@/components/paykit";
 
 type Member = { memberId: string; userId: string | null; email: string | null };
 
@@ -51,40 +60,52 @@ export function DangerZoneActions({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h3 className="text-xs uppercase tracking-wider text-slate-500">
-          Transfer ownership
-        </h3>
+      <FormRow
+        label="Transfer ownership"
+        htmlFor="transfer-member"
+        description="Promote another member to owner. You become a regular member."
+      >
         <div className="flex gap-2">
-          <select
-            className="bg-slate-900 border border-slate-800 text-slate-100 text-sm rounded-md px-2 py-2"
-            value={transferTo}
-            onChange={(e) => setTransferTo(e.target.value)}
+          <Select value={transferTo} onValueChange={setTransferTo}>
+            <SelectTrigger id="transfer-member" className="flex-1">
+              <SelectValue placeholder="Select member…" />
+            </SelectTrigger>
+            <SelectContent>
+              {eligible.length === 0 ? (
+                <div className="px-2 py-1.5 text-sm text-foreground-muted">
+                  No other members
+                </div>
+              ) : (
+                eligible.map((m) => (
+                  <SelectItem key={m.memberId} value={m.memberId}>
+                    {m.email ?? "—"}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={transfer}
+            disabled={busy || !transferTo}
+            variant="outline"
           >
-            <option value="">Select member…</option>
-            {eligible.map((m) => (
-              <option key={m.memberId} value={m.memberId}>
-                {m.email}
-              </option>
-            ))}
-          </select>
-          <Button onClick={transfer} disabled={busy || !transferTo}>
             Transfer
           </Button>
         </div>
-      </div>
-      <div className="space-y-2">
-        <h3 className="text-xs uppercase tracking-wider text-slate-500">
-          Delete team
-        </h3>
-        <p className="text-xs text-slate-500">
-          Type <code className="text-slate-300">delete {orgSlug}</code> to confirm.
-        </p>
+      </FormRow>
+
+      <FormRow
+        label="Delete team"
+        htmlFor="delete-confirm"
+        description={`Type "delete ${orgSlug}" to confirm. This cascades to every resource owned by the team.`}
+      >
         <div className="flex gap-2">
           <Input
+            id="delete-confirm"
             value={deleteConfirm}
             onChange={(e) => setDeleteConfirm(e.target.value)}
             placeholder={`delete ${orgSlug}`}
+            className="font-mono"
           />
           <Button
             variant="destructive"
@@ -94,7 +115,7 @@ export function DangerZoneActions({
             Delete
           </Button>
         </div>
-      </div>
+      </FormRow>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { member, invitation, user, organization as orgTable } from "@paylix/db/schema";
 import { getActiveOrgOrRedirect } from "@/lib/require-active-org";
+import { PageShell, PageHeader, FormSection } from "@/components/paykit";
 import { TeamMembersTable } from "./members-table";
 import { PendingInvitesTable } from "./pending-invites-table";
 import { InviteForm } from "./invite-form";
@@ -39,32 +40,42 @@ export default async function TeamSettingsPage() {
   const isOwner = currentUserMember?.role === "owner";
 
   return (
-    <div className="space-y-10">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-100">Team</h1>
-        <p className="text-sm text-slate-400">
-          Manage members and invitations for this team.
-        </p>
-      </div>
-      <InviteForm />
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-300">Members</h2>
+    <PageShell size="sm">
+      <PageHeader
+        title="Team"
+        description="Manage members and invitations for this team."
+      />
+
+      <FormSection
+        title="Invite a teammate"
+        description="Send an email invitation. They'll get a magic link to join this team."
+      >
+        <InviteForm />
+      </FormSection>
+
+      <FormSection
+        title="Members"
+        description="Everyone currently in this team."
+      >
         <TeamMembersTable
           rows={members}
           currentUserId={userId}
           canRemove={isOwner}
         />
-      </section>
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-slate-300">Pending invites</h2>
+      </FormSection>
+
+      <FormSection
+        title="Pending invites"
+        description="Invitations that haven't been accepted yet."
+      >
         <PendingInvitesTable rows={pending} />
-      </section>
+      </FormSection>
+
       {isOwner && org && (
-        <section className="space-y-3 rounded-lg border border-red-900/40 p-4">
-          <h2 className="text-sm font-medium text-red-400">Danger zone</h2>
-          <p className="text-xs text-slate-500">
-            Transfer ownership or delete this team. These actions are irreversible.
-          </p>
+        <FormSection
+          title="Danger zone"
+          description="Transfer ownership or delete this team. These actions cannot be undone."
+        >
           <DangerZoneActions
             members={members.map((m) => ({
               memberId: m.memberId,
@@ -75,8 +86,8 @@ export default async function TeamSettingsPage() {
             orgId={org.id}
             orgSlug={org.slug}
           />
-        </section>
+        </FormSection>
       )}
-    </div>
+    </PageShell>
   );
 }
