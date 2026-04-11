@@ -134,6 +134,33 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
     phone: initialData?.checkoutFields?.phone ?? false,
   });
 
+  // On create-mode mount, pre-fill the toggles from the merchant's
+  // per-account defaults (configured in /settings → Default Checkout Fields).
+  // We only do this on create — editing an existing product must show its
+  // own saved values, not the account defaults.
+  useEffect(() => {
+    if (mode !== "create" || initialData) return;
+    let cancelled = false;
+    fetch("/api/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.checkoutFieldDefaults) return;
+        setCheckoutFields({
+          firstName: Boolean(data.checkoutFieldDefaults.firstName),
+          lastName: Boolean(data.checkoutFieldDefaults.lastName),
+          email: Boolean(data.checkoutFieldDefaults.email),
+          phone: Boolean(data.checkoutFieldDefaults.phone),
+        });
+      })
+      .catch(() => {
+        // If the fetch fails the form just keeps the all-false defaults —
+        // merchant can still toggle manually.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, initialData]);
+
   function updateMetadataRow(
     index: number,
     field: "key" | "value",

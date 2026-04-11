@@ -17,6 +17,7 @@ export async function GET() {
       name: users.name,
       email: users.email,
       walletAddress: users.walletAddress,
+      checkoutFieldDefaults: users.checkoutFieldDefaults,
     })
     .from(users)
     .where(eq(users.id, session.user.id));
@@ -25,7 +26,18 @@ export async function GET() {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  return NextResponse.json(user);
+  // Normalize jsonb shape so the client can rely on all four keys being present.
+  const defaults = {
+    firstName: user.checkoutFieldDefaults?.firstName ?? false,
+    lastName: user.checkoutFieldDefaults?.lastName ?? false,
+    email: user.checkoutFieldDefaults?.email ?? false,
+    phone: user.checkoutFieldDefaults?.phone ?? false,
+  };
+
+  return NextResponse.json({
+    ...user,
+    checkoutFieldDefaults: defaults,
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -35,7 +47,16 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json();
-  const updates: Partial<{ name: string; walletAddress: string }> = {};
+  const updates: Partial<{
+    name: string;
+    walletAddress: string;
+    checkoutFieldDefaults: {
+      firstName: boolean;
+      lastName: boolean;
+      email: boolean;
+      phone: boolean;
+    };
+  }> = {};
 
   if (typeof body.name === "string" && body.name.trim().length > 0) {
     updates.name = body.name.trim();
@@ -55,6 +76,16 @@ export async function PATCH(request: Request) {
     }
   }
 
+  if (body.checkoutFieldDefaults && typeof body.checkoutFieldDefaults === "object") {
+    const f = body.checkoutFieldDefaults;
+    updates.checkoutFieldDefaults = {
+      firstName: Boolean(f.firstName),
+      lastName: Boolean(f.lastName),
+      email: Boolean(f.email),
+      phone: Boolean(f.phone),
+    };
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
@@ -68,6 +99,7 @@ export async function PATCH(request: Request) {
       name: users.name,
       email: users.email,
       walletAddress: users.walletAddress,
+      checkoutFieldDefaults: users.checkoutFieldDefaults,
     });
 
   return NextResponse.json(updated);

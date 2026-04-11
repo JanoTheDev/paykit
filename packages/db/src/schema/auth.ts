@@ -1,5 +1,12 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  jsonb,
+  index,
+} from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -8,6 +15,18 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
   walletAddress: text("wallet_address"),
+  // Per-merchant defaults applied to NEW products created via the dashboard
+  // form. Toggling these in /settings doesn't affect existing products.
+  // Stored on the user row (rather than a separate table) because there are
+  // no other per-user prefs yet — promote to a settings table when there are.
+  checkoutFieldDefaults: jsonb("checkout_field_defaults")
+    .$type<{
+      firstName?: boolean;
+      lastName?: boolean;
+      email?: boolean;
+      phone?: boolean;
+    }>()
+    .default({ firstName: true, lastName: true, email: true, phone: false }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

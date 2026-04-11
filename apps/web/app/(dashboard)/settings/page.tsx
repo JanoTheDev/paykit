@@ -65,21 +65,18 @@ export default function SettingsPage() {
     try {
       const res = await fetch("/api/settings");
       if (res.ok) {
-        const data: UserSettings = await res.json();
+        const data: UserSettings & {
+          checkoutFieldDefaults?: CheckoutDefaults;
+        } = await res.json();
         setUser(data);
         setWalletAddress(data.walletAddress || "");
         setName(data.name);
+        if (data.checkoutFieldDefaults) {
+          setCheckoutDefaults(data.checkoutFieldDefaults);
+        }
       }
     } catch {
       // ignore
-    }
-    const saved = localStorage.getItem("paylix_checkout_defaults");
-    if (saved) {
-      try {
-        setCheckoutDefaults(JSON.parse(saved));
-      } catch {
-        // ignore
-      }
     }
   }, []);
 
@@ -135,17 +132,24 @@ export default function SettingsPage() {
     }
   }
 
-  function saveCheckoutDefaults() {
+  async function saveCheckoutDefaults() {
     setDefaultsSaving(true);
-    localStorage.setItem(
-      "paylix_checkout_defaults",
-      JSON.stringify(checkoutDefaults),
-    );
-    setDefaultsSuccess(true);
-    setTimeout(() => {
+    setDefaultsSuccess(false);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkoutFieldDefaults: checkoutDefaults }),
+      });
+      if (res.ok) {
+        setDefaultsSuccess(true);
+        setTimeout(() => setDefaultsSuccess(false), 2000);
+      }
+    } catch {
+      // ignore
+    } finally {
       setDefaultsSaving(false);
-      setDefaultsSuccess(false);
-    }, 1500);
+    }
   }
 
   if (!user) {
