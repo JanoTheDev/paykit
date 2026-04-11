@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, timestamp, pgEnum, integer, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
-import { users } from "./users";
+import { organization } from "./auth";
 import { products } from "./products";
 import { customers } from "./customers";
 import { payments } from "./payments";
@@ -13,7 +13,7 @@ export const subscriptions = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     productId: uuid("product_id").notNull().references(() => products.id),
-    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
     customerId: uuid("customer_id").notNull().references(() => customers.id),
     subscriberAddress: text("subscriber_address").notNull(),
     // The SubscriptionManager contract instance that emitted the
