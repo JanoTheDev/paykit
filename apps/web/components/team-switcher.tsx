@@ -26,7 +26,7 @@ export function TeamSwitcher() {
         <ChevronDown className="h-4 w-4 text-slate-500" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
-        {orgs?.map((o) => (
+        {orgs?.map((o: { id: string; name: string }) => (
           <DropdownMenuItem
             key={o.id}
             onClick={async () => {
