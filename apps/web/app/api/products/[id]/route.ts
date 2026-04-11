@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { products, productPrices } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
+import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
 import { z } from "zod";
 import {
   NETWORKS,
@@ -47,8 +48,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const { id } = await params;
@@ -77,7 +82,7 @@ export async function PATCH(
         taxLabel: data.taxLabel,
         reverseChargeEligible: data.reverseChargeEligible,
       })
-      .where(and(eq(products.id, id), eq(products.userId, session.user.id)))
+      .where(and(eq(products.id, id), eq(products.organizationId, organizationId)))
       .returning();
 
     if (!row) return null;
@@ -125,8 +130,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const { id } = await params;
@@ -134,7 +143,7 @@ export async function DELETE(
   const [updated] = await db
     .update(products)
     .set({ isActive: false })
-    .where(and(eq(products.id, id), eq(products.userId, session.user.id)))
+    .where(and(eq(products.id, id), eq(products.organizationId, organizationId)))
     .returning();
 
   if (!updated) {

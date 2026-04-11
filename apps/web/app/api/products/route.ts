@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { products, productPrices } from "@paylix/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
+import { requireActiveOrg, AuthError } from "@/lib/require-active-org";
 import { z } from "zod";
 import {
   NETWORKS,
@@ -49,14 +50,18 @@ const createProductSchema = z
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const rows = await db
     .select()
     .from(products)
-    .where(eq(products.userId, session.user.id))
+    .where(eq(products.organizationId, organizationId))
     .orderBy(products.createdAt);
 
   const productIds = rows.map((p) => p.id);
@@ -93,8 +98,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let organizationId: string;
+  try {
+    organizationId = requireActiveOrg(session);
+  } catch (e) {
+    if (e instanceof AuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
 
   const body = await request.json();
@@ -128,7 +137,7 @@ export async function POST(request: Request) {
     const [product] = await tx
       .insert(products)
       .values({
-        userId: session.user.id,
+        organizationId,
         name: data.name,
         description: data.description ?? null,
         type: data.type,
