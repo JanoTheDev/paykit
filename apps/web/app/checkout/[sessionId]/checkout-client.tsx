@@ -7,6 +7,7 @@ import { CheckCircle2, Clock } from "lucide-react";
 import { keccak256, stringToBytes } from "viem";
 import {
   CONTRACTS,
+  ERC20_ABI,
   ERC20_PERMIT_ABI,
   PAYMENT_VAULT_ABI,
   SUBSCRIPTION_MANAGER_ABI,
@@ -168,6 +169,14 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
   const [payStep, setPayStep] = useState<"idle" | "approving" | "paying" | "confirming">("idle");
   const [payError, setPayError] = useState<string | null>(null);
 
+  // USDC balance pre-flight. Without this, a buyer with no Base USDC gets
+  // to sign two EIP-712 messages before the relayer tx reverts with an
+  // opaque ERC20 insufficient-balance error — terrible UX. We read their
+  // balance once the wallet connects and gate the pay button on it.
+  const [usdcBalance, setUsdcBalance] = useState<bigint | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceRefreshTick, setBalanceRefreshTick] = useState(0);
+
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { signTypedDataAsync } = useSignTypedData();
@@ -181,6 +190,36 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
     hash: txHash ?? undefined,
     chainId: CHAIN_ID,
   });
+
+  // Read the buyer's USDC balance whenever wallet or chain changes, or when
+  // the user clicks the "I just sent some, re-check" button below.
+  useEffect(() => {
+    if (!isConnected || !address || !publicClient) {
+      setUsdcBalance(null);
+      return;
+    }
+    let cancelled = false;
+    setBalanceLoading(true);
+    publicClient
+      .readContract({
+        address: CONTRACTS.usdc,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [address as `0x${string}`],
+      })
+      .then((raw) => {
+        if (!cancelled) setUsdcBalance(raw as bigint);
+      })
+      .catch(() => {
+        if (!cancelled) setUsdcBalance(null);
+      })
+      .finally(() => {
+        if (!cancelled) setBalanceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isConnected, address, publicClient, balanceRefreshTick]);
 
   // Start polling when tx confirmed
   useEffect(() => {
@@ -479,6 +518,17 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
 
   const displayAmount = formatAmount(session.amount);
 
+  // USDC uses 6 decimals. session.amount is in cents (1000 = $10.00), so
+  // the on-chain required amount is cents × 10_000 — same math as inside
+  // handlePay. Kept as a derived value so the balance gate below and the
+  // handlePay call stay in sync.
+  const requiredUsdcAmount = BigInt(session.amount) * BigInt(10_000);
+  const hasInsufficientBalance =
+    isConnected &&
+    !balanceLoading &&
+    usdcBalance !== null &&
+    usdcBalance < requiredUsdcAmount;
+
   if (status === "completed") {
     const isSubscription = session.type === "subscription";
     return (
@@ -690,10 +740,71 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
               Disconnect
             </button>
           </div>
+
+          {/* USDC balance line. Renders while the wallet is connected so the
+              buyer can see exactly where they stand before they sign. */}
+          {isConnected && (
+            <div className="mb-3 flex items-center justify-between rounded-lg border border-border bg-background px-3.5 py-2.5 text-[13px]">
+              <span className="text-muted-foreground">USDC on Base</span>
+              <MonoText className="tabular-nums text-foreground">
+                {balanceLoading || usdcBalance === null
+                  ? "—"
+                  : `$${(Number(usdcBalance) / 1_000_000).toFixed(2)}`}
+              </MonoText>
+            </div>
+          )}
+
+          {hasInsufficientBalance ? (
+            <div className="rounded-lg border border-[color:var(--warning)]/30 bg-[color:var(--warning)]/5 p-4">
+              <div className="mb-2 text-sm font-medium text-foreground">
+                You need ${displayAmount} USDC on Base
+              </div>
+              <div className="mb-3 text-xs text-muted-foreground">
+                You don&apos;t have enough USDC on the Base network yet. Pick
+                one of the options below, then come back and click{" "}
+                <span className="font-medium text-foreground">Re-check balance</span>.
+              </div>
+              <div className="flex flex-col gap-2">
+                <a
+                  href={`https://relay.link/bridge/base?toCurrency=${CONTRACTS.usdc}&toChainId=${CHAIN_ID}&amount=${displayAmount}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2.5 text-xs transition-colors hover:border-primary/40 hover:bg-primary/5"
+                >
+                  <span className="font-medium text-foreground">
+                    Bridge USDC from another chain
+                  </span>
+                  <span className="text-muted-foreground">
+                    Relay ↗
+                  </span>
+                </a>
+                <a
+                  href={`https://pay.coinbase.com/buy/select-asset?appId=9fe7f5c1-1c74-4e79-a55b-3cfee6b2f98f&addresses={"${address}":["base"]}&assets=["USDC"]&presetCryptoAmount=${displayAmount}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2.5 text-xs transition-colors hover:border-primary/40 hover:bg-primary/5"
+                >
+                  <span className="font-medium text-foreground">
+                    Buy USDC with card
+                  </span>
+                  <span className="text-muted-foreground">
+                    Coinbase Onramp ↗
+                  </span>
+                </a>
+                <button
+                  onClick={() => setBalanceRefreshTick((t) => t + 1)}
+                  disabled={balanceLoading}
+                  className="mt-1 rounded-md border border-border bg-background px-3 py-2.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  {balanceLoading ? "Checking…" : "Re-check balance"}
+                </button>
+              </div>
+            </div>
+          ) : (
           <Button
             size="xl"
             onClick={handlePay}
-            disabled={!indexerOnline || payStep !== "idle"}
+            disabled={!indexerOnline || payStep !== "idle" || balanceLoading}
           >
             {payStep === "idle" &&
               (session.type === "subscription"
@@ -707,6 +818,7 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
             {payStep === "paying" && "Confirm payment..."}
             {payStep === "confirming" && "Processing..."}
           </Button>
+          )}
           {payStep !== "idle" && (
             <Alert className="mt-3 border-primary/30 bg-primary/5">
               <AlertDescription className="text-xs">
