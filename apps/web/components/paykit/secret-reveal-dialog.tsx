@@ -42,7 +42,7 @@ export function SecretRevealDialog({
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <p>
               This secret will only be shown once. Copy and store it securely —
-              you won't be able to view it again.
+              you won&apos;t be able to view it again.
             </p>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { products } from "@paylix/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const createProductSchema = z

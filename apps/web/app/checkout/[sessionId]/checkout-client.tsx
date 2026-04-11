@@ -21,7 +21,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { MonoText } from "@/components/mono-text";
 import { UsdcBadge } from "@/components/usdc-badge";
-import { cn } from "@/lib/utils";
 
 type CheckoutStatus = "active" | "viewed" | "abandoned" | "completed" | "expired";
 
@@ -58,16 +57,10 @@ function formatAmount(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-function truncateAddress(address: string): string {
-  if (address.length <= 13) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
 export function CheckoutClient({ session }: CheckoutClientProps) {
   const { open } = useAppKit();
   const { isConnected, address } = useAppKitAccount();
   const [status, setStatus] = useState<CheckoutStatus>(session.status);
-  const [copied, setCopied] = useState(false);
   const [customerFields, setCustomerFields] = useState({
     firstName: "",
     lastName: "",
@@ -169,16 +162,6 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
       }
     };
   }, []);
-
-  const handleCopyAddress = async () => {
-    try {
-      await navigator.clipboard.writeText(session.merchantWallet);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback
-    }
-  };
 
   // Payment flow state
   const [payStep, setPayStep] = useState<"idle" | "approving" | "paying" | "confirming">("idle");
