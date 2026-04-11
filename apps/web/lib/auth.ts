@@ -2,9 +2,10 @@ import { betterAuth } from "better-auth";
 import { organization } from "better-auth/plugins";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { db } from "./db";
 import * as schema from "@paylix/db/schema";
-import { sendMail, renderTemplate } from "@paylix/mailer";
+import { sendMail, renderString } from "@paylix/mailer";
 
 const MAILER_TEMPLATE_ROOT = join(
   process.cwd(),
@@ -14,6 +15,15 @@ const MAILER_TEMPLATE_ROOT = join(
   "mailer",
   "src",
   "templates",
+);
+
+const INVITATION_HTML_TEMPLATE = readFileSync(
+  join(MAILER_TEMPLATE_ROOT, "invitation.html"),
+  "utf8",
+);
+const INVITATION_TXT_TEMPLATE = readFileSync(
+  join(MAILER_TEMPLATE_ROOT, "invitation.txt"),
+  "utf8",
 );
 
 export const auth = betterAuth({
@@ -48,14 +58,8 @@ export const auth = betterAuth({
             { year: "numeric", month: "long", day: "numeric" },
           ),
         };
-        const html = renderTemplate(
-          join(MAILER_TEMPLATE_ROOT, "invitation.html"),
-          vars,
-        );
-        const text = renderTemplate(
-          join(MAILER_TEMPLATE_ROOT, "invitation.txt"),
-          vars,
-        );
+        const html = renderString(INVITATION_HTML_TEMPLATE, vars);
+        const text = renderString(INVITATION_TXT_TEMPLATE, vars);
         await sendMail({
           to: invitation.email,
           from: process.env.MAIL_FROM || "Paylix <noreply@paylix.dev>",

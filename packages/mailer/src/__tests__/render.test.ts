@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderTemplate } from "../render";
+import { renderTemplate, renderString } from "../render";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -31,5 +31,31 @@ describe("renderTemplate", () => {
     const file = join(dir, "safe.html");
     writeFileSync(file, "{{a.b}} {{name}}");
     expect(renderTemplate(file, { "a.b": "X", name: "Y" })).toBe("X Y");
+  });
+});
+
+describe("renderString", () => {
+  it("substitutes single variable", () => {
+    expect(renderString("<p>Hi {{name}}</p>", { name: "Ada" })).toBe("<p>Hi Ada</p>");
+  });
+
+  it("substitutes multiple variables", () => {
+    expect(
+      renderString('<a href="{{url}}">{{label}}</a>', { url: "https://x", label: "Go" }),
+    ).toBe('<a href="https://x">Go</a>');
+  });
+
+  it("leaves unknown placeholders as-is", () => {
+    expect(renderString("Hi {{name}}, {{missing}}", { name: "Ada" })).toBe(
+      "Hi Ada, {{missing}}",
+    );
+  });
+
+  it("handles dot-notation keys", () => {
+    expect(renderString("{{a.b}} {{name}}", { "a.b": "X", name: "Y" })).toBe("X Y");
+  });
+
+  it("handles whitespace around key", () => {
+    expect(renderString("{{ name }}", { name: "Ada" })).toBe("Ada");
   });
 });
