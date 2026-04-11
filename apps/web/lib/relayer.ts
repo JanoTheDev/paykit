@@ -1,6 +1,6 @@
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { CHAIN } from "./chain";
 
 /**
  * Backend-only. Creates the relayer wallet client used to submit gasless
@@ -43,16 +43,17 @@ export function getRelayerAddress(): `0x${string}` {
 }
 
 /**
- * Returns a viem walletClient configured with the relayer account, the Base
- * Sepolia chain, and the RPC URL from env. Extended with public actions so
- * the same client can read (waitForTransactionReceipt, getBalance) and write
- * (sendTransaction, writeContract) without juggling two clients.
+ * Returns a viem walletClient configured with the relayer account, the active
+ * Paylix network (see `lib/chain.ts`), and the RPC URL from env. Extended
+ * with public actions so the same client can read (waitForTransactionReceipt,
+ * getBalance) and write (sendTransaction, writeContract) without juggling
+ * two clients.
  */
 export function createRelayerClient() {
   const account = getRelayerAccount();
   return createWalletClient({
     account,
-    chain: baseSepolia,
+    chain: CHAIN,
     transport: http(getRpcUrl()),
   }).extend(publicActions);
 }

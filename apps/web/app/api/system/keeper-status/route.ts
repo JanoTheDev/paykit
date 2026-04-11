@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, http, formatEther } from "viem";
-import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
+import { CHAIN } from "@/lib/chain";
 
 const LOW_BALANCE_THRESHOLD_WEI = BigInt("1000000000000000");
 
@@ -28,7 +28,7 @@ export async function GET() {
 
   try {
     const client = createPublicClient({
-      chain: baseSepolia,
+      chain: CHAIN,
       transport: http(process.env.RPC_URL),
     });
     const balance = await client.getBalance({ address });

@@ -11,6 +11,7 @@ import {
   PAYMENT_VAULT_ABI,
   SUBSCRIPTION_MANAGER_ABI,
 } from "@/lib/contracts";
+import { CHAIN_ID } from "@/lib/chain";
 import { intervalToSeconds, formatInterval } from "@/lib/billing-intervals";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -170,7 +171,7 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { signTypedDataAsync } = useSignTypedData();
-  const publicClient = usePublicClient({ chainId: 84532 });
+  const publicClient = usePublicClient({ chainId: CHAIN_ID });
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const {
     isSuccess: txConfirmed,
@@ -178,7 +179,7 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
     error: txError,
   } = useWaitForTransactionReceipt({
     hash: txHash ?? undefined,
-    chainId: 84532,
+    chainId: CHAIN_ID,
   });
 
   // Start polling when tx confirmed
@@ -243,9 +244,9 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
 
     try {
       // Switch to Base Sepolia if not already on it
-      if (chainId !== 84532) {
+      if (chainId !== CHAIN_ID) {
         setPayStep("approving");
-        await switchChainAsync({ chainId: 84532 });
+        await switchChainAsync({ chainId: CHAIN_ID });
       }
 
       // Convert USDC amount (cents → 6 decimals)
@@ -314,7 +315,7 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
         domain: {
           name: tokenName as string,
           version: tokenVersion as string,
-          chainId: 84532, // Base Sepolia
+          chainId: CHAIN_ID,
           verifyingContract: CONTRACTS.usdc,
         },
         types: {
@@ -371,7 +372,7 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
           domain: {
             name: "Paylix SubscriptionManager",
             version: "1",
-            chainId: 84532, // Base Sepolia
+            chainId: CHAIN_ID,
             verifyingContract: spender as `0x${string}`,
           },
           types: {
@@ -407,7 +408,7 @@ export function CheckoutClient({ session }: CheckoutClientProps) {
           domain: {
             name: "Paylix PaymentVault",
             version: "1",
-            chainId: 84532, // Base Sepolia
+            chainId: CHAIN_ID,
             verifyingContract: spender as `0x${string}`,
           },
           types: {

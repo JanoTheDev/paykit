@@ -1,15 +1,38 @@
-// Contract addresses and ABIs for Paylix smart contracts on Base Sepolia
+// Contract addresses and ABIs for Paylix smart contracts. Reads the active
+// network from apps/web/lib/chain.ts — no per-network branching lives here.
+// Old hardcoded fallback addresses were removed to prevent an unconfigured
+// deployment from silently talking to a stale Sepolia deployment.
+
+import { USDC_ADDRESS } from "./chain";
+
+function requireEnv(value: string | undefined, name: string): `0x${string}` {
+  if (!value || value === "0x0000000000000000000000000000000000000000") {
+    // Client-side: don't throw, the checkout page will render a config error
+    // banner instead. Server-side: this surfaces as a 500 from any route that
+    // reads CONTRACTS, which is the right loud failure mode.
+    if (typeof window === "undefined") {
+      throw new Error(`Missing required env var: ${name}`);
+    }
+    return "0x0000000000000000000000000000000000000000" as `0x${string}`;
+  }
+  return value as `0x${string}`;
+}
 
 export const CONTRACTS = {
-  paymentVault: (process.env.NEXT_PUBLIC_PAYMENT_VAULT_ADDRESS ||
-    process.env.PAYMENT_VAULT_ADDRESS ||
-    "0x2258933585eACca5fdB9748408C63B04E8af80f0") as `0x${string}`,
-  subscriptionManager: (process.env.NEXT_PUBLIC_SUBSCRIPTION_MANAGER_ADDRESS ||
-    process.env.SUBSCRIPTION_MANAGER_ADDRESS ||
-    "0x99c04bc7944011e11BA384950AF91D1A375DC439") as `0x${string}`,
-  usdc: (process.env.NEXT_PUBLIC_MOCK_USDC_ADDRESS ||
-    process.env.MOCK_USDC_ADDRESS ||
-    "0xcdb165A5adf89Cf71f3250e4b36132224fd5ab38") as `0x${string}`,
+  paymentVault: requireEnv(
+    process.env.NEXT_PUBLIC_PAYMENT_VAULT_ADDRESS ||
+      process.env.PAYMENT_VAULT_ADDRESS,
+    "PAYMENT_VAULT_ADDRESS",
+  ),
+  subscriptionManager: requireEnv(
+    process.env.NEXT_PUBLIC_SUBSCRIPTION_MANAGER_ADDRESS ||
+      process.env.SUBSCRIPTION_MANAGER_ADDRESS,
+    "SUBSCRIPTION_MANAGER_ADDRESS",
+  ),
+  // USDC comes from chain.ts: Circle's canonical address on mainnet, or the
+  // merchant's MockUSDC deployment on testnet.
+  usdc: (USDC_ADDRESS ||
+    "0x0000000000000000000000000000000000000000") as `0x${string}`,
 };
 
 // ERC20 approve ABI
