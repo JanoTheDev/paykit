@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 export type ApiKeyAuth = {
   organizationId: string;
   keyType: "publishable" | "secret";
+  livemode: boolean;
   rateLimitResponse?: undefined;
 };
 
@@ -36,7 +37,9 @@ export async function authenticateApiKey(
 
   if (requiredType && found.type !== requiredType) return null;
 
-  const maxPerMinute = found.type === "publishable" ? 200 : 100;
+  const livemode = found.livemode;
+  const baseLimit = found.type === "publishable" ? 200 : 100;
+  const maxPerMinute = livemode ? baseLimit : Math.floor(baseLimit * 2.5);
   const rl = await checkRateLimitAsync(`api:${found.id}`, maxPerMinute, 60_000);
   if (!rl.ok) {
     const retryAfter = String(Math.ceil((rl.retryAfterMs ?? 0) / 1000));
@@ -55,5 +58,5 @@ export async function authenticateApiKey(
     .where(eq(apiKeys.id, found.id))
     .catch(() => {});
 
-  return { organizationId: found.organizationId, keyType: found.type };
+  return { organizationId: found.organizationId, keyType: found.type, livemode };
 }
