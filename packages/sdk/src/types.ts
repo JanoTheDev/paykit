@@ -181,3 +181,148 @@ export type NetworkConfig = {
   usdcAddress: string;
   basescanUrl: string;
 };
+
+export interface CreateCustomerParams {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  walletAddress?: string;
+  country?: string;
+  taxId?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface UpdateCustomerParams {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  walletAddress?: string | null;
+  phone?: string | null;
+  country?: string | null;
+  taxId?: string | null;
+  metadata?: Record<string, string>;
+}
+
+export interface Customer {
+  id: string;
+  customerId: string;
+  organizationId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  walletAddress: string | null;
+  country: string | null;
+  taxId: string | null;
+  source: string;
+  metadata: Record<string, string>;
+  deletedAt: string | null;
+  createdAt: string;
+}
+
+export interface CustomerDetail {
+  customer: Customer;
+  payments: Array<{
+    id: string;
+    amount: number;
+    fee: number;
+    status: string;
+    txHash: string | null;
+    createdAt: string;
+    productName: string | null;
+    productType: string | null;
+    metadata: Record<string, string>;
+  }>;
+  subscriptions: Array<{
+    id: string;
+    status: SubscriptionStatus;
+    createdAt: string;
+    nextChargeDate: string | null;
+    trialEndsAt: string | null;
+    productName: string | null;
+    metadata: Record<string, string>;
+  }>;
+  invoices: Array<{
+    id: string;
+    number: string;
+    totalCents: number;
+    currency: string;
+    issuedAt: string;
+    emailStatus: string;
+    hostedToken: string;
+  }>;
+}
+
+export interface CreateProductParams {
+  name: string;
+  description?: string;
+  type: "one_time" | "subscription";
+  billingInterval?: "minutely" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
+  prices: Array<{
+    networkKey: string;
+    tokenSymbol: string;
+    amount: string;
+  }>;
+  trialDays?: number;
+  trialMinutes?: number;
+  taxRateBps?: number | null;
+  taxLabel?: string | null;
+  reverseChargeEligible?: boolean;
+  checkoutFields?: {
+    firstName?: boolean;
+    lastName?: boolean;
+    email?: boolean;
+    phone?: boolean;
+  };
+  metadata?: Record<string, string>;
+}
+
+export interface UpdateProductParams {
+  name?: string;
+  description?: string;
+  type?: "one_time" | "subscription";
+  billingInterval?: "minutely" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly" | null;
+  prices?: Array<{
+    networkKey: string;
+    tokenSymbol: string;
+    amount: string;
+  }>;
+  trialDays?: number | null;
+  trialMinutes?: number | null;
+  taxRateBps?: number | null;
+  taxLabel?: string | null;
+  reverseChargeEligible?: boolean;
+  checkoutFields?: {
+    firstName?: boolean;
+    lastName?: boolean;
+    email?: boolean;
+    phone?: boolean;
+  };
+  metadata?: Record<string, string>;
+}
+
+export interface Product {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  type: "one_time" | "subscription";
+  billingInterval: string | null;
+  trialDays: number | null;
+  trialMinutes: number | null;
+  isActive: boolean;
+  taxRateBps: number | null;
+  taxLabel: string | null;
+  reverseChargeEligible: boolean;
+  checkoutFields: Record<string, boolean>;
+  metadata: Record<string, string>;
+  createdAt: string;
+  prices?: Array<{
+    id: string;
+    productId: string;
+    networkKey: string;
+    tokenSymbol: string;
+    amount: string;
+    isActive: boolean;
+  }>;
+}

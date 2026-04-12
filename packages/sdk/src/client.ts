@@ -14,6 +14,13 @@ import type {
   CreatePortalSessionResult,
   ListCustomerInvoicesParams,
   ListCustomerInvoicesResult,
+  CreateCustomerParams,
+  UpdateCustomerParams,
+  Customer,
+  CustomerDetail,
+  CreateProductParams,
+  UpdateProductParams,
+  Product,
 } from "./types";
 import { NETWORKS } from "./networks";
 import { createCheckout } from "./checkout";
@@ -22,6 +29,19 @@ import { verifyPayment } from "./verify";
 import { getCustomerPortal } from "./portal";
 import { createPortalSession, listCustomerInvoices } from "./invoices";
 import { webhooks } from "./webhooks";
+import {
+  createCustomer,
+  getCustomer,
+  updateCustomer,
+  listCustomers,
+  deleteCustomer,
+} from "./customers";
+import {
+  createProduct,
+  getProduct,
+  updateProduct,
+  listProducts,
+} from "./products";
 
 export class Paylix {
   private config: PaylixConfig;
@@ -80,5 +100,41 @@ export class Paylix {
    */
   async listCustomerInvoices(params: ListCustomerInvoicesParams): Promise<ListCustomerInvoicesResult> {
     return listCustomerInvoices(this.config, params);
+  }
+
+  async createCustomer(params: CreateCustomerParams): Promise<Customer> {
+    return createCustomer(this.config, params);
+  }
+
+  async getCustomer(id: string): Promise<CustomerDetail> {
+    return getCustomer(this.config, id);
+  }
+
+  async updateCustomer(id: string, params: UpdateCustomerParams): Promise<Customer> {
+    return updateCustomer(this.config, id, params);
+  }
+
+  async listCustomers(): Promise<Customer[]> {
+    return listCustomers(this.config);
+  }
+
+  async deleteCustomer(id: string): Promise<{ ok: true }> {
+    return deleteCustomer(this.config, id);
+  }
+
+  async createProduct(params: CreateProductParams): Promise<Product> {
+    return createProduct(this.config, params);
+  }
+
+  async getProduct(id: string): Promise<Product> {
+    return getProduct(this.config, id);
+  }
+
+  async updateProduct(id: string, params: UpdateProductParams): Promise<Product> {
+    return updateProduct(this.config, id, params);
+  }
+
+  async listProducts(): Promise<Product[]> {
+    return listProducts(this.config);
   }
 }

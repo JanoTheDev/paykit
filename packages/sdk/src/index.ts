@@ -21,4 +21,11 @@ export type {
   WebhookVerifyParams,
   WebhookEvent,
   NetworkConfig,
+  CreateCustomerParams,
+  UpdateCustomerParams,
+  Customer,
+  CustomerDetail,
+  CreateProductParams,
+  UpdateProductParams,
+  Product,
 } from "./types";
