@@ -375,6 +375,13 @@ export async function handlePaymentReceived(log: Log, args: {
     toAddress: args.merchant,
     metadata: session.metadata ?? {},
   });
+  void recordAudit({
+    organizationId: session.organizationId,
+    action: "payment.confirmed",
+    resourceType: "payment",
+    resourceId: result.payment.id,
+    details: { txHash: log.transactionHash, amount: amountCents },
+  }).catch(() => {});
   await dispatchWebhooks(session.organizationId, "invoice.issued", {
     invoiceId: result.invoice.id,
     number: result.invoice.number,
@@ -630,6 +637,13 @@ export async function handleSubscriptionCreated(log: Log, args: {
       merchantAddress: args.merchant,
       txHash: log.transactionHash,
     });
+    void recordAudit({
+      organizationId: trialRow.organizationId,
+      action: "subscription.trial_converted",
+      resourceType: "subscription",
+      resourceId: trialRow.id,
+      details: { onChainId, txHash: log.transactionHash },
+    }).catch(() => {});
 
     await dispatchWebhooks(trialRow.organizationId, "subscription.created", {
       subscriptionId: trialRow.id,
@@ -902,6 +916,13 @@ export async function handleSubscriptionCreated(log: Log, args: {
     txHash: log.transactionHash,
     metadata: result.subscription.metadata ?? {},
   });
+  void recordAudit({
+    organizationId: session.organizationId,
+    action: "subscription.created",
+    resourceType: "subscription",
+    resourceId: result.subscription.id,
+    details: { onChainId, subscriberAddress: args.subscriber, txHash: log.transactionHash },
+  }).catch(() => {});
   await dispatchWebhooks(session.organizationId, "invoice.issued", {
     invoiceId: result.invoice.id,
     number: result.invoice.number,
@@ -1148,6 +1169,13 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
     nextChargeDate: result.nextCharge.toISOString(),
     metadata: subscription.metadata ?? {},
   });
+  void recordAudit({
+    organizationId: subscription.organizationId,
+    action: "subscription.renewed",
+    resourceType: "subscription",
+    resourceId: subscription.id,
+    details: { paymentId: result.payment.id, txHash: log.transactionHash },
+  }).catch(() => {});
   await dispatchWebhooks(subscription.organizationId, "invoice.issued", {
     invoiceId: result.invoice.id,
     number: result.invoice.number,
@@ -1246,6 +1274,13 @@ export async function handleSubscriptionCancelled(log: Log, args: {
       status: "cancelled",
       metadata: updated.metadata ?? {},
     });
+    void recordAudit({
+      organizationId: updated.organizationId,
+      action: "subscription.cancelled_onchain",
+      resourceType: "subscription",
+      resourceId: updated.id,
+      details: { txHash: log.transactionHash },
+    }).catch(() => {});
     void sendSubscriptionEmail({
       kind: "subscription-cancelled",
       subscriptionId: updated.id,

@@ -31,6 +31,11 @@ const ACTION_META: Record<
   "subscription.trial_retried": { label: "Trial retried", icon: RefreshCw, color: "text-sky-400" },
   "customer.deleted": { label: "Customer deleted", icon: Users, color: "text-rose-400" },
   "settings.updated": { label: "Settings updated", icon: Settings, color: "text-sky-400" },
+  "subscription.created": { label: "Subscription started", icon: CreditCard, color: "text-emerald-400" },
+  "subscription.trial_converted": { label: "Trial converted", icon: CreditCard, color: "text-emerald-400" },
+  "subscription.renewed": { label: "Subscription renewed", icon: CreditCard, color: "text-sky-400" },
+  "subscription.cancelled_onchain": { label: "Subscription cancelled (on-chain)", icon: CreditCard, color: "text-rose-400" },
+  "payment.confirmed": { label: "Payment confirmed", icon: CreditCard, color: "text-emerald-400" },
 };
 
 function formatRelativeTime(dateStr: string): string {
