@@ -63,6 +63,7 @@ export const subscriptions = pgTable(
     trialConversionAttempts: integer("trial_conversion_attempts").notNull().default(0),
     trialConversionLastError: text("trial_conversion_last_error"),
     trialReminderSentAt: timestamp("trial_reminder_sent_at", { withTimezone: true }),
+    trialConversionSubmittedAt: timestamp("trial_conversion_submitted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

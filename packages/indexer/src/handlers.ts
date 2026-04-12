@@ -750,12 +750,13 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
     .limit(1);
 
   if (!subscription) {
-    // Subscription not yet created (SubscriptionCreated event may arrive in the
-    // same batch). The initial charge's payment record is created by
-    // handleSubscriptionCreated, so silently skip here.
+    // Subscription not yet created — could be a race with handleSubscriptionCreated
+    // (especially for trial conversions where the same tx emits both events).
+    // Record as unmatched so the retry queue catches up once activation completes.
     console.log(
-      `[Handler] No subscription found for onChainId=${onChainId}; likely the initial charge. Skipping.`
+      `[Handler] No subscription found for onChainId=${onChainId}; recording unmatched for retry.`,
     );
+    await recordUnmatched("SubscriptionPaymentReceived", log, serializeArgs(args));
     return;
   }
 
@@ -1071,6 +1072,18 @@ function rehydrateSubCreatedArgs(payload: Record<string, unknown>) {
   };
 }
 
+function rehydrateSubPaymentReceivedArgs(payload: Record<string, unknown>) {
+  return {
+    subscriptionId: BigInt(payload.subscriptionId as string),
+    subscriber: payload.subscriber as `0x${string}`,
+    merchant: payload.merchant as `0x${string}`,
+    token: payload.token as `0x${string}`,
+    amount: BigInt(payload.amount as string),
+    fee: BigInt(payload.fee as string),
+    timestamp: BigInt(payload.timestamp as string),
+  };
+}
+
 export async function retryUnmatchedEvents() {
   const rows = await db
     .select()
@@ -1100,6 +1113,14 @@ export async function retryUnmatchedEvents() {
           .delete(unmatchedEvents)
           .where(eq(unmatchedEvents.id, row.id));
         await handleSubscriptionCreated(log, rehydrateSubCreatedArgs(payload));
+      } else if (row.eventType === "SubscriptionPaymentReceived") {
+        await db
+          .delete(unmatchedEvents)
+          .where(eq(unmatchedEvents.id, row.id));
+        await handleSubscriptionPaymentReceived(
+          log,
+          rehydrateSubPaymentReceivedArgs(payload),
+        );
       } else {
         // Unknown type: just bump attempts
         await db

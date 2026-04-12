@@ -54,6 +54,10 @@ describe("convertExpiredTrials", () => {
     });
     expect(writeContract).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ attempted: 1, succeeded: 1, failed: 0 });
+    expect(updateSub).toHaveBeenCalledWith(
+      "sub-1",
+      expect.objectContaining({ trialConversionSubmittedAt: expect.any(Date) }),
+    );
   });
 
   it("passes stored productIdBytes and customerIdBytes in the contract call", async () => {

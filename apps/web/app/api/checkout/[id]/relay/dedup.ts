@@ -51,6 +51,7 @@ export async function checkExistingSubscription(args: {
         or(
           eq(subscriptions.status, "trialing"),
           eq(subscriptions.status, "active"),
+          eq(subscriptions.status, "past_due"),
         ),
         or(...conditions),
       ),

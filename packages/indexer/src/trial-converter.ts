@@ -102,6 +102,9 @@ export async function convertExpiredTrials(
           sig.intent.signature,
         ],
       });
+      await updateSub(row.id, {
+        trialConversionSubmittedAt: new Date(),
+      });
       succeeded++;
       // Do not clear pending_permit_signature here — the SubscriptionCreated
       // handler will do that during match-and-activate (Task 10).
@@ -141,7 +144,7 @@ export async function runTrialConverterTick() {
   const { privateKeyToAccount } = await import("viem/accounts");
   const { createDb } = await import("@paylix/db/client");
   const { subscriptions } = await import("@paylix/db/schema");
-  const { and, eq, lte, lt } = await import("drizzle-orm");
+  const { and, eq, lte, lt, isNull, or } = await import("drizzle-orm");
   const { getToken } = await import("@paylix/config/networks");
   type NetworkKey = import("@paylix/config/networks").NetworkKey;
   const { config } = await import("./config");
@@ -164,6 +167,7 @@ export async function runTrialConverterTick() {
   const walletClient = createWalletClient({ account, chain: config.chain, transport: http(config.rpcUrl) });
 
   const now = new Date();
+  const tenMinAgo = new Date(now.getTime() - 10 * 60 * 1000);
   const rows = await db
     .select({
       id: subscriptions.id,
@@ -179,6 +183,10 @@ export async function runTrialConverterTick() {
         eq(subscriptions.status, "trialing"),
         lte(subscriptions.trialEndsAt, now),
         lt(subscriptions.trialConversionAttempts, MAX_TRIAL_CONVERSION_ATTEMPTS),
+        or(
+          isNull(subscriptions.trialConversionSubmittedAt),
+          lt(subscriptions.trialConversionSubmittedAt, tenMinAgo),
+        ),
       ),
     )
     .limit(50);
