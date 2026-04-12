@@ -119,10 +119,42 @@ export default function UserSettingsPage() {
         </FormActions>
       </FormSection>
 
-      <FormSection title="Sign Out" description="End your current session.">
-        <Button variant="destructive" onClick={handleSignOut}>
-          Sign out
-        </Button>
+      <FormSection title="Account" description="Sign out or permanently delete your account.">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={handleSignOut}>
+            Sign out
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              if (
+                !confirm(
+                  "Are you sure? This will permanently delete your account, all your data, and remove you from all teams. This cannot be undone.",
+                )
+              )
+                return;
+              if (
+                !confirm(
+                  "This is your last chance. Type anything to cancel, or press OK to delete your account forever.",
+                )
+              )
+                return;
+              try {
+                const res = await fetch("/api/user/delete", { method: "POST" });
+                if (res.ok) {
+                  router.push("/login");
+                } else {
+                  const body = await res.json().catch(() => ({}));
+                  setError(body.error?.message ?? "Failed to delete account");
+                }
+              } catch {
+                setError("Network error");
+              }
+            }}
+          >
+            Delete account
+          </Button>
+        </div>
       </FormSection>
     </PageShell>
   );
