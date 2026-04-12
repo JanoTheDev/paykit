@@ -692,12 +692,13 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
               {session.productName}
             </h1>
             {session.type === "subscription" && (
-              <Badge variant="default">Subscription</Badge>
-            )}
-            {isTrial && (
-              <span className="inline-flex items-center rounded-sm bg-info/10 px-2 py-0.5 text-xs font-medium text-info ring-1 ring-inset ring-info/20">
-                Free trial
-              </span>
+              isTrial ? (
+                <span className="inline-flex items-center rounded-sm bg-info/10 px-2 py-0.5 text-xs font-medium text-info ring-1 ring-inset ring-info/20">
+                  Free trial
+                </span>
+              ) : (
+                <Badge variant="default">Subscription</Badge>
+              )
             )}
           </div>
           {session.productDescription && (
@@ -705,19 +706,27 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
               {session.productDescription}
             </p>
           )}
-          {isTrial && (
-            <p className="mt-2 text-[13px] text-muted-foreground">
-              Free trial — first charge in{" "}
-              <span className="font-mono text-foreground">{trialDuration}</span>
-            </p>
-          )}
           {session.type === "subscription" && (
-            <p className="mt-2 text-[13px] text-muted-foreground">
-              {isTrial ? "Then " : "You'll be charged "}
-              <span className="font-medium text-foreground">
-                ${displayAmount} {session.tokenSymbol ?? "USDC"}
-              </span>{" "}
-              {formatInterval(session.billingInterval)} until cancelled.
+            <p className="mt-2 text-[13px] leading-snug text-muted-foreground">
+              {isTrial ? (
+                <>
+                  Free for{" "}
+                  <span className="font-mono text-foreground">{trialDuration}</span>
+                  , then{" "}
+                  <span className="font-medium text-foreground">
+                    ${displayAmount} {session.tokenSymbol ?? "USDC"}
+                  </span>{" "}
+                  {formatInterval(session.billingInterval)}.
+                </>
+              ) : (
+                <>
+                  You&apos;ll be charged{" "}
+                  <span className="font-medium text-foreground">
+                    ${displayAmount} {session.tokenSymbol ?? "USDC"}
+                  </span>{" "}
+                  {formatInterval(session.billingInterval)} until cancelled.
+                </>
+              )}
             </p>
           )}
         </div>
@@ -944,8 +953,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
           </Button>
           {isTrial && payStep === "idle" && (
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              You won&apos;t be charged until the trial ends. Cancel anytime
-              before then.
+              No charge today. Cancel anytime before the trial ends.
             </p>
           )}
           {payStep !== "idle" && (
@@ -969,7 +977,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
         </>
       )}
 
-      <p className="mt-4 text-center text-xs text-muted-foreground">
+      <p className={`${isTrial ? "mt-2" : "mt-4"} text-center text-xs text-muted-foreground`}>
         Connect a wallet with {session.tokenSymbol ?? "USDC"} on{" "}
         {session.networkKey &&
         NETWORKS[session.networkKey as keyof typeof NETWORKS]
