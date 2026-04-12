@@ -8,16 +8,18 @@ export function formatAmount(cents: number): string {
   return `${dollars < 0 ? "-" : ""}$${formatted}`;
 }
 
-export function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
+export function formatDate(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-export function formatDateTime(date: Date): string {
-  return date.toLocaleString("en-US", {
+export function formatDateTime(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
