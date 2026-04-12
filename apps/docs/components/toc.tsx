@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface TocItem {
@@ -10,6 +11,7 @@ interface TocItem {
 }
 
 export function Toc() {
+  const pathname = usePathname();
   const [items, setItems] = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -41,6 +43,7 @@ export function Toc() {
         level: h.tagName === "H2" ? 2 : 3,
       }));
     setItems(tocItems);
+    setActiveId(tocItems[0]?.id ?? null);
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -52,7 +55,7 @@ export function Toc() {
     );
     headings.forEach((h) => observer.observe(h));
     return () => observer.disconnect();
-  }, []);
+  }, [pathname]);
 
   if (items.length === 0) return null;
 
