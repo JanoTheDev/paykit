@@ -36,6 +36,16 @@ const sub = await paylix.createSubscription({
   cancelUrl: 'https://myapp.com/pricing',
 })
 
+// Subscription with free trial
+const trial = await paylix.createSubscription({
+  productId: 'prod_pro_monthly', // product with trialDays: 14
+  customerId: 'user_123',
+  successUrl: 'https://myapp.com/welcome',
+  cancelUrl: 'https://myapp.com/pricing',
+})
+// trial.trialEndsAt is set when the product has a trial period
+// trial.checkoutUrl → hosted checkout shows "Start free trial" CTA
+
 // Verify payment (server-side)
 const payment = await paylix.verifyPayment({ paymentId: 'pay_abc' })
 

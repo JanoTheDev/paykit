@@ -36,6 +36,7 @@ const { checkoutUrl } = await paylix.createCheckout({
 
 - **One-time payments** — Accept USDC with a single SDK call
 - **Subscriptions** — Recurring billing with automatic charges
+- **Free trials** — Offer trial periods on subscription products. Customers start without being charged; the first payment fires automatically when the trial ends. Anti-abuse: mandatory email, disposable domain filter, Gmail normalization, wallet activity heuristic, per-product dedup by wallet + email
 - **Dashboard** — Manage products, view payments, track subscribers
 - **Checkout links** — Generate shareable payment links from the dashboard
 - **API keys** — Publishable + secret keys for SDK authentication
