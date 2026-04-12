@@ -64,13 +64,39 @@ export async function PATCH(
   const data = parsed.data;
 
   const updated = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(products)
+      .where(and(eq(products.id, id), eq(products.organizationId, organizationId)));
+    if (!existing) return null;
+
+    const effectiveType = data.type ?? existing.type;
+    const effectiveTrialDays =
+      data.trialDays !== undefined ? (data.trialDays ?? 0) : (existing.trialDays ?? 0);
+    const effectiveTrialMinutes =
+      data.trialMinutes !== undefined
+        ? (data.trialMinutes ?? 0)
+        : (existing.trialMinutes ?? 0);
+    const hasTrial =
+      effectiveType === "subscription" &&
+      (effectiveTrialDays > 0 || effectiveTrialMinutes > 0);
+
+    let finalCheckoutFields: typeof data.checkoutFields = data.checkoutFields;
+    if (hasTrial) {
+      const base =
+        data.checkoutFields ??
+        ((existing.checkoutFields as unknown) as typeof data.checkoutFields) ??
+        {};
+      finalCheckoutFields = { ...base, email: true };
+    }
+
     const patch: Partial<typeof products.$inferInsert> = {
       name: data.name,
       description: data.description,
       type: data.type,
       billingInterval: data.type === "one_time" ? null : data.billingInterval,
       metadata: data.metadata,
-      checkoutFields: data.checkoutFields,
+      checkoutFields: finalCheckoutFields,
       taxRateBps: data.taxRateBps,
       taxLabel: data.taxLabel,
       reverseChargeEligible: data.reverseChargeEligible,

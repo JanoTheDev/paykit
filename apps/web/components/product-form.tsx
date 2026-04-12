@@ -157,6 +157,11 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
   });
 
   const type = form.watch("type");
+  const watchedTrialDays = form.watch("trialDays");
+  const watchedTrialMinutes = form.watch("trialMinutes");
+  const hasTrial =
+    type === "subscription" &&
+    ((watchedTrialDays ?? 0) > 0 || (watchedTrialMinutes ?? 0) > 0);
 
   useEffect(() => {
     if (type !== "subscription") {
@@ -165,6 +170,14 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
       form.setValue("trialMinutes", null);
     }
   }, [type, form]);
+
+  useEffect(() => {
+    if (hasTrial) {
+      setCheckoutFields((prev) =>
+        prev.email ? prev : { ...prev, email: true },
+      );
+    }
+  }, [hasTrial]);
 
   const [metadataRows, setMetadataRows] = useState<
     { key: string; value: string }[]
@@ -802,8 +815,14 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
               />
               <ToggleRow
                 label="Email"
-                checked={checkoutFields.email}
+                checked={hasTrial || checkoutFields.email}
                 onToggle={() => toggleCheckoutField("email")}
+                disabled={hasTrial}
+                helper={
+                  hasTrial
+                    ? "Required for trial-enabled products"
+                    : undefined
+                }
               />
               <ToggleRow
                 label="Phone"
@@ -835,15 +854,28 @@ function ToggleRow({
   label,
   checked,
   onToggle,
+  disabled,
+  helper,
 }: {
   label: string;
   checked: boolean;
   onToggle: () => void;
+  disabled?: boolean;
+  helper?: string;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm">{label}</span>
-      <Switch checked={checked} onCheckedChange={onToggle} />
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-sm">{label}</span>
+        <Switch
+          checked={checked}
+          onCheckedChange={onToggle}
+          disabled={disabled}
+        />
+      </div>
+      {helper && (
+        <p className="text-xs text-muted-foreground">{helper}</p>
+      )}
     </div>
   );
 }

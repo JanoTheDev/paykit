@@ -203,11 +203,14 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
       setTrialEligible(null);
       return;
     }
+    const email = customerFields.email?.trim();
     let cancelled = false;
-    (async () => {
+    const handle = setTimeout(async () => {
       try {
+        const params = new URLSearchParams({ buyer: address });
+        if (email) params.set("email", email);
         const res = await fetch(
-          `/api/checkout/${session.id}/trial-eligibility?buyer=${address}`,
+          `/api/checkout/${session.id}/trial-eligibility?${params}`,
         );
         if (!res.ok) {
           if (!cancelled) setTrialEligible(null);
@@ -221,11 +224,12 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
       } catch {
         if (!cancelled) setTrialEligible(null);
       }
-    })();
+    }, 300);
     return () => {
       cancelled = true;
+      clearTimeout(handle);
     };
-  }, [address, session.id]);
+  }, [address, session.id, customerFields.email]);
   const {
     isSuccess: txConfirmed,
     isError: txFailed,

@@ -20,6 +20,7 @@ import { acquireRelayLock, releaseRelayLock } from "./lock";
 import { checkExistingSubscription } from "./dedup";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { signPortalToken } from "@/lib/portal-tokens";
+import { normalizeEmail, isDisposableEmail } from "@/lib/email-normalize";
 
 function errorResponse(err: ValidationError, status = 400) {
   return NextResponse.json({ error: err }, { status });
@@ -167,12 +168,39 @@ export async function POST(
   if (!deadlineCheck.ok) return errorResponse(deadlineCheck.error);
 
   let runTrialBranch = isTrial;
+  let normalizedBuyerEmail: string | null = null;
   if (runTrialBranch) {
+    const rawBuyerEmail = session.buyerEmail?.trim() ?? null;
+    if (!rawBuyerEmail) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "email_required",
+            message: "An email address is required to start a free trial.",
+          },
+        },
+        { status: 400 },
+      );
+    }
+    if (isDisposableEmail(rawBuyerEmail)) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "disposable_email",
+            message: "Disposable email addresses are not allowed for free trials.",
+          },
+        },
+        { status: 400 },
+      );
+    }
+    normalizedBuyerEmail = normalizeEmail(rawBuyerEmail);
+
     const dedup = await checkExistingSubscription({
       organizationId: session.organizationId,
       productId: session.productId,
       buyerWallet: buyer,
       customerIdentifier: session.customerId ?? null,
+      buyerEmail: normalizedBuyerEmail,
       intent: "trial",
     });
 
@@ -219,7 +247,7 @@ export async function POST(
           taxId: session.buyerTaxId ?? null,
           firstName: session.buyerFirstName ?? null,
           lastName: session.buyerLastName ?? null,
-          email: session.buyerEmail ?? null,
+          email: normalizedBuyerEmail,
           phone: session.buyerPhone ?? null,
         })
         .returning();
@@ -229,7 +257,7 @@ export async function POST(
       if (!customer.walletAddress) customerPatch.walletAddress = buyer;
       if (!customer.firstName && session.buyerFirstName) customerPatch.firstName = session.buyerFirstName;
       if (!customer.lastName && session.buyerLastName) customerPatch.lastName = session.buyerLastName;
-      if (!customer.email && session.buyerEmail) customerPatch.email = session.buyerEmail;
+      if (!customer.email && normalizedBuyerEmail) customerPatch.email = normalizedBuyerEmail;
       if (!customer.phone && session.buyerPhone) customerPatch.phone = session.buyerPhone;
       if (!customer.country && session.buyerCountry) customerPatch.country = session.buyerCountry;
       if (!customer.taxId && session.buyerTaxId) customerPatch.taxId = session.buyerTaxId;
@@ -308,6 +336,7 @@ export async function POST(
       productId: session.productId,
       buyerWallet: buyer,
       customerIdentifier: session.customerId ?? null,
+      buyerEmail: null,
       intent: "subscription",
     });
     if (dedup.exists) {

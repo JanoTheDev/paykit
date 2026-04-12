@@ -107,6 +107,17 @@ export async function POST(request: Request) {
 
   const data = parsed.data;
 
+  // Trial products MUST collect email — it's required for the anti-abuse
+  // dedup to work. Force email = true regardless of what the merchant sent.
+  const hasTrial =
+    (data.trialDays ?? 0) > 0 || (data.trialMinutes ?? 0) > 0;
+  if (hasTrial && data.type === "subscription") {
+    data.checkoutFields = {
+      ...(data.checkoutFields ?? {}),
+      email: true,
+    };
+  }
+
   for (const price of data.prices) {
     try {
       assertValidNetworkKey(price.networkKey);

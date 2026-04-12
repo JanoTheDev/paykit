@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { checkoutSessions, products } from "@paylix/db/schema";
 import { checkExistingSubscription } from "../relay/dedup";
+import { normalizeEmail } from "@/lib/email-normalize";
 
 export async function GET(
   request: Request,
@@ -11,6 +12,7 @@ export async function GET(
   const { id } = await params;
   const url = new URL(request.url);
   const buyer = url.searchParams.get("buyer");
+  const email = url.searchParams.get("email");
 
   if (!buyer || !/^0x[0-9a-fA-F]{40}$/.test(buyer)) {
     return NextResponse.json(
@@ -18,6 +20,8 @@ export async function GET(
       { status: 400 },
     );
   }
+
+  const normalizedEmail = email && email.trim() ? normalizeEmail(email) : null;
 
   const [session] = await db
     .select({
@@ -54,6 +58,7 @@ export async function GET(
     productId: session.productId,
     buyerWallet: buyer,
     customerIdentifier: session.customerId ?? null,
+    buyerEmail: normalizedEmail,
     intent: "trial",
   });
 

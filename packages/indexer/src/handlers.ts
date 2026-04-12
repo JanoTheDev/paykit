@@ -24,6 +24,32 @@ function currentSubscriptionManagerAddress(): string {
 }
 
 /**
+ * Inline copy of apps/web/lib/email-normalize.ts:normalizeEmail.
+ * Kept inline because the indexer package can't import from apps/web.
+ * If you change one, change the other.
+ */
+function normalizeEmail(input: string): string {
+  const trimmed = input.trim().toLowerCase();
+  const at = trimmed.indexOf("@");
+  if (at <= 0) return trimmed;
+  const local = trimmed.slice(0, at);
+  const domain = trimmed.slice(at + 1);
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    const noPlus = local.split("+", 1)[0];
+    const noDots = noPlus.replace(/\./g, "");
+    return `${noDots}@gmail.com`;
+  }
+  return trimmed;
+}
+
+function normalizeEmailOrNull(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const trimmed = email.trim();
+  if (!trimmed) return null;
+  return normalizeEmail(trimmed);
+}
+
+/**
  * Reverse-lookup: given a network and a token address, find the symbol.
  * Used when populating new session/subscription rows from PaymentReceived
  * events that only carry the token's 0x address.
@@ -180,7 +206,7 @@ export async function handlePaymentReceived(log: Log, args: {
           taxId: session.buyerTaxId,
           firstName: session.buyerFirstName,
           lastName: session.buyerLastName,
-          email: session.buyerEmail,
+          email: normalizeEmailOrNull(session.buyerEmail),
           phone: session.buyerPhone,
         })
         .returning();
@@ -193,7 +219,10 @@ export async function handlePaymentReceived(log: Log, args: {
       if (session.buyerTaxId && !customer.taxId) patch.taxId = session.buyerTaxId;
       if (session.buyerFirstName && !customer.firstName) patch.firstName = session.buyerFirstName;
       if (session.buyerLastName && !customer.lastName) patch.lastName = session.buyerLastName;
-      if (session.buyerEmail && !customer.email) patch.email = session.buyerEmail;
+      if (session.buyerEmail && !customer.email) {
+        const normalized = normalizeEmailOrNull(session.buyerEmail);
+        if (normalized) patch.email = normalized;
+      }
       if (session.buyerPhone && !customer.phone) patch.phone = session.buyerPhone;
       if (Object.keys(patch).length > 0) {
         const [updated] = await tx
@@ -527,7 +556,7 @@ export async function handleSubscriptionCreated(log: Log, args: {
           taxId: session.buyerTaxId,
           firstName: session.buyerFirstName,
           lastName: session.buyerLastName,
-          email: session.buyerEmail,
+          email: normalizeEmailOrNull(session.buyerEmail),
           phone: session.buyerPhone,
         })
         .returning();
@@ -540,7 +569,10 @@ export async function handleSubscriptionCreated(log: Log, args: {
       if (session.buyerTaxId && !customer.taxId) patch.taxId = session.buyerTaxId;
       if (session.buyerFirstName && !customer.firstName) patch.firstName = session.buyerFirstName;
       if (session.buyerLastName && !customer.lastName) patch.lastName = session.buyerLastName;
-      if (session.buyerEmail && !customer.email) patch.email = session.buyerEmail;
+      if (session.buyerEmail && !customer.email) {
+        const normalized = normalizeEmailOrNull(session.buyerEmail);
+        if (normalized) patch.email = normalized;
+      }
       if (session.buyerPhone && !customer.phone) patch.phone = session.buyerPhone;
       if (Object.keys(patch).length > 0) {
         const [updated] = await tx

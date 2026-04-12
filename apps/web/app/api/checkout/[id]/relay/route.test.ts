@@ -132,8 +132,13 @@ const TRIAL_SESSION = {
   customerId: null,
   buyerCountry: null,
   buyerTaxId: null,
+  buyerFirstName: null,
+  buyerLastName: null,
+  buyerEmail: "buyer@example.com",
+  buyerPhone: null,
   billingInterval: "monthly",
   trialDays: 14,
+  trialMinutes: 0,
 };
 
 const CUSTOMER_ROW = {
@@ -635,6 +640,59 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     const json = await res.json();
     expect(json.trial).toBe(true);
     expect(json.subscriptionId).toBe(NEW_SUBSCRIPTION.id);
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
+  it("rejects trial checkout with no email", async () => {
+    const noEmailSession = { ...TRIAL_SESSION, buyerEmail: null };
+    const selectFromChain = {
+      from: vi.fn(function () {
+        return {
+          innerJoin: vi.fn(function () {
+            return {
+              where: vi.fn().mockResolvedValue([noEmailSession]),
+            };
+          }),
+        };
+      }),
+    };
+    mockDb.select.mockReturnValueOnce(selectFromChain);
+
+    const res = await POST(makeRequest(VALID_BODY), {
+      params: Promise.resolve({ id: "sess-1" }),
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe("email_required");
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
+  it("rejects trial checkout with disposable email", async () => {
+    const disposableSession = {
+      ...TRIAL_SESSION,
+      buyerEmail: "abuser@mailinator.com",
+    };
+    const selectFromChain = {
+      from: vi.fn(function () {
+        return {
+          innerJoin: vi.fn(function () {
+            return {
+              where: vi.fn().mockResolvedValue([disposableSession]),
+            };
+          }),
+        };
+      }),
+    };
+    mockDb.select.mockReturnValueOnce(selectFromChain);
+
+    const res = await POST(makeRequest(VALID_BODY), {
+      params: Promise.resolve({ id: "sess-1" }),
+    });
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe("disposable_email");
     expect(writeContract).not.toHaveBeenCalled();
   });
 });

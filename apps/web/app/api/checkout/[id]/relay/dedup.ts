@@ -1,15 +1,26 @@
 import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { customers, subscriptions } from "@paylix/db/schema";
+import { normalizeEmail } from "@/lib/email-normalize";
 
 export async function checkExistingSubscription(args: {
   organizationId: string;
   productId: string;
   buyerWallet: string;
   customerIdentifier: string | null;
+  buyerEmail: string | null;
   intent: "trial" | "subscription";
 }): Promise<{ exists: boolean }> {
-  const { organizationId, productId, buyerWallet, customerIdentifier, intent } = args;
+  const {
+    organizationId,
+    productId,
+    buyerWallet,
+    customerIdentifier,
+    buyerEmail,
+    intent,
+  } = args;
+
+  const normalizedBuyerEmail = buyerEmail ? normalizeEmail(buyerEmail) : null;
 
   let matchedCustomer: { id: string; email: string | null } | null = null;
   if (customerIdentifier) {
@@ -39,6 +50,14 @@ export async function checkExistingSubscription(args: {
       SELECT ${customers.id} FROM ${customers}
       WHERE ${customers.organizationId} = ${organizationId}
         AND lower(${customers.email}) = lower(${matchedCustomer.email})
+    )`);
+  }
+
+  if (normalizedBuyerEmail) {
+    conditions.push(sql`${subscriptions.customerId} IN (
+      SELECT ${customers.id} FROM ${customers}
+      WHERE ${customers.organizationId} = ${organizationId}
+        AND lower(${customers.email}) = ${normalizedBuyerEmail}
     )`);
   }
 

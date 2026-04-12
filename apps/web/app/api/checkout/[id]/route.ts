@@ -3,6 +3,7 @@ import { checkoutSessions, customers, products, payments } from "@paylix/db/sche
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { signPortalToken } from "@/lib/portal-tokens";
+import { normalizeEmail } from "@/lib/email-normalize";
 
 interface CustomerFormPayload {
   firstName?: unknown;
@@ -21,10 +22,11 @@ function cleanString(value: unknown, { upper = false }: { upper?: boolean } = {}
 }
 
 function normalizeCustomerForm(raw: CustomerFormPayload) {
+  const cleanedEmail = cleanString(raw.email);
   return {
     firstName: cleanString(raw.firstName),
     lastName: cleanString(raw.lastName),
-    email: cleanString(raw.email),
+    email: cleanedEmail ? normalizeEmail(cleanedEmail) : null,
     phone: cleanString(raw.phone),
     country: cleanString(raw.country, { upper: true }),
     taxId: cleanString(raw.taxId),
