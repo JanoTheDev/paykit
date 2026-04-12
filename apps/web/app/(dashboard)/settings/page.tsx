@@ -287,32 +287,6 @@ export default function SettingsPage() {
     }
   }
 
-  async function setAllPreferences(next: boolean) {
-    setNotificationsSaving(true);
-    setNotificationsSuccess(false);
-    const previous = notificationPreferences;
-    const optimistic: NotificationPreferences = { ...previous };
-    for (const k of NOTIFICATION_KINDS) optimistic[k] = next;
-    setNotificationPreferences(optimistic);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationPreferences: optimistic }),
-      });
-      if (res.ok) {
-        setNotificationsSuccess(true);
-        setTimeout(() => setNotificationsSuccess(false), 2000);
-      } else {
-        setNotificationPreferences(previous);
-      }
-    } catch {
-      setNotificationPreferences(previous);
-    } finally {
-      setNotificationsSaving(false);
-    }
-  }
-
   async function saveNetworks() {
     setNetworksSaving(true);
     setNetworksSuccess(false);
@@ -495,20 +469,19 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Notifications tab */}
-        <TabsContent value="notifications" className="space-y-6">
+        <TabsContent value="notifications">
           <FormSection
             title="Automatic Email Notifications"
-            description="Paylix sends transactional emails to your customers — invoices, trial reminders, subscription updates, receipts, and past-due alerts. Disable any of them if you'd rather send your own custom emails from webhook events."
+            description="Paylix sends transactional emails to your customers — invoices, trial reminders, subscription updates, receipts, and past-due alerts. Use the master switch to turn everything off at once, or toggle individual email types below. Webhook events always fire regardless, so you can trigger your own templated emails from them."
           >
-            <div className="flex items-center justify-between rounded-lg border border-border bg-surface-1 p-4">
+            <div className="flex items-center justify-between rounded-lg border border-border bg-surface-2 p-4">
               <div className="pr-4">
                 <div className="text-sm font-medium">
-                  Master switch — send any emails at all
+                  Send automatic emails
                 </div>
                 <div className="mt-1 text-xs leading-relaxed text-foreground-muted">
-                  When off, Paylix stops sending every email below regardless
-                  of the individual toggles. Webhook events still fire so you
-                  can trigger your own templated emails on your side.
+                  Master switch — when off, every email below is blocked
+                  regardless of its individual toggle.
                 </div>
               </div>
               <Switch
@@ -518,91 +491,34 @@ export default function SettingsPage() {
               />
             </div>
 
-            {!notificationsEnabled && (
-              <Alert>
-                <AlertDescription>
-                  Master switch is off. No emails will be sent until it&apos;s
-                  turned back on. Subscribe to{" "}
-                  <code className="font-mono text-[12px]">invoice.issued</code>,{" "}
-                  <code className="font-mono text-[12px]">
-                    subscription.created
-                  </code>
-                  ,{" "}
-                  <code className="font-mono text-[12px]">
-                    subscription.charged
-                  </code>
-                  , and{" "}
-                  <code className="font-mono text-[12px]">
-                    subscription.past_due
-                  </code>{" "}
-                  webhooks to send your own.
-                </AlertDescription>
-              </Alert>
-            )}
-          </FormSection>
-
-          <FormSection
-            title="Individual Email Types"
-            description="Turn off specific email types while keeping others on — for example, you might send your own custom welcome email but still let Paylix send receipts."
-          >
-            <div className="flex items-center justify-end gap-2 pb-1">
-              <span className="text-xs text-foreground-muted">Quick:</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={notificationsSaving}
-                onClick={() => setAllPreferences(true)}
-              >
-                Enable all
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={notificationsSaving}
-                onClick={() => setAllPreferences(false)}
-              >
-                Disable all
-              </Button>
-            </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {NOTIFICATION_KINDS.map((kind) => {
                 const meta = NOTIFICATION_LABELS[kind];
                 const checked = notificationPreferences[kind];
-                const effective = notificationsEnabled && checked;
+                const blocked = !notificationsEnabled;
                 return (
                   <div
                     key={kind}
-                    className="flex items-start justify-between gap-4 rounded-lg border border-border bg-surface-1 p-4"
+                    className={`flex items-start justify-between gap-4 rounded-lg border border-border bg-surface-1 p-4 transition-opacity ${
+                      blocked ? "opacity-50" : ""
+                    }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {meta.label}
-                        </span>
-                        {!notificationsEnabled && checked && (
-                          <Badge variant="outline" className="text-[10px]">
-                            Blocked by master
-                          </Badge>
-                        )}
-                        {!effective && notificationsEnabled && (
-                          <Badge variant="outline" className="text-[10px]">
-                            Off
-                          </Badge>
-                        )}
-                      </div>
+                      <div className="text-sm font-medium">{meta.label}</div>
                       <div className="mt-1 text-xs leading-relaxed text-foreground-muted">
                         {meta.description}
                       </div>
                     </div>
                     <Switch
                       checked={checked}
-                      disabled={notificationsSaving}
+                      disabled={notificationsSaving || blocked}
                       onCheckedChange={(val) => savePreference(kind, val)}
                     />
                   </div>
                 );
               })}
             </div>
+
             {notificationsSuccess && (
               <span className="text-sm font-medium text-success">Saved</span>
             )}
