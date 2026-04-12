@@ -8,7 +8,8 @@ type SubscriptionStatus =
   | "expired"
   | "incomplete"
   | "trialing"
-  | "trial_conversion_failed";
+  | "trial_conversion_failed"
+  | "paused";
 type ApiKeyStatus = "active" | "revoked";
 type WebhookStatus = "active" | "disabled" | "failing";
 type ProductType = "one_time" | "subscription";
@@ -53,6 +54,7 @@ const STYLES: Record<string, string> = {
   subscription: "bg-primary/10 text-primary ring-primary/20",
   trialing: "bg-info/10 text-info ring-info/20",
   trial_conversion_failed: "bg-destructive/10 text-destructive ring-destructive/20",
+  paused: "bg-info/10 text-info ring-info/20",
 };
 
 const LABELS: Record<string, string> = {
@@ -77,6 +79,7 @@ const LABELS: Record<string, string> = {
   delivered: "Delivered",
   trialing: "Trial",
   trial_conversion_failed: "Trial failed",
+  paused: "Paused",
 };
 
 export function StatusBadge(props: StatusKind) {
