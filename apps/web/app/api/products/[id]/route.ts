@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { products, productPrices } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
 import { resolveActiveOrg } from "@/lib/require-active-org";
+import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
 import {
   NETWORKS,
@@ -49,7 +50,7 @@ export async function PATCH(
 ) {
   const ctx = await resolveActiveOrg();
   if (!ctx.ok) return ctx.response;
-  const { organizationId } = ctx;
+  const { organizationId, userId } = ctx;
 
   const { id } = await params;
   const body = await request.json();
@@ -147,6 +148,16 @@ export async function PATCH(
   if (!updated) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "product.updated",
+    resourceType: "product",
+    resourceId: id,
+    details: { name: updated.name },
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
 
   return NextResponse.json(updated);
 }

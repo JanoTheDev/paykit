@@ -3,14 +3,15 @@ import { NextResponse } from "next/server";
 import { subscriptions } from "@paylix/db/schema";
 import { eq, and } from "drizzle-orm";
 import { resolveActiveOrg } from "@/lib/require-active-org";
+import { recordAudit } from "@/lib/audit";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const ctx = await resolveActiveOrg();
   if (!ctx.ok) return ctx.response;
-  const { organizationId } = ctx;
+  const { organizationId, userId } = ctx;
 
   const { id } = await params;
 
@@ -49,6 +50,15 @@ export async function POST(
     .update(subscriptions)
     .set({ status: "cancelled", pendingPermitSignature: null })
     .where(eq(subscriptions.id, id));
+
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "subscription.trial_cancelled",
+    resourceType: "subscription",
+    resourceId: id,
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { validateWebhookUrl } from "@/lib/url-safety";
 import { resolveActiveOrg } from "@/lib/require-active-org";
+import { recordAudit } from "@/lib/audit";
 
 const VALID_EVENTS = [
   "payment.confirmed",
@@ -51,7 +52,7 @@ export async function PATCH(
 ) {
   const ctx = await resolveActiveOrg();
   if (!ctx.ok) return ctx.response;
-  const { organizationId } = ctx;
+  const { organizationId, userId } = ctx;
 
   const { id } = await params;
   const body = await request.json();
@@ -90,16 +91,25 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "webhook.updated",
+    resourceType: "webhook",
+    resourceId: id,
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
+
   return NextResponse.json(updated);
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ctx = await resolveActiveOrg();
   if (!ctx.ok) return ctx.response;
-  const { organizationId } = ctx;
+  const { organizationId, userId } = ctx;
 
   const { id } = await params;
 
@@ -111,6 +121,15 @@ export async function DELETE(
   if (!deleted) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "webhook.deleted",
+    resourceType: "webhook",
+    resourceId: id,
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
 
   return NextResponse.json({ success: true });
 }

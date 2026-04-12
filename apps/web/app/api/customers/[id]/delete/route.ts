@@ -3,14 +3,15 @@ import { customers } from "@paylix/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { resolveActiveOrg } from "@/lib/require-active-org";
+import { recordAudit } from "@/lib/audit";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
   const orgCtx = await resolveActiveOrg();
   if (!orgCtx.ok) return orgCtx.response;
-  const { organizationId } = orgCtx;
+  const { organizationId, userId } = orgCtx;
 
   const { id } = await ctx.params;
 
@@ -21,6 +22,15 @@ export async function POST(
     .returning({ id: customers.id });
 
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "customer.deleted",
+    resourceType: "customer",
+    resourceId: id,
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
 
   return NextResponse.json({ ok: true });
 }

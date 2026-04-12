@@ -5,6 +5,7 @@ import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { generateApiKey } from "@/lib/api-key-utils";
 import { resolveActiveOrg } from "@/lib/require-active-org";
+import { recordAudit } from "@/lib/audit";
 
 const createKeySchema = z.object({
   name: z.string().min(1).max(100),
@@ -36,7 +37,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const ctx = await resolveActiveOrg();
   if (!ctx.ok) return ctx.response;
-  const { organizationId } = ctx;
+  const { organizationId, userId } = ctx;
 
   const body = await request.json();
   const parsed = createKeySchema.safeParse(body);
@@ -60,6 +61,16 @@ export async function POST(request: Request) {
       type,
     })
     .returning();
+
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "api_key.created",
+    resourceType: "api_key",
+    resourceId: row.id,
+    details: { name: row.name, type: row.type },
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
 
   return NextResponse.json({ ...row, key }, { status: 201 });
 }

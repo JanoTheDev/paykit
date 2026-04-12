@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { products, productPrices } from "@paylix/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { resolveActiveOrg } from "@/lib/require-active-org";
+import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
 import {
   NETWORKS,
@@ -94,7 +95,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const ctx = await resolveActiveOrg();
   if (!ctx.ok) return ctx.response;
-  const { organizationId } = ctx;
+  const { organizationId, userId } = ctx;
 
   const body = await request.json();
   const parsed = createProductSchema.safeParse(body);
@@ -164,6 +165,16 @@ export async function POST(request: Request) {
     );
 
     return product;
+  });
+
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "product.created",
+    resourceType: "product",
+    resourceId: created.id,
+    details: { name: created.name, type: created.type },
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
   });
 
   return NextResponse.json(created, { status: 201 });

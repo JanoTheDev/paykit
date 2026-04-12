@@ -15,3 +15,4 @@ export * from "./unmatched-events";
 export * from "./merchant-profiles";
 export * from "./invoices";
 export * from "./invoice-line-items";
+export * from "./audit-logs";

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { validateWebhookUrl } from "@/lib/url-safety";
 import { resolveActiveOrg } from "@/lib/require-active-org";
+import { recordAudit } from "@/lib/audit";
 
 const VALID_EVENTS = [
   "payment.confirmed",
@@ -48,7 +49,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const ctx = await resolveActiveOrg();
   if (!ctx.ok) return ctx.response;
-  const { organizationId } = ctx;
+  const { organizationId, userId } = ctx;
 
   const body = await request.json();
   const parsed = createWebhookSchema.safeParse(body);
@@ -77,6 +78,16 @@ export async function POST(request: Request) {
       events,
     })
     .returning();
+
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "webhook.created",
+    resourceType: "webhook",
+    resourceId: row.id,
+    details: { url: row.url, events: row.events },
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
 
   return NextResponse.json(row, { status: 201 });
 }

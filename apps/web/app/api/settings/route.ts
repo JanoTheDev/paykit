@@ -11,6 +11,7 @@ import {
   assertValidNetworkKey,
 } from "@paylix/config/networks";
 import { resolveActiveOrg } from "@/lib/require-active-org";
+import { recordAudit } from "@/lib/audit";
 
 export async function GET() {
   const ctx = await resolveActiveOrg();
@@ -242,6 +243,17 @@ export async function PATCH(request: Request) {
   // If only networks/businessProfile were updated, skip the users table update
   if (Object.keys(updates).length === 0) {
     if (Array.isArray(body.networks) || body.businessProfile) {
+      void recordAudit({
+        organizationId,
+        userId,
+        action: "settings.updated",
+        resourceType: "settings",
+        details: {
+          networks: Array.isArray(body.networks),
+          businessProfile: !!body.businessProfile,
+        },
+        ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      });
       return NextResponse.json({ success: true });
     }
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
@@ -258,6 +270,15 @@ export async function PATCH(request: Request) {
       walletAddress: users.walletAddress,
       checkoutFieldDefaults: users.checkoutFieldDefaults,
     });
+
+  void recordAudit({
+    organizationId,
+    userId,
+    action: "settings.updated",
+    resourceType: "settings",
+    details: { fields: Object.keys(updates) },
+    ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+  });
 
   return NextResponse.json(updated);
 }
