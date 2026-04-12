@@ -71,6 +71,13 @@
       "when": 1776182400000,
       "tag": "0010_add_dunning_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1776355200000,
+      "tag": "0012_add_paused_by_column",
+      "breakpoints": true
     }
   ]
 }

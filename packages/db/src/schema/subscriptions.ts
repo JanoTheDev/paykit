@@ -61,6 +61,7 @@ export const subscriptions = pgTable(
     metadata: jsonb("metadata").$type<Record<string, string>>().default({}),
     trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
     pausedAt: timestamp("paused_at", { withTimezone: true }),
+    pausedBy: text("paused_by"),
     chargeFailureCount: integer("charge_failure_count").notNull().default(0),
     lastChargeError: text("last_charge_error"),
     lastChargeAttemptAt: timestamp("last_charge_attempt_at", { withTimezone: true }),
