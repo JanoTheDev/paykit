@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -123,7 +124,6 @@ export default function SettingsPage() {
   const [notificationPreferences, setNotificationPreferences] =
     useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [notificationsSaving, setNotificationsSaving] = useState(false);
-  const [notificationsSuccess, setNotificationsSuccess] = useState(false);
 
   const network = process.env.NEXT_PUBLIC_NETWORK || "base-sepolia";
   const isMainnet = network === "base";
@@ -238,7 +238,6 @@ export default function SettingsPage() {
 
   async function saveMasterNotifications(next: boolean) {
     setNotificationsSaving(true);
-    setNotificationsSuccess(false);
     const previous = notificationsEnabled;
     setNotificationsEnabled(next);
     try {
@@ -248,13 +247,18 @@ export default function SettingsPage() {
         body: JSON.stringify({ notificationsEnabled: next }),
       });
       if (res.ok) {
-        setNotificationsSuccess(true);
-        setTimeout(() => setNotificationsSuccess(false), 2000);
+        toast.success(
+          next
+            ? "Email notifications turned on"
+            : "Email notifications turned off",
+        );
       } else {
         setNotificationsEnabled(previous);
+        toast.error("Failed to save notification settings");
       }
     } catch {
       setNotificationsEnabled(previous);
+      toast.error("Failed to save notification settings");
     } finally {
       setNotificationsSaving(false);
     }
@@ -262,7 +266,6 @@ export default function SettingsPage() {
 
   async function savePreference(kind: NotificationKind, next: boolean) {
     setNotificationsSaving(true);
-    setNotificationsSuccess(false);
     const previous = notificationPreferences;
     const optimistic = { ...previous, [kind]: next };
     setNotificationPreferences(optimistic);
@@ -275,13 +278,14 @@ export default function SettingsPage() {
         }),
       });
       if (res.ok) {
-        setNotificationsSuccess(true);
-        setTimeout(() => setNotificationsSuccess(false), 2000);
+        toast.success("Notification settings saved");
       } else {
         setNotificationPreferences(previous);
+        toast.error("Failed to save notification settings");
       }
     } catch {
       setNotificationPreferences(previous);
+      toast.error("Failed to save notification settings");
     } finally {
       setNotificationsSaving(false);
     }
@@ -518,10 +522,6 @@ export default function SettingsPage() {
                 );
               })}
             </div>
-
-            {notificationsSuccess && (
-              <span className="text-sm font-medium text-success">Saved</span>
-            )}
           </FormSection>
         </TabsContent>
 
