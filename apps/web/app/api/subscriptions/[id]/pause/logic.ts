@@ -1,6 +1,8 @@
-type PauseInput = { status: string };
+export type PauseActor = "customer" | "merchant";
+
+type PauseInput = { status: string; pausedBy: string | null };
 type PauseResult =
-  | { ok: true; update: { status: "paused"; pausedAt: Date } }
+  | { ok: true; update: { status: "paused"; pausedAt: Date; pausedBy: PauseActor } }
   | { ok: false; reason: string };
 
 /**
@@ -12,32 +14,61 @@ type PauseResult =
  * resumed. Any future relaxation of this gate MUST also clear or freeze
  * `pastDueSince` in `computePauseUpdate`, and `computeResumeUpdate` must
  * recompute it correctly on the other side.
+ *
+ * With the two-party model: either "customer" or "merchant" can initiate a
+ * pause, but once paused, only the same actor can resume. A pause attempt on
+ * an already-paused sub is rejected regardless of actor — there's no "over-pause"
+ * state.
  */
-export function computePauseUpdate(sub: PauseInput, now: Date): PauseResult {
+export function computePauseUpdate(
+  sub: PauseInput,
+  actor: PauseActor,
+  now: Date,
+): PauseResult {
   if (sub.status !== "active") {
     return { ok: false, reason: `cannot pause subscription in status '${sub.status}'` };
   }
-  return { ok: true, update: { status: "paused", pausedAt: now } };
+  return {
+    ok: true,
+    update: { status: "paused", pausedAt: now, pausedBy: actor },
+  };
 }
 
-type ResumeInput = { status: string; pausedAt: Date | null; nextChargeDate: Date | null };
+type ResumeInput = {
+  status: string;
+  pausedAt: Date | null;
+  pausedBy: string | null;
+  nextChargeDate: Date | null;
+};
 type ResumeResult =
   | {
       ok: true;
       update: {
         status: "active";
         pausedAt: null;
+        pausedBy: null;
         nextChargeDate: Date | null;
         chargeFailureCount: 0;
         lastChargeError: null;
         pastDueSince: null;
       };
     }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; code?: "paused_by_other_party" };
 
-export function computeResumeUpdate(sub: ResumeInput, now: Date): ResumeResult {
+export function computeResumeUpdate(
+  sub: ResumeInput,
+  actor: PauseActor,
+  now: Date,
+): ResumeResult {
   if (sub.status !== "paused" || !sub.pausedAt) {
     return { ok: false, reason: `cannot resume subscription in status '${sub.status}'` };
+  }
+  if (sub.pausedBy && sub.pausedBy !== actor) {
+    return {
+      ok: false,
+      reason: `subscription was paused by the ${sub.pausedBy}; only they can resume it`,
+      code: "paused_by_other_party",
+    };
   }
   const pausedMs = now.getTime() - sub.pausedAt.getTime();
   const nextChargeDate = sub.nextChargeDate
@@ -48,6 +79,7 @@ export function computeResumeUpdate(sub: ResumeInput, now: Date): ResumeResult {
     update: {
       status: "active",
       pausedAt: null,
+      pausedBy: null,
       nextChargeDate,
       chargeFailureCount: 0,
       lastChargeError: null,
