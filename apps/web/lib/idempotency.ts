@@ -2,7 +2,8 @@ import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { idempotencyKeys } from "@paylix/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
+import { apiError } from "./api-error";
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -34,6 +35,18 @@ export function evaluateIdempotency(input: {
   };
 }
 
+/**
+ * Wraps an API handler with idempotency. Pass the request, the org id, and a
+ * function that produces the response. If the request has no Idempotency-Key
+ * header, the handler runs unchanged. Body must be JSON.
+ *
+ * Known limitation: two concurrent requests with the same key that both miss
+ * the cache will both run the handler. The second insert is absorbed by
+ * onConflictDoNothing(), but both callers receive their own handler result —
+ * so non-deterministic handlers (e.g. a checkout that mints an ID) can still
+ * produce duplicates under parallel load. Fixing this requires a two-phase
+ * insert (sentinel row + later update) or an advisory lock and is deferred.
+ */
 export async function withIdempotency(
   request: Request,
   organizationId: string,
@@ -46,6 +59,14 @@ export async function withIdempotency(
     return handler(rawBody);
   }
 
+  if (key.length > 255) {
+    return apiError(
+      "invalid_idempotency_key",
+      "Idempotency-Key must be 255 characters or fewer.",
+      400,
+    );
+  }
+
   const requestHash = hashRequestBody(rawBody);
 
   const [existing] = await db
@@ -55,7 +76,13 @@ export async function withIdempotency(
       responseBody: idempotencyKeys.responseBody,
     })
     .from(idempotencyKeys)
-    .where(and(eq(idempotencyKeys.organizationId, organizationId), eq(idempotencyKeys.key, key)));
+    .where(
+      and(
+        eq(idempotencyKeys.organizationId, organizationId),
+        eq(idempotencyKeys.key, key),
+        gt(idempotencyKeys.expiresAt, new Date()),
+      ),
+    );
 
   const evaluation = evaluateIdempotency({ existing: existing ?? null, requestHash });
 
@@ -63,24 +90,22 @@ export async function withIdempotency(
     return NextResponse.json(evaluation.responseBody, { status: evaluation.responseStatus });
   }
   if (evaluation.kind === "conflict") {
-    return NextResponse.json(
-      {
-        error: {
-          code: "idempotency_key_reused",
-          message: "Idempotency-Key was reused with a different request body.",
-        },
-      },
-      { status: 409 },
+    return apiError(
+      "idempotency_key_reused",
+      "Idempotency-Key was reused with a different request body.",
+      409,
     );
   }
 
   const response = await handler(rawBody);
-  const clone = response.clone();
-  let body: unknown = null;
+  let body: unknown;
   try {
-    body = await clone.json();
+    body = await response.clone().json();
   } catch {
-    body = null;
+    // Non-JSON response — pass through without caching. Idempotency only
+    // covers JSON routes in Paylix; caching binary/empty responses would
+    // require a nullable response_body column.
+    return response;
   }
 
   await db
@@ -90,7 +115,7 @@ export async function withIdempotency(
       key,
       requestHash,
       responseStatus: response.status,
-      responseBody: body as object,
+      responseBody: body,
       expiresAt: new Date(Date.now() + TTL_MS),
     })
     .onConflictDoNothing();

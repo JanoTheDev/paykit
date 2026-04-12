@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hashRequestBody, evaluateIdempotency } from "../idempotency";
+import { hashRequestBody, evaluateIdempotency } from "./idempotency";
 
 describe("hashRequestBody", () => {
   it("is deterministic for identical bodies", () => {
