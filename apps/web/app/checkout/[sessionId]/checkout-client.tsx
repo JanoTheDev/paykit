@@ -197,10 +197,12 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
   const publicClient = usePublicClient({ chainId: CHAIN_ID });
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
+  const [trialIneligibleReason, setTrialIneligibleReason] = useState<string | null>(null);
 
   useEffect(() => {
     if (!address) {
       setTrialEligible(null);
+      setTrialIneligibleReason(null);
       return;
     }
     const email = customerFields.email?.trim();
@@ -219,8 +221,12 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
         const data = (await res.json()) as {
           eligible: boolean;
           productHasTrial: boolean;
+          reason?: string;
         };
-        if (!cancelled) setTrialEligible(data.eligible);
+        if (!cancelled) {
+          setTrialEligible(data.eligible);
+          setTrialIneligibleReason(data.reason ?? null);
+        }
       } catch {
         if (!cancelled) setTrialEligible(null);
       }
@@ -793,7 +799,12 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
               )}
             </p>
           )}
-          {productHasTrial && trialEligible === false && (
+          {productHasTrial && trialEligible === false && trialIneligibleReason === "wallet_inactive" && (
+            <p className="mt-2 text-[12px] italic text-muted-foreground">
+              Free trials require a wallet with on-chain activity. Please use an established wallet or subscribe at the regular price.
+            </p>
+          )}
+          {productHasTrial && trialEligible === false && trialIneligibleReason !== "wallet_inactive" && (
             <p className="mt-2 text-[12px] italic text-muted-foreground">
               You&apos;ve already used the free trial for this product.
             </p>

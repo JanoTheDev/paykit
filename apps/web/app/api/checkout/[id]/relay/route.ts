@@ -21,6 +21,7 @@ import { checkExistingSubscription } from "./dedup";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { signPortalToken } from "@/lib/portal-tokens";
 import { normalizeEmail, isDisposableEmail } from "@/lib/email-normalize";
+import { checkWalletActivity } from "@/lib/wallet-activity";
 
 function errorResponse(err: ValidationError, status = 400) {
   return NextResponse.json({ error: err }, { status });
@@ -194,6 +195,26 @@ export async function POST(
       );
     }
     normalizedBuyerEmail = normalizeEmail(rawBuyerEmail);
+
+    if (session.networkKey && session.tokenSymbol) {
+      const wallet = await checkWalletActivity({
+        address: buyer as `0x${string}`,
+        networkKey: session.networkKey,
+        tokenSymbol: session.tokenSymbol,
+      });
+      if (!wallet.active) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "wallet_inactive",
+              message:
+                "This wallet has no transaction history. Please use a wallet with on-chain activity to start a free trial.",
+            },
+          },
+          { status: 400 },
+        );
+      }
+    }
 
     const dedup = await checkExistingSubscription({
       organizationId: session.organizationId,

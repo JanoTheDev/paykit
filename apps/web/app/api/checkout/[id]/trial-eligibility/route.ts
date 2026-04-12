@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { checkoutSessions, products } from "@paylix/db/schema";
 import { checkExistingSubscription } from "../relay/dedup";
 import { normalizeEmail } from "@/lib/email-normalize";
+import { checkWalletActivity } from "@/lib/wallet-activity";
 
 export async function GET(
   request: Request,
@@ -29,6 +30,8 @@ export async function GET(
       productId: checkoutSessions.productId,
       customerId: checkoutSessions.customerId,
       type: checkoutSessions.type,
+      networkKey: checkoutSessions.networkKey,
+      tokenSymbol: checkoutSessions.tokenSymbol,
       trialDays: products.trialDays,
       trialMinutes: products.trialMinutes,
     })
@@ -51,6 +54,21 @@ export async function GET(
 
   if (!productHasTrial) {
     return NextResponse.json({ eligible: false, productHasTrial: false });
+  }
+
+  if (session.networkKey && session.tokenSymbol) {
+    const wallet = await checkWalletActivity({
+      address: buyer as `0x${string}`,
+      networkKey: session.networkKey,
+      tokenSymbol: session.tokenSymbol,
+    });
+    if (!wallet.active) {
+      return NextResponse.json({
+        eligible: false,
+        productHasTrial: true,
+        reason: "wallet_inactive",
+      });
+    }
   }
 
   const dedup = await checkExistingSubscription({
