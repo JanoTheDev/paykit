@@ -64,6 +64,13 @@
       "when": 1776096000000,
       "tag": "0009_add_paused_subscription_status",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776182400000,
+      "tag": "0010_add_dunning_columns",
+      "breakpoints": true
     }
   ]
 }
