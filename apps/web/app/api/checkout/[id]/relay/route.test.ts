@@ -3,30 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Set up mocks BEFORE importing the route
 const writeContract = vi.fn();
 
-// Helper to create a thenable proxy that chains methods
-function createChainableProxy<T>(finalResult: T) {
-  let result: T = finalResult;
-
-  const handler: ProxyHandler<any> = {
-    get(target, prop) {
-      if (prop === "then") {
-        return (resolve: (v: T) => void) => resolve(result);
-      }
-      if (prop === Symbol.asyncIterator || prop === Symbol.toStringTag) {
-        return undefined;
-      }
-      if (prop === "__result__") {
-        return result;
-      }
-      return function (...args: any[]) {
-        return new Proxy({}, handler);
-      };
-    },
-  };
-
-  return new Proxy({ __result__: finalResult }, handler) as any;
-}
-
 const mockDb = {
   select: vi.fn(),
   insert: vi.fn(),
@@ -64,7 +40,7 @@ vi.mock("./lock", () => ({
 }));
 vi.mock("./validation", () => ({
   parseRelayBody: (body: unknown) => {
-    const b = body as any;
+    const b = body as Record<string, unknown>;
     if (
       !b.buyer ||
       !b.deadline ||
@@ -81,21 +57,26 @@ vi.mock("./validation", () => ({
     return {
       ok: true,
       value: {
-        buyer: b.buyer,
-        deadline: BigInt(b.deadline),
-        v: b.v,
-        r: b.r,
-        s: b.s,
-        permitValue: BigInt(b.permitValue),
-        intentSignature: b.intentSignature,
-        networkKey: b.networkKey,
-        tokenSymbol: b.tokenSymbol,
+        buyer: b.buyer as string,
+        deadline: BigInt(b.deadline as string | number),
+        v: b.v as number,
+        r: b.r as string,
+        s: b.s as string,
+        permitValue: BigInt(b.permitValue as string | number),
+        intentSignature: b.intentSignature as string,
+        networkKey: b.networkKey as string,
+        tokenSymbol: b.tokenSymbol as string,
       },
     };
   },
   validateSessionForRelay: (session: unknown) => {
     if (!session) return { ok: false, error: { code: "session_not_found" } };
-    const s = session as any;
+    const s = session as {
+      expiresAt: Date;
+      status: string;
+      paymentId: string | null;
+      subscriptionId: string | null;
+    };
     if (s.expiresAt < new Date())
       return { ok: false, error: { code: "session_expired" } };
     if (s.status === "completed")
@@ -104,10 +85,7 @@ vi.mock("./validation", () => ({
       return { ok: false, error: { code: "session_already_relayed" } };
     return { ok: true };
   },
-  validateDeadline: (
-    deadline: bigint,
-    maxWindowSeconds?: number | undefined
-  ) => {
+  validateDeadline: (deadline: bigint) => {
     const now = Math.floor(Date.now() / 1000);
     if (deadline <= BigInt(now))
       return { ok: false, error: { code: "deadline_passed" } };
@@ -242,9 +220,8 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     mockDb.insert.mockReturnValueOnce(insertCustomerChain);
 
     // Setup: insert subscription
-    const insertSubChain = {
-      values: vi.fn(function (values: any) {
-        // Store the values for assertion
+    const insertSubChain: { values: ReturnType<typeof vi.fn>; __insertedValues?: unknown } = {
+      values: vi.fn(function (values: unknown) {
         insertSubChain.__insertedValues = values;
         return {
           returning: vi.fn().mockResolvedValue([NEW_SUBSCRIPTION]),
@@ -274,10 +251,12 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     expect(json.trialEndsAt).toBeDefined();
 
     // Assert that the subscription was inserted with status "trialing"
-    const insertedValues = (insertSubChain as any).__insertedValues;
+    const insertedValues = insertSubChain.__insertedValues as
+      | { status?: string; pendingPermitSignature?: unknown }
+      | undefined;
     expect(insertedValues).toBeDefined();
-    expect(insertedValues.status).toBe("trialing");
-    expect(insertedValues.pendingPermitSignature).toBeDefined();
+    expect(insertedValues?.status).toBe("trialing");
+    expect(insertedValues?.pendingPermitSignature).toBeDefined();
 
     // Assert that writeContract was NOT called
     expect(writeContract).not.toHaveBeenCalled();
