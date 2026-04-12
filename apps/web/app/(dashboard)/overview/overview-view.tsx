@@ -12,6 +12,8 @@ import {
   EmptyState,
   col,
 } from "@/components/paykit";
+import { RevenueChart } from "@/components/charts/revenue-chart";
+import { SubscriptionsChart } from "@/components/charts/subscriptions-chart";
 
 type RecentPayment = {
   id: string;
@@ -36,6 +38,8 @@ interface OverviewViewProps {
   activeTrials: number;
   convertingSoon: number;
   recentPayments: RecentPayment[];
+  revenueByDay: Array<{ date: string; total: number }>;
+  subsGrowth: Array<{ date: string; cumulative: number }>;
 }
 
 export default function OverviewView({
@@ -46,6 +50,8 @@ export default function OverviewView({
   activeTrials,
   convertingSoon,
   recentPayments,
+  revenueByDay,
+  subsGrowth,
 }: OverviewViewProps) {
   return (
     <PageShell>
@@ -68,6 +74,11 @@ export default function OverviewView({
           hint={`${convertingSoon.toLocaleString()} converting in next 7 days`}
         />
       </MetricGrid>
+
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <RevenueChart data={revenueByDay} />
+        <SubscriptionsChart data={subsGrowth} />
+      </div>
 
       <Section
         title="Recent Payments"

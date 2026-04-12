@@ -22,6 +22,9 @@ export default async function OverviewPage() {
     recentPayments,
     [profile],
     [wallet],
+    revenueByDayRaw,
+    subsGrowthRaw,
+    subsBeforeWindowResult,
   ] = await Promise.all([
     db
       .select({ total: sum(payments.amount) })
@@ -91,6 +94,45 @@ export default async function OverviewPage() {
       .select()
       .from(merchantPayoutWallets)
       .where(eq(merchantPayoutWallets.organizationId, organizationId)),
+    db
+      .select({
+        date: sql<string>`to_char(${payments.createdAt}, 'YYYY-MM-DD')`,
+        total: sql<number>`coalesce(sum(${payments.amount}), 0)`,
+      })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.organizationId, organizationId),
+          eq(payments.status, "confirmed"),
+          gte(payments.createdAt, thirtyDaysAgo),
+        ),
+      )
+      .groupBy(sql`to_char(${payments.createdAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${payments.createdAt}, 'YYYY-MM-DD')`),
+    db
+      .select({
+        date: sql<string>`to_char(${subscriptions.createdAt}, 'YYYY-MM-DD')`,
+        count: sql<number>`count(*)`,
+      })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.organizationId, organizationId),
+          gte(subscriptions.createdAt, thirtyDaysAgo),
+        ),
+      )
+      .groupBy(sql`to_char(${subscriptions.createdAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${subscriptions.createdAt}, 'YYYY-MM-DD')`),
+    db
+      .select({ count: count() })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.organizationId, organizationId),
+          eq(subscriptions.status, "active"),
+          sql`${subscriptions.createdAt} < ${thirtyDaysAgo}`,
+        ),
+      ),
   ]);
 
   const totalRevenue = Number(totalRevenueResult[0]?.total ?? 0);
@@ -99,6 +141,10 @@ export default async function OverviewPage() {
   const activeSubs = activeSubsResult[0]?.count ?? 0;
   const activeTrials = activeTrialsResult[0]?.count ?? 0;
   const convertingSoon = convertingSoonResult[0]?.count ?? 0;
+
+  const revenueByDay = fillDateRange(revenueByDayRaw, "total");
+  const subsBeforeWindow = subsBeforeWindowResult[0]?.count ?? 0;
+  const subsGrowth = buildCumulativeSubs(subsGrowthRaw, subsBeforeWindow);
 
   const needsProfile = !profile || !profile.legalName;
   const needsWallet = !wallet;
@@ -123,7 +169,42 @@ export default async function OverviewPage() {
         activeTrials={activeTrials}
         convertingSoon={convertingSoon}
         recentPayments={recentPayments}
+        revenueByDay={revenueByDay}
+        subsGrowth={subsGrowth}
       />
     </>
   );
+}
+
+function fillDateRange(
+  data: Array<{ date: string; total: number }>,
+  valueKey: string,
+  days = 30,
+) {
+  const map = new Map(
+    data.map((d) => [d.date, Number(d[valueKey as keyof typeof d] ?? 0) / 100]),
+  );
+  const result: Array<{ date: string; total: number }> = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    result.push({ date: key, total: map.get(key) ?? 0 });
+  }
+  return result;
+}
+
+function buildCumulativeSubs(
+  data: Array<{ date: string; count: number }>,
+  startingCount: number,
+) {
+  const map = new Map(data.map((d) => [d.date, Number(d.count)]));
+  const result: Array<{ date: string; cumulative: number }> = [];
+  let cumulative = startingCount;
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    const key = d.toISOString().slice(0, 10);
+    cumulative += map.get(key) ?? 0;
+    result.push({ date: key, cumulative });
+  }
+  return result;
 }
