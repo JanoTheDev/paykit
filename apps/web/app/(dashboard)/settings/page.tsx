@@ -18,7 +18,6 @@ import {
   type BusinessProfile,
 } from "@/components/settings/business-profile-section";
 import { TeamQuickInvite } from "@/components/settings/team-quick-invite";
-import { AuditLogSection } from "@/components/settings/audit-log-section";
 
 interface UserSettings {
   id: string;
@@ -424,7 +423,6 @@ export default function SettingsPage() {
         </FormActions>
       </FormSection>
 
-      <AuditLogSection />
     </PageShell>
   );
 }

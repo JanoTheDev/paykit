@@ -12,6 +12,7 @@ import {
   Key,
   Webhook,
   Settings,
+  Shield,
   LogOut,
 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/customers", label: "Customers", icon: UserCircle },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/api-keys", label: "API Keys", icon: Key },
+  { href: "/audit-log", label: "Audit Log", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
