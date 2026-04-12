@@ -7,8 +7,9 @@ export async function checkExistingSubscription(args: {
   productId: string;
   buyerWallet: string;
   customerIdentifier: string | null;
+  intent: "trial" | "subscription";
 }): Promise<{ exists: boolean }> {
-  const { organizationId, productId, buyerWallet, customerIdentifier } = args;
+  const { organizationId, productId, buyerWallet, customerIdentifier, intent } = args;
 
   let matchedCustomer: { id: string; email: string | null } | null = null;
   if (customerIdentifier) {
@@ -41,6 +42,22 @@ export async function checkExistingSubscription(args: {
     )`);
   }
 
+  const statusFilter =
+    intent === "trial"
+      ? or(
+          eq(subscriptions.status, "trialing"),
+          eq(subscriptions.status, "active"),
+          eq(subscriptions.status, "past_due"),
+          eq(subscriptions.status, "cancelled"),
+          eq(subscriptions.status, "trial_conversion_failed"),
+          eq(subscriptions.status, "expired"),
+        )
+      : or(
+          eq(subscriptions.status, "trialing"),
+          eq(subscriptions.status, "active"),
+          eq(subscriptions.status, "past_due"),
+        );
+
   const existing = await db
     .select({ id: subscriptions.id })
     .from(subscriptions)
@@ -48,11 +65,7 @@ export async function checkExistingSubscription(args: {
       and(
         eq(subscriptions.organizationId, organizationId),
         eq(subscriptions.productId, productId),
-        or(
-          eq(subscriptions.status, "trialing"),
-          eq(subscriptions.status, "active"),
-          eq(subscriptions.status, "past_due"),
-        ),
+        statusFilter,
         or(...conditions),
       ),
     )

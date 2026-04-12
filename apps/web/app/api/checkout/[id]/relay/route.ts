@@ -19,6 +19,7 @@ import {
 import { acquireRelayLock, releaseRelayLock } from "./lock";
 import { checkExistingSubscription } from "./dedup";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { signPortalToken } from "@/lib/portal-tokens";
 
 function errorResponse(err: ValidationError, status = 400) {
   return NextResponse.json({ error: err }, { status });
@@ -167,6 +168,7 @@ export async function POST(
       productId: session.productId,
       buyerWallet: buyer,
       customerIdentifier: session.customerId ?? null,
+      intent: "trial",
     });
 
     if (dedup.exists) {
@@ -174,8 +176,7 @@ export async function POST(
         {
           error: {
             code: "duplicate_subscription",
-            message:
-              "This customer already has an active or trialing subscription for this product.",
+            message: "You've already used the free trial for this product.",
           },
         },
         { status: 409 },
@@ -274,6 +275,8 @@ export async function POST(
       trial: true,
       subscriptionId: newSub.id,
       trialEndsAt: trialEndsAt.toISOString(),
+      customerUuid: customer.id,
+      portalToken: signPortalToken(customer.id),
     });
   }
 
@@ -283,6 +286,7 @@ export async function POST(
       productId: session.productId,
       buyerWallet: buyer,
       customerIdentifier: session.customerId ?? null,
+      intent: "subscription",
     });
     if (dedup.exists) {
       return NextResponse.json(

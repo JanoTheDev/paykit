@@ -516,9 +516,13 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
         trial?: boolean;
         subscriptionId?: string;
         trialEndsAt?: string;
+        customerUuid?: string;
+        portalToken?: string;
       };
 
       if (relayBody.trial) {
+        if (relayBody.customerUuid) setCustomerUuid(relayBody.customerUuid);
+        if (relayBody.portalToken) setPortalToken(relayBody.portalToken);
         setStatus("completed");
         setPayStep("idle");
         payLockRef.current = false;

@@ -421,6 +421,50 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     expect(writeContract).not.toHaveBeenCalled();
   });
 
+  it("blocks trial checkout when customer previously cancelled a trial on same product", async () => {
+    const selectFromChain = {
+      from: vi.fn(function () {
+        return {
+          innerJoin: vi.fn(function () {
+            return {
+              where: vi.fn().mockResolvedValue([TRIAL_SESSION]),
+            };
+          }),
+        };
+      }),
+    };
+    mockDb.select.mockReturnValueOnce(selectFromChain);
+
+    // Dedup subscriptions query returns a cancelled row — the new
+    // trial-intent filter must still flag this as a duplicate.
+    const selectExistingSubsChain = {
+      from: vi.fn(function () {
+        return {
+          where: vi.fn(function () {
+            return {
+              limit: vi
+                .fn()
+                .mockResolvedValue([{ id: "cancelled-sub-1" }]),
+            };
+          }),
+        };
+      }),
+    };
+    mockDb.select.mockReturnValueOnce(selectExistingSubsChain);
+
+    const res = await POST(makeRequest(VALID_BODY), {
+      params: Promise.resolve({ id: "sess-1" }),
+    });
+
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.error.code).toBe("duplicate_subscription");
+    expect(json.error.message).toBe(
+      "You've already used the free trial for this product.",
+    );
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
   it("allows different customer on same product (no duplicate)", async () => {
     const selectFromChain = {
       from: vi.fn(function () {
