@@ -511,10 +511,29 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
         throw new Error(errMsg);
       }
 
-      const { txHash: relayedTxHash } = (await relayRes.json()) as {
-        txHash: `0x${string}`;
+      const relayBody = (await relayRes.json()) as {
+        txHash?: `0x${string}`;
+        trial?: boolean;
+        subscriptionId?: string;
+        trialEndsAt?: string;
       };
-      setTxHash(relayedTxHash);
+
+      if (relayBody.trial) {
+        setStatus("completed");
+        setPayStep("idle");
+        payLockRef.current = false;
+        if (session.successUrl) {
+          setTimeout(() => {
+            window.location.href = session.successUrl!;
+          }, 1500);
+        }
+        return;
+      }
+
+      if (!relayBody.txHash) {
+        throw new Error("Relay returned no txHash");
+      }
+      setTxHash(relayBody.txHash);
       setPayStep("confirming");
     } catch (err) {
       console.error("Payment failed:", err);
@@ -633,10 +652,16 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
             <CheckCircle2 size={32} className="text-[color:var(--success)]" />
           </div>
           <h2 className="mb-2 text-xl font-semibold tracking-[-0.4px]">
-            {isSubscription ? "Subscription active!" : "Payment confirmed!"}
+            {isTrial
+              ? "Trial started!"
+              : isSubscription
+              ? "Subscription active!"
+              : "Payment confirmed!"}
           </h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            {isSubscription
+            {isTrial
+              ? `You won't be charged until your trial ends. First charge of $${displayAmount} ${session.tokenSymbol ?? ""} ${formatInterval(session.billingInterval)}.`
+              : isSubscription
               ? `You'll be charged $${displayAmount} ${formatInterval(session.billingInterval)}. First charge completed.`
               : `$${displayAmount} ${session.tokenSymbol ?? ""} received successfully.`}
           </p>
