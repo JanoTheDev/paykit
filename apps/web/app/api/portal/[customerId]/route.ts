@@ -49,6 +49,9 @@ export async function GET(
       productName: products.name,
       tokenSymbol: subscriptions.tokenSymbol,
       billingInterval: products.billingInterval,
+      trialEndsAt: subscriptions.trialEndsAt,
+      trialConversionLastError: subscriptions.trialConversionLastError,
+      productId: subscriptions.productId,
     })
     .from(subscriptions)
     .innerJoin(products, eq(subscriptions.productId, products.id))

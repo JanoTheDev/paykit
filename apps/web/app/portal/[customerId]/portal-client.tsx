@@ -13,6 +13,7 @@ import {
   ConfirmDialog,
   col,
 } from "@/components/paykit";
+import { formatTrialRemaining } from "@/lib/format-trial";
 
 export interface PortalSubscription {
   id: string;
@@ -23,6 +24,24 @@ export interface PortalSubscription {
   tokenSymbol: string;
   billingInterval: string | null;
   createdAt: string;
+  trialEndsAt: string | null;
+  trialConversionLastError: string | null;
+  productId: string;
+}
+
+function humanizeTrialReason(reason: string | null): string {
+  switch (reason) {
+    case "insufficient_balance":
+      return "Your wallet didn't have enough USDC.";
+    case "allowance_revoked":
+      return "The USDC allowance was revoked.";
+    case "permit_expired":
+      return "The authorization signature expired.";
+    case "nonce_drift":
+      return "Another transaction invalidated the trial signature.";
+    default:
+      return "An unexpected error occurred.";
+  }
 }
 
 export interface PortalPayment {
@@ -95,6 +114,8 @@ export function PortalClient({
   const [cancelTarget, setCancelTarget] = useState<PortalSubscription | null>(
     null,
   );
+  const [cancelTrialTarget, setCancelTrialTarget] =
+    useState<PortalSubscription | null>(null);
 
   async function handleConfirmed() {
     // Trigger the server-component refresh and hold the dialog's "Working..."
@@ -135,55 +156,100 @@ export function PortalClient({
             {subscriptions.map((sub) => {
               const canCancel =
                 sub.status === "active" || sub.status === "past_due";
+              const isTrialing = sub.status === "trialing";
+              const isTrialFailed = sub.status === "trial_conversion_failed";
               return (
                 <div
                   key={sub.id}
-                  className="flex flex-col gap-4 rounded-lg border border-border bg-surface-1 p-5 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-4 rounded-lg border border-border bg-surface-1 p-5"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-base font-semibold">
-                        {sub.productName}
-                      </h3>
-                      <StatusBadge
-                        kind="subscription"
-                        status={
-                          sub.status as
-                            | "active"
-                            | "past_due"
-                            | "cancelled"
-                            | "expired"
-                            | "incomplete"
-                        }
-                      />
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="text-base font-semibold">
+                          {sub.productName}
+                        </h3>
+                        <StatusBadge
+                          kind="subscription"
+                          status={
+                            sub.status as
+                              | "active"
+                              | "past_due"
+                              | "cancelled"
+                              | "expired"
+                              | "incomplete"
+                              | "trialing"
+                              | "trial_conversion_failed"
+                          }
+                        />
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-foreground-muted">
+                        <span>
+                          Next charge:{" "}
+                          <span className="text-foreground">
+                            {canCancel ? formatDate(sub.nextChargeDate) : "—"}
+                          </span>
+                        </span>
+                        {sub.billingInterval && (
+                          <span className="capitalize">
+                            {sub.billingInterval}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-foreground-muted">
-                      <span>
-                        Next charge:{" "}
-                        <span className="text-foreground">
-                          {canCancel ? formatDate(sub.nextChargeDate) : "—"}
-                        </span>
+
+                    <div className="flex items-center gap-4 sm:flex-col sm:items-end">
+                      <span className="text-xs font-mono text-foreground-muted">
+                        {sub.tokenSymbol}
                       </span>
-                      {sub.billingInterval && (
-                        <span className="capitalize">
-                          {sub.billingInterval}
-                        </span>
+                      {canCancel && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setCancelTarget(sub)}
+                        >
+                          Cancel
+                        </Button>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 sm:flex-col sm:items-end">
-                    <span className="text-xs font-mono text-foreground-muted">{sub.tokenSymbol}</span>
-                    {canCancel && (
+                  {isTrialing && (
+                    <div className="flex flex-col gap-3 rounded-lg border border-info/30 bg-info/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          Trial in progress
+                        </p>
+                        <p className="mt-1 font-mono text-xs text-foreground-muted">
+                          Trial {formatTrialRemaining(sub.trialEndsAt)}
+                        </p>
+                      </div>
                       <Button
-                        variant="destructive"
+                        variant="outline"
                         size="sm"
-                        onClick={() => setCancelTarget(sub)}
+                        onClick={() => setCancelTrialTarget(sub)}
                       >
-                        Cancel
+                        Cancel trial
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
+                  {isTrialFailed && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                      <p className="text-sm font-medium text-foreground">
+                        We couldn&apos;t start your subscription
+                      </p>
+                      <p className="mt-1 text-xs text-foreground-muted">
+                        Reason: {humanizeTrialReason(sub.trialConversionLastError)}
+                      </p>
+                      <a
+                        href={`/checkout/restart?subscriptionId=${sub.id}`}
+                        className="mt-3 inline-block text-sm text-destructive hover:underline"
+                      >
+                        Restart subscription →
+                      </a>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -278,6 +344,36 @@ export function PortalClient({
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || "Cancel failed");
+          }
+          await handleConfirmed();
+        }}
+      />
+
+      <ConfirmDialog
+        open={cancelTrialTarget !== null}
+        onOpenChange={(v) => !v && setCancelTrialTarget(null)}
+        title="Cancel trial?"
+        description={
+          cancelTrialTarget
+            ? `No charges have been made yet. Cancelling ends the trial for "${cancelTrialTarget.productName}" now.`
+            : "Cancel this trial?"
+        }
+        confirmLabel="Cancel trial"
+        variant="destructive"
+        onConfirm={async () => {
+          if (!cancelTrialTarget) return;
+          const res = await fetch("/api/portal/cancel-trial", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subscriptionId: cancelTrialTarget.id,
+              customerId,
+              token: portalToken,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || "Cancel trial failed");
           }
           await handleConfirmed();
         }}
