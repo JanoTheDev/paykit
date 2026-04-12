@@ -78,6 +78,13 @@
       "when": 1776355200000,
       "tag": "0012_add_paused_by_column",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1744416000000,
+      "tag": "0013_add_livemode",
+      "breakpoints": true
     }
   ]
 }
