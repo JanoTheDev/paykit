@@ -4,6 +4,12 @@ import { createDb } from "@paylix/db/client";
 import { subscriptions } from "@paylix/db/schema";
 import { eq, lte, and } from "drizzle-orm";
 import { config } from "./config";
+import {
+  classifyDunningOutcome,
+  computeNextRetryAt,
+  RETRY_SCHEDULE_HOURS,
+} from "./dunning";
+import { sendSubscriptionEmail } from "./emails/send-subscription-email";
 
 const DEFAULT_INTERVAL_SECONDS = 30 * 24 * 60 * 60; // 30 days fallback
 
@@ -122,18 +128,52 @@ export async function runKeeper() {
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
       console.log(`[Keeper] Transaction ${receipt.status}: ${txHash} (block ${receipt.blockNumber})`);
+
+      await db
+        .update(subscriptions)
+        .set({
+          chargeFailureCount: 0,
+          lastChargeError: null,
+          lastChargeAttemptAt: new Date(),
+          pastDueSince: null,
+        })
+        .where(eq(subscriptions.id, sub.id));
     } catch (error) {
       console.error(`[Keeper] Failed to charge subscription ${sub.id}:`, error);
-      // Roll back the optimistic bump so we retry next tick.
+
+      const newFailureCount = (sub.chargeFailureCount ?? 0) + 1;
+      const now = new Date();
+      const errMsg = error instanceof Error ? error.message : String(error);
+
+      const outcome = classifyDunningOutcome({
+        failureCount: newFailureCount,
+        hoursPastDue: 0,
+      });
+
+      const update: Partial<typeof subscriptions.$inferInsert> = {
+        chargeFailureCount: newFailureCount,
+        lastChargeError: errMsg,
+        lastChargeAttemptAt: now,
+      };
+
+      if (outcome === "retry") {
+        update.nextChargeDate = computeNextRetryAt(newFailureCount, now);
+      } else {
+        update.status = "past_due";
+        update.pastDueSince = now;
+        update.nextChargeDate = computeNextRetryAt(RETRY_SCHEDULE_HOURS.length, now);
+      }
+
       try {
-        await db
-          .update(subscriptions)
-          .set({ nextChargeDate: originalNextChargeDate })
-          .where(eq(subscriptions.id, sub.id));
-      } catch (rollbackErr) {
-        console.error(
-          `[Keeper] Failed to roll back nextChargeDate for ${sub.id}:`,
-          rollbackErr
+        await db.update(subscriptions).set(update).where(eq(subscriptions.id, sub.id));
+      } catch (dbErr) {
+        console.error(`[Keeper] Failed to persist dunning update for ${sub.id}:`, dbErr);
+      }
+
+      if (outcome === "past_due") {
+        sendSubscriptionEmail({ kind: "past-due-reminder", subscriptionId: sub.id }).catch(
+          (emailErr) =>
+            console.error(`[Keeper] Failed to send past-due email for ${sub.id}:`, emailErr),
         );
       }
     }
