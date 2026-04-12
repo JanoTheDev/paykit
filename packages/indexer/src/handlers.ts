@@ -19,6 +19,7 @@ import { dispatchWebhooks } from "./webhook-dispatch";
 import { buildInvoice } from "./invoices/create";
 import { sendInvoiceEmail } from "./invoices/send-email";
 import { sendSubscriptionEmail } from "./emails/send-subscription-email";
+import { recordAudit } from "./audit";
 
 function currentSubscriptionManagerAddress(): string {
   return config.subscriptionManagerAddress.toLowerCase();

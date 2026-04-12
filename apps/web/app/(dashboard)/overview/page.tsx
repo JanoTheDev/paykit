@@ -1,4 +1,4 @@
-import { and, count, eq, gte, lte, sum, sql } from "drizzle-orm";
+import { and, count, eq, gte, lt, lte, sum, sql } from "drizzle-orm";
 import { payments, subscriptions, merchantProfiles, merchantPayoutWallets, products } from "@paylix/db/schema";
 import { db } from "@/lib/db";
 import { getActiveOrgOrRedirect } from "@/lib/require-active-org";
@@ -151,7 +151,7 @@ export default async function OverviewPage() {
         and(
           eq(subscriptions.organizationId, organizationId),
           eq(subscriptions.status, "active"),
-          sql`${subscriptions.createdAt} < ${thirtyDaysAgo}`,
+          lt(subscriptions.createdAt, thirtyDaysAgo),
         ),
       ),
     // Trial conversion rate: total completed trials
@@ -249,7 +249,10 @@ export default async function OverviewPage() {
         trialConversionRate={trialConversionRate}
         churnRate={churnRate}
         pastDueCount={pastDueCount}
-        recentPayments={recentPayments}
+        recentPayments={recentPayments.map((p) => ({
+          ...p,
+          createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+        }))}
         revenueByDay={revenueByDay}
         subsGrowth={subsGrowth}
       />

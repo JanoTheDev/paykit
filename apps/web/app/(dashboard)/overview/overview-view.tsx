@@ -20,7 +20,7 @@ type RecentPayment = {
   amount: number;
   status: string;
   txHash: string | null;
-  createdAt: Date;
+  createdAt: string | Date;
 };
 
 const recentColumns = [
