@@ -156,21 +156,35 @@ export async function runKeeper() {
         lastChargeAttemptAt: now,
       };
 
-      if (outcome === "retry") {
-        update.nextChargeDate = computeNextRetryAt(newFailureCount, now);
-      } else {
-        update.status = "past_due";
-        update.pastDueSince = now;
-        update.nextChargeDate = computeNextRetryAt(RETRY_SCHEDULE_HOURS.length, now);
+      switch (outcome) {
+        case "retry":
+          update.nextChargeDate = computeNextRetryAt(newFailureCount, now);
+          break;
+        case "past_due":
+          update.status = "past_due";
+          update.pastDueSince = now;
+          update.nextChargeDate = computeNextRetryAt(RETRY_SCHEDULE_HOURS.length, now);
+          break;
+        case "cancel":
+          // Unreachable with hoursPastDue=0 — Task 11's sweep handles long-past-due auto-cancel.
+          console.error(`[Keeper] Unexpected 'cancel' outcome for ${sub.id} with hoursPastDue=0`);
+          update.nextChargeDate = computeNextRetryAt(newFailureCount, now);
+          break;
+        default: {
+          const _exhaustive: never = outcome;
+          console.error(`[Keeper] Unknown dunning outcome: ${String(_exhaustive)}`);
+        }
       }
 
+      let dbWriteOk = false;
       try {
         await db.update(subscriptions).set(update).where(eq(subscriptions.id, sub.id));
+        dbWriteOk = true;
       } catch (dbErr) {
         console.error(`[Keeper] Failed to persist dunning update for ${sub.id}:`, dbErr);
       }
 
-      if (outcome === "past_due") {
+      if (dbWriteOk && outcome === "past_due") {
         sendSubscriptionEmail({ kind: "past-due-reminder", subscriptionId: sub.id }).catch(
           (emailErr) =>
             console.error(`[Keeper] Failed to send past-due email for ${sub.id}:`, emailErr),
