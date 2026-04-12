@@ -14,6 +14,7 @@ import {
 import { CHAIN_ID } from "@/lib/chain";
 import { NETWORKS } from "@paylix/config/networks";
 import { intervalToSeconds, formatInterval } from "@/lib/billing-intervals";
+import { formatTrialDuration } from "@/lib/format-trial";
 import { fromNativeUnits, formatNativeAmount } from "@/lib/amounts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -52,6 +53,8 @@ interface CheckoutSession {
   collectCountry: boolean;
   collectTaxId: boolean;
   billingInterval: string | null;
+  trialDays: number | null;
+  trialMinutes: number | null;
 }
 
 interface CheckoutClientProps {
@@ -534,6 +537,9 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
   })();
   const displayAmount = fromNativeUnits(requiredTokenAmount, tokenDecimals);
 
+  const trialDuration = formatTrialDuration(session.trialDays, session.trialMinutes);
+  const isTrial = trialDuration !== null && session.type === "subscription";
+
   async function handlePickCurrency(
     networkKey: string,
     tokenSymbol: string,
@@ -688,15 +694,26 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
             {session.type === "subscription" && (
               <Badge variant="default">Subscription</Badge>
             )}
+            {isTrial && (
+              <span className="inline-flex items-center rounded-sm bg-info/10 px-2 py-0.5 text-xs font-medium text-info ring-1 ring-inset ring-info/20">
+                Free trial
+              </span>
+            )}
           </div>
           {session.productDescription && (
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
               {session.productDescription}
             </p>
           )}
+          {isTrial && (
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              Free trial — first charge in{" "}
+              <span className="font-mono text-foreground">{trialDuration}</span>
+            </p>
+          )}
           {session.type === "subscription" && (
             <p className="mt-2 text-[13px] text-muted-foreground">
-              You&apos;ll be charged{" "}
+              {isTrial ? "Then " : "You'll be charged "}
               <span className="font-medium text-foreground">
                 ${displayAmount} {session.tokenSymbol ?? "USDC"}
               </span>{" "}
@@ -912,7 +929,9 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
             disabled={!indexerOnline || payStep !== "idle" || isPicking}
           >
             {payStep === "idle" &&
-              (session.type === "subscription"
+              (isTrial
+                ? "Start free trial"
+                : session.type === "subscription"
                 ? `Subscribe for $${displayAmount} ${formatInterval(
                     session.billingInterval,
                   )
@@ -923,6 +942,12 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
             {payStep === "paying" && "Confirm payment..."}
             {payStep === "confirming" && "Processing..."}
           </Button>
+          {isTrial && payStep === "idle" && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              You won&apos;t be charged until the trial ends. Cancel anytime
+              before then.
+            </p>
+          )}
           {payStep !== "idle" && (
             <Alert className="mt-3 border-primary/30 bg-primary/5">
               <AlertDescription className="text-xs">
