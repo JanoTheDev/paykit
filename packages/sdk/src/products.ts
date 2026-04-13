@@ -18,10 +18,10 @@ export async function createProduct(
     body: JSON.stringify(params),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Failed to create product (${res.status})`);
   }
-  return res.json();
+  return (await res.json()) as Product;
 }
 
 export async function getProduct(
@@ -32,10 +32,10 @@ export async function getProduct(
     headers: { Authorization: `Bearer ${config.apiKey}` },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Product not found (${res.status})`);
   }
-  return res.json();
+  return (await res.json()) as Product;
 }
 
 export async function updateProduct(
@@ -52,10 +52,10 @@ export async function updateProduct(
     body: JSON.stringify(params),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Failed to update product (${res.status})`);
   }
-  return res.json();
+  return (await res.json()) as Product;
 }
 
 export async function listProducts(
@@ -65,8 +65,8 @@ export async function listProducts(
     headers: { Authorization: `Bearer ${config.apiKey}` },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Failed to list products (${res.status})`);
   }
-  return res.json();
+  return (await res.json()) as Product[];
 }

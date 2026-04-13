@@ -31,11 +31,11 @@ export async function createSubscription(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
+    const error = (await response.json().catch(() => ({ error: "Request failed" }))) as { error?: string };
     throw new Error(`Paylix subscription failed: ${error.error || response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as { checkoutUrl: string; checkoutId: string; trialEndsAt?: string };
   return {
     checkoutUrl: data.checkoutUrl,
     checkoutId: data.checkoutId,
@@ -56,7 +56,7 @@ export async function cancelSubscription(
   );
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
+    const error = (await response.json().catch(() => ({ error: "Request failed" }))) as { error?: string };
     throw new Error(`Paylix cancel failed: ${error.error || response.statusText}`);
   }
 }
@@ -78,7 +78,7 @@ export async function updateSubscriptionWallet(
   );
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
+    const error = (await response.json().catch(() => ({ error: "Request failed" }))) as { error?: string };
     throw new Error(`Paylix wallet update failed: ${error.error || response.statusText}`);
   }
 }

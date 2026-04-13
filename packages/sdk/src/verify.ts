@@ -12,9 +12,9 @@ export async function verifyPayment(
   );
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Request failed" }));
+    const error = (await response.json().catch(() => ({ error: "Request failed" }))) as { error?: string };
     throw new Error(`Paylix verify failed: ${error.error || response.statusText}`);
   }
 
-  return response.json();
+  return (await response.json()) as VerifyPaymentResult;
 }

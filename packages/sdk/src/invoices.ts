@@ -15,10 +15,10 @@ export async function createPortalSession(
     { headers: { Authorization: `Bearer ${config.apiKey}` } }
   );
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Request failed" }));
+    const err = (await res.json().catch(() => ({ error: "Request failed" }))) as { error?: string };
     throw new Error(`Paylix createPortalSession failed: ${err.error || res.statusText}`);
   }
-  return res.json();
+  return (await res.json()) as CreatePortalSessionResult;
 }
 
 export async function listCustomerInvoices(
@@ -30,8 +30,8 @@ export async function listCustomerInvoices(
     { headers: { Authorization: `Bearer ${config.apiKey}` } }
   );
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Request failed" }));
+    const err = (await res.json().catch(() => ({ error: "Request failed" }))) as { error?: string };
     throw new Error(`Paylix listCustomerInvoices failed: ${err.error || res.statusText}`);
   }
-  return res.json();
+  return (await res.json()) as ListCustomerInvoicesResult;
 }

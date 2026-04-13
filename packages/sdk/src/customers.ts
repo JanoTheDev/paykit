@@ -19,10 +19,10 @@ export async function createCustomer(
     body: JSON.stringify(params),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Failed to create customer (${res.status})`);
   }
-  const data = await res.json();
+  const data = (await res.json()) as { customer: Customer };
   return data.customer;
 }
 
@@ -34,10 +34,10 @@ export async function getCustomer(
     headers: { Authorization: `Bearer ${config.apiKey}` },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Customer not found (${res.status})`);
   }
-  return res.json();
+  return (await res.json()) as CustomerDetail;
 }
 
 export async function updateCustomer(
@@ -54,10 +54,10 @@ export async function updateCustomer(
     body: JSON.stringify(params),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Failed to update customer (${res.status})`);
   }
-  const data = await res.json();
+  const data = (await res.json()) as { customer: Customer };
   return data.customer;
 }
 
@@ -68,10 +68,10 @@ export async function listCustomers(
     headers: { Authorization: `Bearer ${config.apiKey}` },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Failed to list customers (${res.status})`);
   }
-  return res.json();
+  return (await res.json()) as Customer[];
 }
 
 export async function deleteCustomer(
@@ -83,8 +83,8 @@ export async function deleteCustomer(
     headers: { Authorization: `Bearer ${config.apiKey}` },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new Error(body?.error?.message ?? `Failed to delete customer (${res.status})`);
   }
-  return res.json();
+  return (await res.json()) as { ok: true };
 }
