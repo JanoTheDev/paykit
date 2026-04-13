@@ -6,47 +6,199 @@ import { and, eq, gt } from "drizzle-orm";
 import { apiError } from "./api-error";
 
 const TTL_MS = 24 * 60 * 60 * 1000;
+const POLL_INTERVAL_MS = 100;
+const MAX_POLL_DURATION_MS = 10_000;
+export const STALE_SENTINEL_MS = 30_000;
 
 export function hashRequestBody(body: string): string {
   return createHash("sha256").update(body).digest("hex");
 }
 
-type ExistingRow = {
+type SentinelRow = {
   requestHash: string;
-  responseStatus: number;
+  responseStatus: number | null;
   responseBody: unknown;
-} | null;
+  completedAt: Date | null;
+  createdAt: Date;
+};
 
-export type IdempotencyResult =
+export type SentinelResult =
   | { kind: "miss" }
   | { kind: "hit"; responseStatus: number; responseBody: unknown }
+  | { kind: "processing" }
+  | { kind: "stale" }
   | { kind: "conflict" };
 
-export function evaluateIdempotency(input: {
-  existing: ExistingRow;
+export function evaluateSentinel(input: {
+  existing: SentinelRow | null;
   requestHash: string;
-}): IdempotencyResult {
+  now: Date;
+}): SentinelResult {
   if (!input.existing) return { kind: "miss" };
   if (input.existing.requestHash !== input.requestHash) return { kind: "conflict" };
-  return {
-    kind: "hit",
-    responseStatus: input.existing.responseStatus,
-    responseBody: input.existing.responseBody,
-  };
+
+  if (input.existing.completedAt !== null && input.existing.responseStatus !== null) {
+    return {
+      kind: "hit",
+      responseStatus: input.existing.responseStatus,
+      responseBody: input.existing.responseBody,
+    };
+  }
+
+  const age = input.now.getTime() - input.existing.createdAt.getTime();
+  if (age > STALE_SENTINEL_MS) {
+    return { kind: "stale" };
+  }
+
+  return { kind: "processing" };
 }
 
-/**
- * Wraps an API handler with idempotency. Pass the request, the org id, and a
- * function that produces the response. If the request has no Idempotency-Key
- * header, the handler runs unchanged. Body must be JSON.
- *
- * Known limitation: two concurrent requests with the same key that both miss
- * the cache will both run the handler. The second insert is absorbed by
- * onConflictDoNothing(), but both callers receive their own handler result —
- * so non-deterministic handlers (e.g. a checkout that mints an ID) can still
- * produce duplicates under parallel load. Fixing this requires a two-phase
- * insert (sentinel row + later update) or an advisory lock and is deferred.
- */
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function readSentinel(organizationId: string, key: string): Promise<SentinelRow | null> {
+  const [row] = await db
+    .select({
+      requestHash: idempotencyKeys.requestHash,
+      responseStatus: idempotencyKeys.responseStatus,
+      responseBody: idempotencyKeys.responseBody,
+      completedAt: idempotencyKeys.completedAt,
+      createdAt: idempotencyKeys.createdAt,
+    })
+    .from(idempotencyKeys)
+    .where(
+      and(
+        eq(idempotencyKeys.organizationId, organizationId),
+        eq(idempotencyKeys.key, key),
+        gt(idempotencyKeys.expiresAt, new Date()),
+      ),
+    );
+  return row ?? null;
+}
+
+async function deleteSentinel(organizationId: string, key: string): Promise<void> {
+  await db
+    .delete(idempotencyKeys)
+    .where(
+      and(
+        eq(idempotencyKeys.organizationId, organizationId),
+        eq(idempotencyKeys.key, key),
+      ),
+    );
+}
+
+async function runAndStore(
+  organizationId: string,
+  key: string,
+  rawBody: string,
+  handler: (rawBody: string) => Promise<Response>,
+): Promise<Response> {
+  try {
+    const response = await handler(rawBody);
+
+    let responseBody: unknown;
+    try {
+      responseBody = await response.clone().json();
+    } catch {
+      await deleteSentinel(organizationId, key);
+      return response;
+    }
+
+    await db
+      .update(idempotencyKeys)
+      .set({
+        responseStatus: response.status,
+        responseBody,
+        completedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(idempotencyKeys.organizationId, organizationId),
+          eq(idempotencyKeys.key, key),
+        ),
+      );
+
+    return response;
+  } catch (err) {
+    await deleteSentinel(organizationId, key);
+    throw err;
+  }
+}
+
+async function pollForSentinel(
+  organizationId: string,
+  key: string,
+  rawBody: string,
+  requestHash: string,
+  handler: (rawBody: string) => Promise<Response>,
+  deadline: number,
+): Promise<Response> {
+  while (Date.now() < deadline) {
+    const row = await readSentinel(organizationId, key);
+    const decision = evaluateSentinel({
+      existing: row,
+      requestHash,
+      now: new Date(),
+    });
+
+    if (decision.kind === "hit") {
+      return NextResponse.json(decision.responseBody, { status: decision.responseStatus });
+    }
+
+    if (decision.kind === "conflict") {
+      return apiError(
+        "idempotency_key_reused",
+        "Idempotency-Key was reused with a different request body.",
+        409,
+      );
+    }
+
+    if (decision.kind === "miss") {
+      return runIdempotency(organizationId, key, rawBody, requestHash, handler, deadline);
+    }
+
+    if (decision.kind === "stale") {
+      await deleteSentinel(organizationId, key);
+      return runIdempotency(organizationId, key, rawBody, requestHash, handler, deadline);
+    }
+
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  return apiError(
+    "idempotency_processing_timeout",
+    "Another request with the same Idempotency-Key is still processing. Retry after a short delay.",
+    503,
+  );
+}
+
+async function runIdempotency(
+  organizationId: string,
+  key: string,
+  rawBody: string,
+  requestHash: string,
+  handler: (rawBody: string) => Promise<Response>,
+  deadline: number,
+): Promise<Response> {
+  const reserveAttempt = await db
+    .insert(idempotencyKeys)
+    .values({
+      organizationId,
+      key,
+      requestHash,
+      expiresAt: new Date(Date.now() + TTL_MS),
+    })
+    .onConflictDoNothing()
+    .returning({ requestHash: idempotencyKeys.requestHash });
+
+  if (reserveAttempt.length > 0) {
+    return runAndStore(organizationId, key, rawBody, handler);
+  }
+
+  return pollForSentinel(organizationId, key, rawBody, requestHash, handler, deadline);
+}
+
 export async function withIdempotency(
   request: Request,
   organizationId: string,
@@ -68,57 +220,7 @@ export async function withIdempotency(
   }
 
   const requestHash = hashRequestBody(rawBody);
+  const deadline = Date.now() + MAX_POLL_DURATION_MS;
 
-  const [existing] = await db
-    .select({
-      requestHash: idempotencyKeys.requestHash,
-      responseStatus: idempotencyKeys.responseStatus,
-      responseBody: idempotencyKeys.responseBody,
-    })
-    .from(idempotencyKeys)
-    .where(
-      and(
-        eq(idempotencyKeys.organizationId, organizationId),
-        eq(idempotencyKeys.key, key),
-        gt(idempotencyKeys.expiresAt, new Date()),
-      ),
-    );
-
-  const evaluation = evaluateIdempotency({ existing: existing ?? null, requestHash });
-
-  if (evaluation.kind === "hit") {
-    return NextResponse.json(evaluation.responseBody, { status: evaluation.responseStatus });
-  }
-  if (evaluation.kind === "conflict") {
-    return apiError(
-      "idempotency_key_reused",
-      "Idempotency-Key was reused with a different request body.",
-      409,
-    );
-  }
-
-  const response = await handler(rawBody);
-  let body: unknown;
-  try {
-    body = await response.clone().json();
-  } catch {
-    // Non-JSON response — pass through without caching. Idempotency only
-    // covers JSON routes in Paylix; caching binary/empty responses would
-    // require a nullable response_body column.
-    return response;
-  }
-
-  await db
-    .insert(idempotencyKeys)
-    .values({
-      organizationId,
-      key,
-      requestHash,
-      responseStatus: response.status,
-      responseBody: body,
-      expiresAt: new Date(Date.now() + TTL_MS),
-    })
-    .onConflictDoNothing();
-
-  return response;
+  return runIdempotency(organizationId, key, rawBody, requestHash, handler, deadline);
 }
