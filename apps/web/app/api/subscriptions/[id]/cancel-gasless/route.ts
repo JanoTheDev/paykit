@@ -6,6 +6,7 @@ import { subscriptions, user as userTable } from "@paylix/db/schema";
 import { and, eq } from "drizzle-orm";
 import { createRelayerClient } from "@/lib/relayer";
 import { CONTRACTS, SUBSCRIPTION_MANAGER_ABI } from "@/lib/contracts";
+import { resolveDeploymentForMode } from "@/lib/deployment";
 import { authenticateApiKey } from "@/lib/api-auth";
 import { requireActiveOrg } from "@/lib/require-active-org";
 import { getDashboardLivemode } from "@/lib/request-mode";
@@ -118,7 +119,8 @@ export async function POST(
   }
 
   try {
-    const relayer = createRelayerClient();
+    const deployment = resolveDeploymentForMode(merchantLivemode);
+    const relayer = createRelayerClient(deployment);
     const txHash = await relayer.writeContract({
       address: contractAddress,
       abi: SUBSCRIPTION_MANAGER_ABI,

@@ -432,7 +432,7 @@ export async function POST(
   // conversion needed. The old cents × 10_000 math is gone — amounts are
   // whatever the merchant set in the product_prices entry for this
   // (networkKey, tokenSymbol) pair.
-  const relayer = createRelayerClient();
+  const relayer = createRelayerClient(deployment);
   let txHash: `0x${string}`;
 
   try {

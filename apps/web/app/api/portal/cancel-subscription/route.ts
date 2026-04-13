@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { verifyPortalToken } from "@/lib/portal-tokens";
 import { createRelayerClient } from "@/lib/relayer";
 import { CONTRACTS, SUBSCRIPTION_MANAGER_ABI } from "@/lib/contracts";
+import { resolveDeploymentForMode } from "@/lib/deployment";
 
 /**
  * Customer-initiated gasless subscription cancellation. Customer is
@@ -84,7 +85,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const relayer = createRelayerClient();
+    const deployment = resolveDeploymentForMode(sub.livemode);
+    const relayer = createRelayerClient(deployment);
     const txHash = await relayer.writeContract({
       address: contractAddress, // was: CONTRACTS.subscriptionManager
       abi: SUBSCRIPTION_MANAGER_ABI,

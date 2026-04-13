@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { invoices, payments } from "@paylix/db/schema";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { ReceiptPdfDocument } from "@/components/invoice/receipt-pdf-document";
-import { NETWORK } from "@/lib/chain";
+import { NETWORKS, type NetworkKey } from "@paylix/config/networks";
 
 interface Ctx {
   params: Promise<{ token: string }>;
@@ -37,11 +37,14 @@ export async function GET(_req: Request, ctx: Ctx) {
     return new Response("Payment not found", { status: 404 });
   }
 
+  const network = NETWORKS[payment.chain as NetworkKey];
+  const blockExplorer = network?.blockExplorer ?? "https://basescan.org";
+
   const buffer = await renderToBuffer(
     ReceiptPdfDocument({
       invoice,
       payment,
-      blockExplorer: NETWORK.blockExplorer,
+      blockExplorer,
     }),
   );
 

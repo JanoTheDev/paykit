@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { formatEther } from "viem";
-import { createRelayerClient, getRelayerAddress } from "@/lib/relayer";
+import { createPublicClient, http, formatEther } from "viem";
+import { getRelayerAddress } from "@/lib/relayer";
+import { getDeployments } from "@paylix/config/deployments";
 
-// Warn below 0.001 ETH — roughly 200 relayed txs left at typical Base gas
 const LOW_BALANCE_THRESHOLD_WEI = BigInt("1000000000000000");
 
 export async function GET() {
@@ -20,15 +20,26 @@ export async function GET() {
   }
 
   try {
-    const client = createRelayerClient();
-    const balance = await client.getBalance({ address });
-    const low = balance < LOW_BALANCE_THRESHOLD_WEI;
+    const deployments = getDeployments();
+    const balances = await Promise.all(
+      deployments.map(async (d) => {
+        const client = createPublicClient({ chain: d.chain, transport: http(d.rpcUrl) });
+        const balanceWei = await client.getBalance({ address });
+        const balanceEth = formatEther(balanceWei);
+        const low = balanceWei < LOW_BALANCE_THRESHOLD_WEI;
+        return { networkKey: d.networkKey, livemode: d.livemode, balanceEth, low };
+      }),
+    );
+
+    const anyLow = balances.some((b) => b.low);
+    const firstBalance = balances[0]?.balanceEth ?? null;
+
     return NextResponse.json({
       configured: true,
       address,
-      balanceWei: balance.toString(),
-      balanceEth: formatEther(balance),
-      low,
+      low: anyLow,
+      balanceEth: firstBalance,
+      balances,
     });
   } catch (err) {
     return NextResponse.json(
