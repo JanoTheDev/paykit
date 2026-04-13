@@ -12,6 +12,7 @@ import {
   MAX_PAST_DUE_DAYS,
 } from "./dunning";
 import { sendSubscriptionEmail } from "./emails/send-subscription-email";
+import { dispatchWebhooks } from "./webhook-dispatch";
 
 const DEFAULT_INTERVAL_SECONDS = 30 * 24 * 60 * 60; // 30 days fallback
 
@@ -224,7 +225,7 @@ export async function sweepLongPastDue() {
   const db = createDb(config.databaseUrl);
   const cutoff = new Date(Date.now() - MAX_PAST_DUE_DAYS * 24 * 60 * 60 * 1000);
 
-  const expired = await db
+  const cancelled = await db
     .update(subscriptions)
     .set({ status: "cancelled" })
     .where(
@@ -233,11 +234,34 @@ export async function sweepLongPastDue() {
         lte(subscriptions.pastDueSince, cutoff),
       ),
     )
-    .returning({ id: subscriptions.id });
+    .returning({
+      id: subscriptions.id,
+      organizationId: subscriptions.organizationId,
+      onChainId: subscriptions.onChainId,
+      metadata: subscriptions.metadata,
+      livemode: subscriptions.livemode,
+    });
 
-  if (expired.length > 0) {
-    console.log(`[Keeper] Auto-cancelled ${expired.length} long-past-due subscriptions`);
+  if (cancelled.length === 0) return 0;
+
+  console.log(`[Keeper] Auto-cancelled ${cancelled.length} long-past-due subscriptions`);
+
+  for (const sub of cancelled) {
+    try {
+      await dispatchWebhooks(sub.organizationId, "subscription.cancelled", {
+        subscriptionId: sub.id,
+        onChainId: sub.onChainId,
+        status: "cancelled",
+        metadata: sub.metadata ?? {},
+        cancelReason: "past_due_sweep",
+      }, sub.livemode);
+    } catch (err) {
+      console.error(
+        `[Keeper] Failed to dispatch subscription.cancelled webhook for ${sub.id}:`,
+        err,
+      );
+    }
   }
 
-  return expired.length;
+  return cancelled.length;
 }
