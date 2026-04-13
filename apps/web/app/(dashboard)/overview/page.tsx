@@ -47,6 +47,7 @@ export default async function OverviewPage() {
     totalConvertedTrialsResult,
     cancelledLast30dResult,
     pastDueResult,
+    pausedSubsResult,
   ] = await Promise.all([
     db
       .select({ total: sum(payments.amount) })
@@ -198,6 +199,16 @@ export default async function OverviewPage() {
           eq(subscriptions.status, "past_due"),
         ),
       ),
+    // Paused count
+    db
+      .select({ total: count() })
+      .from(subscriptions)
+      .where(
+        and(
+          orgScope(subscriptions, { organizationId, livemode }),
+          eq(subscriptions.status, "paused"),
+        ),
+      ),
   ]);
 
   const totalRevenue = Number(totalRevenueResult[0]?.total ?? 0);
@@ -220,6 +231,7 @@ export default async function OverviewPage() {
     : null;
 
   const pastDueCount = pastDueResult[0]?.total ?? 0;
+  const pausedSubs = pausedSubsResult[0]?.total ?? 0;
 
   const revenueByDay = fillDateRange(revenueByDayRaw, "total");
   const subsBeforeWindow = subsBeforeWindowResult[0]?.count ?? 0;
@@ -250,6 +262,7 @@ export default async function OverviewPage() {
         trialConversionRate={trialConversionRate}
         churnRate={churnRate}
         pastDueCount={pastDueCount}
+        pausedSubs={pausedSubs}
         recentPayments={recentPayments.map((p) => ({
           ...p,
           createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,

@@ -40,6 +40,7 @@ interface OverviewViewProps {
   trialConversionRate: number | null;
   churnRate: number | null;
   pastDueCount: number;
+  pausedSubs: number;
   recentPayments: RecentPayment[];
   revenueByDay: Array<{ date: string; total: number }>;
   subsGrowth: Array<{ date: string; cumulative: number }>;
@@ -55,6 +56,7 @@ export default function OverviewView({
   trialConversionRate,
   churnRate,
   pastDueCount,
+  pausedSubs,
   recentPayments,
   revenueByDay,
   subsGrowth,
@@ -78,6 +80,10 @@ export default function OverviewView({
           label="Active Trials"
           value={activeTrials.toLocaleString()}
           hint={`${convertingSoon.toLocaleString()} converting in next 7 days`}
+        />
+        <MetricCard
+          label="Paused"
+          value={pausedSubs.toLocaleString()}
         />
       </MetricGrid>
 
