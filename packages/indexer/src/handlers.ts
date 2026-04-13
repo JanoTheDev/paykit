@@ -21,6 +21,15 @@ import { sendInvoiceEmail } from "./invoices/send-email";
 import { sendSubscriptionEmail } from "./emails/send-subscription-email";
 import { recordAudit } from "./audit";
 
+export interface HandlerContext {
+  livemode: boolean;
+  networkKey: string;
+  /** The PaymentVault address that emitted this event. */
+  paymentVault: `0x${string}`;
+  /** The SubscriptionManager address that emitted this event. */
+  subscriptionManager: `0x${string}`;
+}
+
 function currentSubscriptionManagerAddress(): string {
   return config.subscriptionManagerAddress.toLowerCase();
 }
@@ -114,7 +123,7 @@ export async function handlePaymentReceived(log: Log, args: {
   productId: `0x${string}`;
   customerId: `0x${string}`;
   timestamp: bigint;
-}) {
+}, ctx?: HandlerContext) {
   console.log("[Handler] PaymentReceived:", {
     txHash: log.transactionHash,
     payer: args.payer,
@@ -410,7 +419,7 @@ export async function handleSubscriptionCreated(log: Log, args: {
   interval: bigint;
   productId: `0x${string}`;
   customerId: `0x${string}`;
-}) {
+}, ctx?: HandlerContext) {
   console.log("[Handler] SubscriptionCreated:", {
     txHash: log.transactionHash,
     subscriptionId: args.subscriptionId.toString(),
@@ -955,7 +964,7 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
   amount: bigint;
   fee: bigint;
   timestamp: bigint;
-}) {
+}, ctx?: HandlerContext) {
   console.log("[Handler] Subscription PaymentReceived:", {
     txHash: log.transactionHash,
     subscriptionId: args.subscriptionId.toString(),
@@ -1203,7 +1212,7 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
 
 export async function handleSubscriptionPastDue(log: Log, args: {
   subscriptionId: bigint;
-}) {
+}, ctx?: HandlerContext) {
   console.log("[Handler] SubscriptionPastDue:", {
     txHash: log.transactionHash,
     subscriptionId: args.subscriptionId.toString(),
@@ -1243,7 +1252,7 @@ export async function handleSubscriptionPastDue(log: Log, args: {
 
 export async function handleSubscriptionCancelled(log: Log, args: {
   subscriptionId: bigint;
-}) {
+}, ctx?: HandlerContext) {
   console.log("[Handler] SubscriptionCancelled:", {
     txHash: log.transactionHash,
     subscriptionId: args.subscriptionId.toString(),

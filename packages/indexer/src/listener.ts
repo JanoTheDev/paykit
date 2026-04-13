@@ -5,7 +5,8 @@ import {
   type Log,
   type PublicClient,
 } from "viem";
-import { config } from "./config";
+import { config, deployments } from "./config";
+import type { Deployment } from "@paylix/config/deployments";
 import { getLastBlock, setLastBlock } from "./cursor";
 import {
   handlePaymentReceived,
@@ -13,6 +14,7 @@ import {
   handleSubscriptionPaymentReceived,
   handleSubscriptionPastDue,
   handleSubscriptionCancelled,
+  type HandlerContext,
 } from "./handlers";
 
 // Indexer never reads from the unsafe head. The default model is "N
@@ -80,10 +82,6 @@ const subscriptionCancelledEvent = parseAbiItem(
   "event SubscriptionCancelled(uint256 indexed subscriptionId)"
 );
 
-function getChain() {
-  return config.chain;
-}
-
 function isRateLimitError(err: unknown): boolean {
   if (!err) return false;
   const msg = err instanceof Error ? err.message : String(err);
@@ -128,63 +126,87 @@ type ContractSpec = {
 };
 
 export async function startListener() {
-  const chain = getChain();
+  if (deployments.length === 0) {
+    throw new Error("[Listener] No deployments configured");
+  }
 
-  // Polling interval for the live loop. Each tick fetches getLogs once per
-  // contract — with the finalized tag we don't need a tight loop because the
-  // finalized head only advances every ~12s on Base anyway.
+  console.log(`[Listener] Starting with ${deployments.length} deployment(s)`);
+
+  // Run each deployment's listener concurrently. They're independent — separate
+  // RPC clients, separate contract sets, no shared state.
+  await Promise.all(deployments.map((d) => startDeploymentListener(d)));
+
+  console.log("[Listener] All deployment listeners active.");
+}
+
+async function startDeploymentListener(deployment: Deployment) {
+  const chain = deployment.chain;
   const livePollMs = parseInt(process.env.RPC_POLL_INTERVAL_MS || "12000", 10);
 
   const client = createPublicClient({
     chain,
-    transport: http(config.rpcUrl),
+    transport: http(deployment.rpcUrl),
   }) as unknown as PublicClient;
 
-  console.log(`[Listener] Watching events on ${chain.name}...`);
-  console.log(`[Listener] PaymentVault: ${config.paymentVaultAddress}`);
-  console.log(`[Listener] SubscriptionManager: ${config.subscriptionManagerAddress}`);
-  console.log(`[Listener] Head mode: ${HEAD_MODE}`);
+  const tag = `${deployment.networkKey}/${deployment.livemode ? "live" : "test"}`;
+  console.log(`[Listener ${tag}] Watching events on ${chain.name}`);
+  console.log(`[Listener ${tag}]   PaymentVault: ${deployment.paymentVault}`);
+  console.log(`[Listener ${tag}]   SubscriptionManager: ${deployment.subscriptionManager}`);
+  console.log(`[Listener ${tag}]   Head mode: ${HEAD_MODE}`);
+
+  const ctx: HandlerContext = {
+    livemode: deployment.livemode,
+    networkKey: deployment.networkKey,
+    paymentVault: deployment.paymentVault,
+    subscriptionManager: deployment.subscriptionManager,
+  };
+
+  // Cursor key prefix uniquely identifies this deployment so multiple
+  // deployments can coexist in the same system_status table without
+  // stepping on each other. Old unprefixed cursor rows become dead data
+  // on first run — we accept a one-time re-backfill rather than migrate.
+  const keyPrefix = `${deployment.networkKey}_${deployment.livemode ? "live" : "test"}`;
 
   const contracts: ContractSpec[] = [
     {
-      key: "payment_vault_payment_received",
-      address: config.paymentVaultAddress,
+      key: `${keyPrefix}_payment_vault_payment_received`,
+      address: deployment.paymentVault,
       event: paymentReceivedEvent,
       eventName: "PaymentReceived",
-      handle: (log, args) => handlePaymentReceived(log, args),
+      handle: (log, args) => handlePaymentReceived(log, args, ctx),
     },
     {
-      key: "subscription_manager_subscription_created",
-      address: config.subscriptionManagerAddress,
+      key: `${keyPrefix}_subscription_manager_subscription_created`,
+      address: deployment.subscriptionManager,
       event: subscriptionCreatedEvent,
       eventName: "SubscriptionCreated",
-      handle: (log, args) => handleSubscriptionCreated(log, args),
+      handle: (log, args) => handleSubscriptionCreated(log, args, ctx),
     },
     {
-      key: "subscription_manager_payment_received",
-      address: config.subscriptionManagerAddress,
+      key: `${keyPrefix}_subscription_manager_payment_received`,
+      address: deployment.subscriptionManager,
       event: subscriptionPaymentReceivedEvent,
       eventName: "PaymentReceived",
-      handle: (log, args) => handleSubscriptionPaymentReceived(log, args),
+      handle: (log, args) => handleSubscriptionPaymentReceived(log, args, ctx),
     },
     {
-      key: "subscription_manager_subscription_past_due",
-      address: config.subscriptionManagerAddress,
+      key: `${keyPrefix}_subscription_manager_subscription_past_due`,
+      address: deployment.subscriptionManager,
       event: subscriptionPastDueEvent,
       eventName: "SubscriptionPastDue",
-      handle: (log, args) => handleSubscriptionPastDue(log, args),
+      handle: (log, args) => handleSubscriptionPastDue(log, args, ctx),
     },
     {
-      key: "subscription_manager_subscription_cancelled",
-      address: config.subscriptionManagerAddress,
+      key: `${keyPrefix}_subscription_manager_subscription_cancelled`,
+      address: deployment.subscriptionManager,
       event: subscriptionCancelledEvent,
       eventName: "SubscriptionCancelled",
-      handle: (log, args) => handleSubscriptionCancelled(log, args),
+      handle: (log, args) => handleSubscriptionCancelled(log, args, ctx),
     },
   ];
 
   const currentBlock = await getHeadBlock(client);
-  console.log(`[Listener] Current head (${HEAD_MODE}): ${currentBlock}`);
+  console.log(`[Listener ${tag}] Current head (${HEAD_MODE}): ${currentBlock}`);
 
   // Chunk size for backfill — Alchemy free tier limits eth_getLogs to 10 blocks.
   // Tunable via env for paid plans.
@@ -334,7 +356,7 @@ export async function startListener() {
       await sleep(livePollMs);
     }
   };
-  poll().catch((err) => console.error("[Listener] Live loop crashed:", err));
+  poll().catch((err) => console.error(`[Listener ${tag}] Live loop crashed:`, err));
 
-  console.log("[Listener] Live polling loop started.");
+  console.log(`[Listener ${tag}] Live polling loop started.`);
 }

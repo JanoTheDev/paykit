@@ -1,7 +1,7 @@
 import { startListener } from "./listener";
 import { runKeeper, sweepLongPastDue } from "./keeper";
 import { runTrialConverterTick, runTrialReminderTick } from "./trial-converter";
-import { config } from "./config";
+import { config, deployments } from "./config";
 import { createDb } from "@paylix/db/client";
 import { systemStatus } from "@paylix/db/schema";
 import { retryFailedWebhooks } from "./webhook-dispatch";
@@ -11,7 +11,10 @@ import { startAlertsLoop } from "./alerts";
 async function main() {
   console.log("=================================");
   console.log("  Paylix Indexer + Keeper");
-  console.log(`  Network: ${config.networkKey}`);
+  console.log(`  Deployments: ${deployments.length}`);
+  for (const d of deployments) {
+    console.log(`    - ${d.networkKey} (${d.livemode ? "live" : "test"})`);
+  }
   console.log("=================================");
 
   // Heartbeat must start BEFORE the listener — startListener() blocks on a
