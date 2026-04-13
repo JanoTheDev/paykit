@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
-import { useAccount, useWaitForTransactionReceipt, useChainId, useSwitchChain, usePublicClient, useSignTypedData } from "wagmi";
+import { useAccount, useReadContract, useWaitForTransactionReceipt, useChainId, useSwitchChain, usePublicClient, useSignTypedData } from "wagmi";
 import { CheckCircle2, Clock } from "lucide-react";
 import { keccak256, stringToBytes } from "viem";
 import {
@@ -52,6 +52,7 @@ interface CheckoutSession {
   billingInterval: string | null;
   trialDays: number | null;
   trialMinutes: number | null;
+  livemode: boolean;
 }
 
 interface CheckoutClientProps {
@@ -199,6 +200,24 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
   const [trialIneligibleReason, setTrialIneligibleReason] = useState<string | null>(null);
+  const [funding, setFunding] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
+
+  const { data: usdcBalance } = useReadContract({
+    address: usdcAddress,
+    abi: [
+      {
+        name: "balanceOf",
+        type: "function",
+        stateMutability: "view",
+        inputs: [{ name: "account", type: "address" }],
+        outputs: [{ name: "", type: "uint256" }],
+      },
+    ] as const,
+    functionName: "balanceOf",
+    args: address ? [address as `0x${string}`] : undefined,
+    query: { enabled: !!address },
+  });
 
   useEffect(() => {
     if (!address) {
@@ -601,9 +620,40 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
   })();
   const displayAmount = fromNativeUnits(requiredTokenAmount, tokenDecimals);
 
+  const isInsufficient =
+    usdcBalance !== undefined
+      ? usdcBalance < requiredTokenAmount
+      : false;
+
   const trialDuration = formatTrialDuration(session.trialDays, session.trialMinutes);
   const productHasTrial = trialDuration !== null && session.type === "subscription";
   const isTrial = productHasTrial && trialEligible !== false;
+
+  async function handleFundWallet() {
+    if (!address) return;
+    setFunding(true);
+    setFundingError(null);
+    try {
+      const res = await fetch(`/api/checkout/${session.id}/fund-wallet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const msg =
+          data?.error?.message ?? data?.error ?? "Failed to fund wallet";
+        setFundingError(typeof msg === "string" ? msg : "Failed to fund wallet");
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 2500));
+      window.location.reload();
+    } catch (err) {
+      setFundingError(err instanceof Error ? err.message : "Failed to fund wallet");
+    } finally {
+      setFunding(false);
+    }
+  }
 
   async function handlePickCurrency(
     networkKey: string,
@@ -1015,6 +1065,29 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
                         );
                       })}
                     </div>
+                  </div>
+                )}
+
+                {!session.livemode && address && isInsufficient && (
+                  <div className="rounded-md border border-[color:var(--warning)]/30 bg-[color:var(--warning)]/5 p-4 text-sm">
+                    <p className="mb-3 font-medium text-[color:var(--warning)]">
+                      Insufficient balance for this payment
+                    </p>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      You&apos;re in test mode. Mint 1000 MockUSDC to your wallet for free to
+                      complete this checkout.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFundWallet}
+                      disabled={funding}
+                    >
+                      {funding ? "Minting…" : "Fund test wallet (1000 MockUSDC)"}
+                    </Button>
+                    {fundingError && (
+                      <p className="mt-3 text-xs text-destructive">{fundingError}</p>
+                    )}
                   </div>
                 )}
 
