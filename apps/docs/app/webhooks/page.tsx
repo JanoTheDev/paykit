@@ -67,32 +67,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  const event = JSON.parse(payload);
+  const webhook = JSON.parse(payload);
 
-  switch (event.type) {
+  switch (webhook.event) {
     case "payment.confirmed":
       // Fulfill the order
-      await fulfillOrder(event.data.productId, event.data.customerId);
+      await fulfillOrder(webhook.data.productId, webhook.data.customerId);
       break;
 
     case "subscription.created":
       // Activate the subscription in your database
-      await activateSubscription(event.data.subscriptionId);
+      await activateSubscription(webhook.data.subscriptionId);
       break;
 
     case "subscription.charged":
       // Record the recurring charge
-      await recordCharge(event.data.subscriptionId, event.data.amount);
+      await recordCharge(webhook.data.subscriptionId, webhook.data.amount);
       break;
 
     case "subscription.past_due":
       // Notify the customer, restrict access
-      await handlePastDue(event.data.subscriptionId);
+      await handlePastDue(webhook.data.subscriptionId);
       break;
 
     case "subscription.cancelled":
       // Revoke access
-      await revokeAccess(event.data.subscriptionId);
+      await revokeAccess(webhook.data.subscriptionId);
       break;
   }
 
@@ -123,8 +123,8 @@ app.post(
       return res.status(401).json({ error: "Invalid signature" });
     }
 
-    const event = JSON.parse(payload);
-    // Handle event...
+    const webhook = JSON.parse(payload);
+    // Handle webhook.event ...
 
     res.json({ received: true });
   }
@@ -134,7 +134,8 @@ app.post(
 
       <p className="text-sm leading-relaxed text-foreground-muted">
         Every webhook body has the same envelope: an <code>event</code> name, an
-        ISO <code>timestamp</code>, and an event-specific <code>data</code>{" "}
+        ISO <code>timestamp</code>, a <code>livemode</code> boolean, and an
+        event-specific <code>data</code>{" "}
         object. Any <code>metadata</code> you set when creating the checkout or
         subscription is echoed back on every event so you can correlate it with
         your own order or user IDs.

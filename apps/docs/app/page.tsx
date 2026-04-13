@@ -133,8 +133,8 @@ const isValid = webhooks.verify({
 });
 
 if (isValid) {
-  const event = JSON.parse(requestBody);
-  switch (event.type) {
+  const webhook = JSON.parse(requestBody);
+  switch (webhook.event) {
     case "payment.confirmed":
       // Fulfill order
       break;

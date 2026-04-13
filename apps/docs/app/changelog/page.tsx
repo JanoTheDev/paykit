@@ -82,12 +82,12 @@ export default function ChangelogPage() {
   "data": { "id": "pay_...", "amount": 1000, "currency": "USDC" }
 }`}</CodeBlock>
       <CodeBlock language="ts">{`app.post("/webhook", async (req, res) => {
-  const event = req.body;
-  if (!event.livemode) {
-    console.log(\`[TEST] \${event.event}\`);
+  const webhook = req.body;
+  if (!webhook.livemode) {
+    console.log(\`[TEST] \${webhook.event}\`);
     return res.status(200).send();
   }
-  await handleLiveEvent(event);
+  await handleLiveEvent(webhook);
   res.status(200).send();
 });`}</CodeBlock>
       <p className="mt-3 text-sm leading-relaxed text-foreground-muted">

@@ -6,18 +6,66 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+type NavItem = { href: string; label: string };
+type NavGroup = { group: string; items: NavItem[] };
+
+const navGroups: (NavItem | NavGroup)[] = [
   { href: "/", label: "Getting Started" },
-  { href: "/sdk-reference", label: "SDK Reference" },
-  { href: "/subscriptions", label: "Subscriptions" },
-  { href: "/webhooks", label: "Webhooks" },
-  { href: "/self-hosting", label: "Self-Hosting" },
-  { href: "/testnet", label: "Testnet Setup" },
+  {
+    group: "API Reference",
+    items: [
+      { href: "/sdk-reference", label: "SDK Reference" },
+      { href: "/products", label: "Products" },
+      { href: "/customers", label: "Customers" },
+      { href: "/error-codes", label: "Error Codes" },
+      { href: "/rate-limits", label: "Rate Limits" },
+    ],
+  },
+  {
+    group: "Frameworks",
+    items: [
+      { href: "/frameworks", label: "Overview" },
+      { href: "/frameworks/nextjs-app-router", label: "Next.js (App Router)" },
+      { href: "/frameworks/nextjs-pages-router", label: "Next.js (Pages Router)" },
+      { href: "/frameworks/react-vite", label: "React (Vite)" },
+      { href: "/frameworks/sveltekit", label: "SvelteKit" },
+      { href: "/frameworks/nuxt", label: "Nuxt 3" },
+      { href: "/frameworks/remix", label: "Remix" },
+      { href: "/frameworks/express", label: "Express / Fastify" },
+    ],
+  },
+  {
+    group: "Features",
+    items: [
+      { href: "/subscriptions", label: "Subscriptions" },
+      { href: "/free-trials", label: "Free Trials" },
+      { href: "/invoices", label: "Invoices" },
+      { href: "/email-notifications", label: "Email Notifications" },
+      { href: "/webhooks", label: "Webhooks" },
+    ],
+  },
+  {
+    group: "Operations",
+    items: [
+      { href: "/self-hosting", label: "Self-Hosting" },
+      { href: "/test-mode", label: "Test Mode" },
+      { href: "/testnet", label: "Testnet Setup" },
+      { href: "/audit-logs", label: "Audit Logs" },
+      { href: "/changelog", label: "API Changelog" },
+      { href: "/webhook-verification", label: "Webhook Verification" },
+    ],
+  },
 ];
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+
+  function isActive(href: string) {
+    return href === "/"
+      ? pathname === "/"
+      : pathname === href || pathname.startsWith(href + "/");
+  }
 
   return (
     <>
@@ -34,27 +82,50 @@ export function MobileNav() {
         </button>
       </header>
       {open && (
-        <div className="fixed inset-0 top-14 z-20 bg-background lg:hidden">
+        <div className="fixed inset-0 top-14 z-20 overflow-y-auto bg-background lg:hidden">
           <nav className="px-2 py-4">
-            {navItems.map(({ href, label }) => {
-              const active =
-                href === "/"
-                  ? pathname === "/"
-                  : pathname === href || pathname.startsWith(href + "/");
+            {navGroups.map((entry) => {
+              if ("href" in entry) {
+                return (
+                  <Link
+                    key={entry.href}
+                    href={entry.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex h-11 items-center rounded-lg px-4 text-sm transition-colors",
+                      isActive(entry.href)
+                        ? "bg-surface-3 text-foreground"
+                        : "text-foreground-muted hover:bg-surface-2 hover:text-foreground",
+                    )}
+                  >
+                    {entry.label}
+                  </Link>
+                );
+              }
+
               return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    "flex h-11 items-center rounded-lg px-4 text-sm transition-colors",
-                    active
-                      ? "bg-surface-3 text-foreground"
-                      : "text-foreground-muted hover:bg-surface-2 hover:text-foreground",
-                  )}
-                >
-                  {label}
-                </Link>
+                <div key={entry.group} className="pt-5 first:pt-0">
+                  <span className="px-4 text-xs font-medium uppercase tracking-wider text-foreground-muted/60">
+                    {entry.group}
+                  </span>
+                  <div className="mt-1.5 space-y-0.5">
+                    {entry.items.map(({ href, label }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "flex h-11 items-center rounded-lg px-4 text-sm transition-colors",
+                          isActive(href)
+                            ? "bg-surface-3 text-foreground"
+                            : "text-foreground-muted hover:bg-surface-2 hover:text-foreground",
+                        )}
+                      >
+                        {label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               );
             })}
           </nav>

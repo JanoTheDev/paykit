@@ -131,9 +131,9 @@ export default async function handler(
     return res.status(401).json({ error: "Invalid signature" });
   }
 
-  const event = JSON.parse(payload);
+  const webhook = JSON.parse(payload);
 
-  switch (event.type) {
+  switch (webhook.event) {
     case "payment.confirmed":
       // fulfill order
       break;

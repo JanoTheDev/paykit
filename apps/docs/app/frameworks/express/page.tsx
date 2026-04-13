@@ -114,9 +114,9 @@ router.post(
 
     if (!valid) return res.status(401).json({ error: "Invalid signature" });
 
-    const event = JSON.parse(payload);
+    const webhook = JSON.parse(payload);
 
-    switch (event.type) {
+    switch (webhook.event) {
       case "payment.confirmed":
         // fulfill order
         break;
@@ -177,8 +177,8 @@ app.post("/api/webhooks/paylix", async (req, reply) => {
 
   if (!valid) return reply.status(401).send({ error: "Invalid signature" });
 
-  const event = JSON.parse(payload);
-  // handle event...
+  const webhook = JSON.parse(payload);
+  // handle webhook.event ...
 
   return { received: true };
 });

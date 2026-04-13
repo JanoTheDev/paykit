@@ -124,9 +124,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  const event = JSON.parse(payload);
+  const webhook = JSON.parse(payload);
 
-  switch (event.type) {
+  switch (webhook.event) {
     case "payment.confirmed":
       // fulfill order
       break;

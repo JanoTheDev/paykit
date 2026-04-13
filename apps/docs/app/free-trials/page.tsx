@@ -64,8 +64,10 @@ export default function FreeTrialsPage() {
       <CodeBlock language="ts">{`const product = await paylix.createProduct({
   name: "Pro Plan",
   type: "subscription",
-  priceCents: 2000,        // $20.00 USDC
-  interval: "monthly",
+  prices: [
+    { networkKey: "base", tokenSymbol: "USDC", amount: 2000 },
+  ],
+  billingInterval: "monthly",
   trialDays: 14,           // 14-day free trial
 });`}</CodeBlock>
 
@@ -84,8 +86,10 @@ export default function FreeTrialsPage() {
       <CodeBlock language="ts">{`const product = await paylix.createProduct({
   name: "Pro Plan (test)",
   type: "subscription",
-  priceCents: 2000,
-  interval: "minutely",
+  prices: [
+    { networkKey: "base-sepolia", tokenSymbol: "USDC", amount: 2000 },
+  ],
+  billingInterval: "minutely",
   trialMinutes: 1,         // converts after 1 minute
 });`}</CodeBlock>
 

@@ -60,6 +60,22 @@ export default function RateLimitsPage() {
         account.
       </p>
 
+      <Callout variant="info" title="Higher limits in test mode">
+        Test-mode keys get higher rate limits to make development easier:{" "}
+        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[12px] text-primary">
+          pk_test_
+        </code>{" "}
+        keys allow 500 req/min and{" "}
+        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[12px] text-primary">
+          sk_test_
+        </code>{" "}
+        keys allow 250 req/min. See{" "}
+        <a href="/test-mode" className="text-primary hover:underline">
+          Test Mode
+        </a>{" "}
+        for the full breakdown.
+      </Callout>
+
       <SectionHeading>Per-IP relay limit</SectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         The checkout relay endpoint is limited to{" "}

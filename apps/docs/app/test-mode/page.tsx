@@ -173,16 +173,16 @@ await paylix.testFaucet({ address: "0x..." });`}</CodeBlock>
         test events.
       </p>
       <CodeBlock language="ts">{`app.post("/webhook", async (req, res) => {
-  const event = req.body;
+  const webhook = req.body;
 
-  if (!event.livemode) {
+  if (!webhook.livemode) {
     // Test-mode event — log it but skip side-effects
-    console.log(\`[TEST] \${event.event} for \${event.data.id}\`);
+    console.log(\`[TEST] \${webhook.event} for \${webhook.data.id}\`);
     return res.status(200).send();
   }
 
   // Real event — run the normal handler
-  await handleLiveEvent(event);
+  await handleLiveEvent(webhook);
   res.status(200).send();
 });`}</CodeBlock>
       <p className="mt-4 text-sm leading-relaxed text-foreground-muted">
