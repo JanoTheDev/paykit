@@ -12,6 +12,7 @@ const db = createDb(config.databaseUrl);
 export interface SendInvoiceEmailArgs {
   invoiceId: string;
   organizationId: string;
+  livemode: boolean;
 }
 
 export async function sendInvoiceEmail(args: SendInvoiceEmailArgs) {
@@ -68,7 +69,7 @@ export async function sendInvoiceEmail(args: SendInvoiceEmailArgs) {
     await dispatchWebhooks(args.organizationId, "invoice.email_sent", {
       invoiceId: invoice.id,
       number: invoice.number,
-    }, false);
+    }, args.livemode);
   } else {
     await db
       .update(invoices)
@@ -78,6 +79,6 @@ export async function sendInvoiceEmail(args: SendInvoiceEmailArgs) {
       invoiceId: invoice.id,
       number: invoice.number,
       error: result.error,
-    }, false);
+    }, args.livemode);
   }
 }

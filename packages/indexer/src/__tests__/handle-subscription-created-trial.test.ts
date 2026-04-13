@@ -255,6 +255,7 @@ describe("handleSubscriptionCreated trial activation", () => {
         subscriptionId: "sub_trial_1",
         onChainId: "42",
       }),
+      false,
     );
 
     // subscription.created webhook dispatched.
@@ -266,6 +267,7 @@ describe("handleSubscriptionCreated trial activation", () => {
         onChainId: "42",
         productId: "prod_1",
       }),
+      false,
     );
   });
 
@@ -285,6 +287,7 @@ describe("handleSubscriptionCreated trial activation", () => {
     expect(dispatchWebhooks).not.toHaveBeenCalledWith(
       expect.anything(),
       "subscription.trial_converted",
+      expect.anything(),
       expect.anything(),
     );
     // Three selects ran (idempotency + trial-match + checkout candidates).
