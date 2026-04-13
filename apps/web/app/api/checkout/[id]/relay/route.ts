@@ -5,10 +5,10 @@ import { db } from "@/lib/db";
 import { checkoutSessions, products, subscriptions, customers } from "@paylix/db/schema";
 import { createRelayerClient } from "@/lib/relayer";
 import {
-  CONTRACTS,
   PAYMENT_VAULT_ABI,
   SUBSCRIPTION_MANAGER_ABI,
 } from "@/lib/contracts";
+import { resolveDeploymentForMode } from "@/lib/deployment";
 import { intervalToSeconds } from "@/lib/billing-intervals";
 import {
   parseRelayBody,
@@ -116,6 +116,7 @@ export async function POST(
       buyerLastName: checkoutSessions.buyerLastName,
       buyerEmail: checkoutSessions.buyerEmail,
       buyerPhone: checkoutSessions.buyerPhone,
+      livemode: checkoutSessions.livemode,
       billingInterval: products.billingInterval,
       trialDays: products.trialDays,
       trialMinutes: products.trialMinutes,
@@ -138,6 +139,8 @@ export async function POST(
     const status = sessionCheck.error.code === "session_not_found" ? 404 : 409;
     return errorResponse(sessionCheck.error, status);
   }
+
+  const deployment = resolveDeploymentForMode(session.livemode);
 
   // 4. Compute on-chain args early (used in both trial and relay branches)
   const tokenAmount = session.amount as bigint;
@@ -350,7 +353,7 @@ export async function POST(
         organizationId: session.organizationId,
         customerId: customer.id,
         subscriberAddress: buyer,
-        contractAddress: CONTRACTS.subscriptionManager.toLowerCase(),
+        contractAddress: deployment.subscriptionManager.toLowerCase(),
         networkKey: session.networkKey!,
         tokenSymbol: session.tokenSymbol!,
         status: "trialing",
@@ -442,12 +445,12 @@ export async function POST(
         );
       }
       txHash = await withRetry(() => relayer.writeContract({
-        address: CONTRACTS.subscriptionManager,
+        address: deployment.subscriptionManager,
         abi: SUBSCRIPTION_MANAGER_ABI,
         functionName: "createSubscriptionWithPermit",
         args: [
           {
-            token: CONTRACTS.usdc,
+            token: deployment.usdcAddress,
             buyer,
             merchant: session.merchantWallet as `0x${string}`,
             amount: tokenAmount,
@@ -465,11 +468,11 @@ export async function POST(
       }));
     } else {
       txHash = await withRetry(() => relayer.writeContract({
-        address: CONTRACTS.paymentVault,
+        address: deployment.paymentVault,
         abi: PAYMENT_VAULT_ABI,
         functionName: "createPaymentWithPermit",
         args: [
-          CONTRACTS.usdc,
+          deployment.usdcAddress,
           buyer,
           session.merchantWallet as `0x${string}`,
           tokenAmount,
