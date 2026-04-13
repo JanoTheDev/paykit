@@ -6,12 +6,10 @@ import { useAccount, useWaitForTransactionReceipt, useChainId, useSwitchChain, u
 import { CheckCircle2, Clock } from "lucide-react";
 import { keccak256, stringToBytes } from "viem";
 import {
-  CONTRACTS,
   ERC20_PERMIT_ABI,
   PAYMENT_VAULT_ABI,
   SUBSCRIPTION_MANAGER_ABI,
 } from "@/lib/contracts";
-import { CHAIN_ID } from "@/lib/chain";
 import { NETWORKS } from "@paylix/config/networks";
 import { intervalToSeconds, formatInterval } from "@/lib/billing-intervals";
 import { formatTrialDuration } from "@/lib/format-trial";
@@ -66,9 +64,13 @@ interface CheckoutClientProps {
     amount: string;
     decimals: number;
   }>;
+  chainId: number;
+  paymentVaultAddress: `0x${string}`;
+  subscriptionManagerAddress: `0x${string}`;
+  usdcAddress: `0x${string}`;
 }
 
-export function CheckoutClient({ session, availablePrices }: CheckoutClientProps) {
+export function CheckoutClient({ session, availablePrices, chainId, paymentVaultAddress, subscriptionManagerAddress, usdcAddress }: CheckoutClientProps) {
   const { open } = useAppKit();
   const { address: wagmiAddress, status: wagmiStatus } = useAccount();
   const { isConnected: appkitConnected, address: appkitAddress } =
@@ -190,10 +192,10 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
   // can enter handlePay twice before payStep flips. The ref closes that gap.
   const payLockRef = useRef(false);
 
-  const chainId = useChainId();
+  const walletChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { signTypedDataAsync } = useSignTypedData();
-  const publicClient = usePublicClient({ chainId: CHAIN_ID });
+  const publicClient = usePublicClient({ chainId });
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
   const [trialIneligibleReason, setTrialIneligibleReason] = useState<string | null>(null);
@@ -241,7 +243,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
     error: txError,
   } = useWaitForTransactionReceipt({
     hash: txHash ?? undefined,
-    chainId: CHAIN_ID,
+    chainId,
   });
 
   // Start polling when tx confirmed
@@ -315,10 +317,10 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
     }
 
     try {
-      // Switch to Base Sepolia if not already on it
-      if (chainId !== CHAIN_ID) {
+      // Switch to target chain if not already on it
+      if (walletChainId !== chainId) {
         setPayStep("approving");
-        await switchChainAsync({ chainId: CHAIN_ID });
+        await switchChainAsync({ chainId });
       }
 
       // session.amount is already in native token units (no conversion needed)
@@ -326,8 +328,8 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
 
       const isSubscription = session.type === "subscription";
       const spender = isSubscription
-        ? CONTRACTS.subscriptionManager
-        : CONTRACTS.paymentVault;
+        ? subscriptionManagerAddress
+        : paymentVaultAddress;
 
       // Gasless flow: buyer signs an EIP-2612 permit (no gas, no transaction),
       // backend relayer submits createPaymentWithPermit/createSubscriptionWithPermit.
@@ -371,7 +373,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
       // Fetch the current on-chain permit nonce
       const [nonce] = await Promise.all([
         publicClient.readContract({
-          address: CONTRACTS.usdc,
+          address: usdcAddress,
           abi: ERC20_PERMIT_ABI,
           functionName: "nonces",
           args: [address as `0x${string}`],
@@ -384,8 +386,8 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
         domain: {
           name: tokenName as string,
           version: tokenVersion as string,
-          chainId: CHAIN_ID,
-          verifyingContract: CONTRACTS.usdc,
+          chainId,
+          verifyingContract: usdcAddress,
         },
         types: {
           Permit: [
@@ -441,7 +443,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
           domain: {
             name: "Paylix SubscriptionManager",
             version: "1",
-            chainId: CHAIN_ID,
+            chainId,
             verifyingContract: spender as `0x${string}`,
           },
           types: {
@@ -461,7 +463,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
           primaryType: "SubscriptionIntent",
           message: {
             buyer: address as `0x${string}`,
-            token: CONTRACTS.usdc,
+            token: usdcAddress,
             merchant: session.merchantWallet as `0x${string}`,
             amount: usdcAmount,
             interval: intervalSeconds,
@@ -477,7 +479,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
           domain: {
             name: "Paylix PaymentVault",
             version: "1",
-            chainId: CHAIN_ID,
+            chainId,
             verifyingContract: spender as `0x${string}`,
           },
           types: {
@@ -495,7 +497,7 @@ export function CheckoutClient({ session, availablePrices }: CheckoutClientProps
           primaryType: "PaymentIntent",
           message: {
             buyer: address as `0x${string}`,
-            token: CONTRACTS.usdc,
+            token: usdcAddress,
             merchant: session.merchantWallet as `0x${string}`,
             amount: usdcAmount,
             productId: productIdBytes,
