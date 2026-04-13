@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import {
+  Callout,
+  CodeBlock,
   PageHeading,
   SectionHeading,
+  SubsectionHeading,
 } from "@/components/docs";
 
 export const metadata: Metadata = { title: "API Changelog" };
@@ -24,9 +27,290 @@ export default function ChangelogPage() {
       />
 
       <SectionHeading>2026-04-12</SectionHeading>
-      <ul className="mt-4 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
+
+      <SubsectionHeading>Test mode and live mode</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Paylix now ships two fully isolated environments: test mode (Base Sepolia
+        + MockUSDC) and live mode (Base mainnet + real USDC). All data — products,
+        customers, subscriptions, payments, invoices, webhooks, API keys — is
+        scoped by mode and never crosses over.
+      </p>
+      <ul className="mt-3 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
         <li>
-          Added free trial support (
+          API keys now carry explicit mode prefixes:{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            pk_test_
+          </code>
+          {" / "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            sk_test_
+          </code>
+          {" / "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            pk_live_
+          </code>
+          {" / "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            sk_live_
+          </code>
+          . The mode is locked to the key prefix — no additional config needed.
+        </li>
+        <li>
+          Test keys get a 2.5x rate limit bonus: 500 req/min publishable, 250
+          req/min secret (live keys: 200 / 100).
+        </li>
+        <li>
+          All resource responses (products, customers, payments, subscriptions,
+          invoices, webhooks, checkout links, API keys) now include a top-level{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            livemode: boolean
+          </code>{" "}
+          field.
+        </li>
+        <li>
+          Webhook event envelopes include{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            livemode
+          </code>{" "}
+          at the top level. HMAC signatures cover it, so tampering is detectable.
+        </li>
+      </ul>
+      <CodeBlock language="json">{`{
+  "event": "payment.confirmed",
+  "timestamp": "2026-04-12T12:00:00Z",
+  "livemode": false,
+  "data": { "id": "pay_...", "amount": 1000, "currency": "USDC" }
+}`}</CodeBlock>
+      <CodeBlock language="ts">{`app.post("/webhook", async (req, res) => {
+  const event = req.body;
+  if (!event.livemode) {
+    console.log(\`[TEST] \${event.event}\`);
+    return res.status(200).send();
+  }
+  await handleLiveEvent(event);
+  res.status(200).send();
+});`}</CodeBlock>
+      <p className="mt-3 text-sm leading-relaxed text-foreground-muted">
+        See{" "}
+        <a href="/test-mode" className="text-primary hover:underline">
+          Test Mode
+        </a>{" "}
+        for the full guide including the going-live checklist.
+      </p>
+
+      <SubsectionHeading>Test-mode faucet</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Test-mode wallets need MockUSDC to complete a checkout. Paylix now
+        provides a faucet so you don&apos;t need Foundry to fund test wallets.
+      </p>
+      <ul className="mt-3 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
+        <li>
+          New SDK method{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            paylix.testFaucet({"{ address, amount? }"})
+          </code>{" "}
+          mints MockUSDC to any wallet. Requires a{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            sk_test_
+          </code>{" "}
+          key — calling it with a live key throws immediately.
+        </li>
+        <li>
+          The test-mode checkout page shows a{" "}
+          <strong className="text-foreground">Fund test wallet</strong> button
+          inline when the connected wallet has insufficient balance.
+        </li>
+        <li>
+          Rate limits: 1 mint per wallet per 24h, max 1000 MockUSDC per request,
+          10 faucet calls per minute per API key, 100 000 MockUSDC global daily
+          cap.
+        </li>
+      </ul>
+      <CodeBlock language="ts">{`import { Paylix } from "@paylix/sdk";
+const paylix = new Paylix({ apiKey: "sk_test_..." });
+
+await paylix.testFaucet({ address: "0xabc..." });
+// Mints 1000 MockUSDC to the address`}</CodeBlock>
+
+      <SubsectionHeading>Idempotency keys</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Write endpoints now accept an{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          Idempotency-Key
+        </code>{" "}
+        header. Retrying the same request with the same key returns the cached
+        response instead of creating a duplicate. Retrying with the same key but
+        a different body returns{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          409 idempotency_key_reused
+        </code>
+        .
+      </p>
+      <ul className="mt-3 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
+        <li>
+          Supported endpoints:{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            POST /api/checkout
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            POST /api/products
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            POST /api/customers
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            POST /api/webhooks
+          </code>
+        </li>
+        <li>Keys are scoped per organization and expire after 24 hours. Max length: 255 characters.</li>
+      </ul>
+      <CodeBlock language="ts">{`const res = await fetch("/api/checkout", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer sk_test_...",
+    "Content-Type": "application/json",
+    "Idempotency-Key": "order-2026-04-12-001",
+  },
+  body: JSON.stringify({ productId: "prod_..." }),
+});`}</CodeBlock>
+
+      <SubsectionHeading>Subscription pause and resume</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Subscriptions can now be paused and resumed without canceling. Pause is
+        DB-only — no on-chain transaction is required. The keeper skips paused
+        subscriptions, and resume shifts{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          nextChargeDate
+        </code>{" "}
+        forward by the paused duration so customers aren&apos;t billed for time
+        they couldn&apos;t use.
+      </p>
+      <ul className="mt-3 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
+        <li>
+          New merchant routes:{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            POST /api/subscriptions/{"{id}"}/pause
+          </code>{" "}
+          and{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            POST /api/subscriptions/{"{id}"}/resume
+          </code>
+        </li>
+        <li>
+          New customer portal routes:{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            POST /api/portal/pause-subscription
+          </code>{" "}
+          and{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            POST /api/portal/resume-subscription
+          </code>
+        </li>
+        <li>
+          Trust enforcement: a subscription paused by the merchant can only be
+          resumed by the merchant, and vice versa for customer-initiated pauses.
+          Cross-party resume returns{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            403 paused_by_other_party
+          </code>
+          .
+        </li>
+        <li>
+          Subscription status now includes{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            paused
+          </code>{" "}
+          alongside the existing values:{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            active
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            past_due
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            cancelled
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            expired
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            trialing
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            trial_conversion_failed
+          </code>
+          .
+        </li>
+      </ul>
+
+      <SubsectionHeading>Smart retries and dunning</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Failed subscription charges now follow an automatic retry schedule
+        instead of immediately flipping to{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          past_due
+        </code>
+        .
+      </p>
+      <ul className="mt-3 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
+        <li>Retry schedule: +1 day, +3 days, +7 days after first failure.</li>
+        <li>
+          After 3 consecutive failures the subscription moves to{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            past_due
+          </code>{" "}
+          and a past-due reminder email fires.
+        </li>
+        <li>
+          Subscriptions in{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            past_due
+          </code>{" "}
+          for more than 14 days are automatically cancelled by the indexer.
+        </li>
+        <li>
+          New columns on subscription rows:{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            chargeFailureCount
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            lastChargeError
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            lastChargeAttemptAt
+          </code>
+          ,{" "}
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            pastDueSince
+          </code>
+          .
+        </li>
+      </ul>
+
+      <Callout variant="info" title="Webhook events for dunning">
+        The existing{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          subscription.past_due
+        </code>{" "}
+        event fires when the subscription flips status after the third failure.
+        Listen to it to trigger your own recovery flow (customer email, grace
+        period, etc.).
+      </Callout>
+
+      <SubsectionHeading>Earlier additions (same date)</SubsectionHeading>
+      <ul className="mt-3 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
+        <li>
+          Free trial support (
           <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             trialDays
           </code>
@@ -34,10 +318,14 @@ export default function ChangelogPage() {
           <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             trialMinutes
           </code>{" "}
-          on products)
+          on products). See{" "}
+          <a href="/free-trials" className="text-primary hover:underline">
+            Free Trials
+          </a>
+          .
         </li>
         <li>
-          Added customer CRUD to SDK (
+          Customer CRUD added to SDK (
           <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             createCustomer
           </code>
@@ -60,7 +348,7 @@ export default function ChangelogPage() {
           )
         </li>
         <li>
-          Added product CRUD to SDK (
+          Product CRUD added to SDK (
           <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             createProduct
           </code>
@@ -79,31 +367,17 @@ export default function ChangelogPage() {
           )
         </li>
         <li>
-          Standardized all API error responses to{" "}
+          All API errors now return{" "}
           <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             {`{ error: { code, message } }`}
           </code>
         </li>
+        <li>Per-API-key rate limiting, audit logging, webhook per-URL rate limiting, CSRF origin check</li>
         <li>
-          Added per-API-key rate limiting (
-          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
-            pk_
-          </code>
-          : 200/min,{" "}
-          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
-            sk_
-          </code>
-          : 100/min)
-        </li>
-        <li>Added audit logging for sensitive operations</li>
-        <li>Added webhook per-URL rate limiting</li>
-        <li>Added CSRF origin check</li>
-        <li>
-          Added{" "}
           <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             x-paylix-version
           </code>{" "}
-          response header
+          response header added to all API responses
         </li>
       </ul>
 
