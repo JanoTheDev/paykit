@@ -9,7 +9,10 @@ import { mintMockUsdc } from "@/lib/faucet";
 import { checkFaucetLimits, FAUCET_WINDOW_MS } from "@/lib/faucet-limits";
 
 export async function POST(request: Request) {
-  const auth = await authenticateApiKey(request);
+  const auth = await authenticateApiKey(request, undefined, {
+    key: "faucet",
+    perMinute: 10,
+  });
   if (auth?.rateLimitResponse) return auth.rateLimitResponse;
   if (!auth) return apiError("unauthorized", "Invalid or missing API key", 401);
 

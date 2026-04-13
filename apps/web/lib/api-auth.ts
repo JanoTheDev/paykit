@@ -20,7 +20,8 @@ export type ApiKeyResult = ApiKeyAuth | ApiKeyRateLimited | null;
 
 export async function authenticateApiKey(
   request: Request,
-  requiredType?: "publishable" | "secret"
+  requiredType?: "publishable" | "secret",
+  routeLimit?: { key: string; perMinute: number },
 ): Promise<ApiKeyResult> {
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) return null;
@@ -49,6 +50,28 @@ export async function authenticateApiKey(
         { status: 429, headers: { "Retry-After": retryAfter } },
       ),
     };
+  }
+
+  if (routeLimit) {
+    const routeRl = await checkRateLimitAsync(
+      `${routeLimit.key}:${found.id}`,
+      routeLimit.perMinute,
+      60_000,
+    );
+    if (!routeRl.ok) {
+      const retryAfter = String(Math.ceil((routeRl.retryAfterMs ?? 0) / 1000));
+      return {
+        rateLimitResponse: NextResponse.json(
+          {
+            error: {
+              code: "rate_limited",
+              message: `Rate limit exceeded for ${routeLimit.key}. Retry in ${retryAfter}s`,
+            },
+          },
+          { status: 429, headers: { "Retry-After": retryAfter } },
+        ),
+      };
+    }
   }
 
   // Fire-and-forget lastUsedAt update; don't block the request on it.
