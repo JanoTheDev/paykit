@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkoutSessions, faucetMints } from "@paylix/db/schema";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, sql, count } from "drizzle-orm";
 import { apiError } from "@/lib/api-error";
 import { resolveDeploymentForMode } from "@/lib/deployment";
 import { mintMockUsdc } from "@/lib/faucet";
 import {
   checkFaucetLimits,
   FAUCET_WINDOW_MS,
-  PER_WALLET_DAILY_LIMIT_WEI,
+  PER_MINT_MAX_WEI,
 } from "@/lib/faucet-limits";
 
 export async function POST(
@@ -51,13 +51,13 @@ export async function POST(
     return apiError("invalid_address", "address must be a valid Ethereum address", 400);
   }
 
-  const amountWei = PER_WALLET_DAILY_LIMIT_WEI;
+  const amountWei = PER_MINT_MAX_WEI;
 
   const deployment = resolveDeploymentForMode(false);
   const cutoff = new Date(Date.now() - FAUCET_WINDOW_MS);
 
-  const walletTotalRow = await db
-    .select({ total: sql<string>`coalesce(sum(${faucetMints.amount}), 0)` })
+  const walletCountRow = await db
+    .select({ mints: count() })
     .from(faucetMints)
     .where(
       and(
@@ -73,7 +73,7 @@ export async function POST(
   const decision = checkFaucetLimits({
     walletAddress: address,
     requestedAmount: amountWei,
-    walletMintedInWindow: BigInt(walletTotalRow[0]?.total ?? "0"),
+    walletMintsInWindow: Number(walletCountRow[0]?.mints ?? 0),
     globalMintedInWindow: BigInt(globalTotalRow[0]?.total ?? "0"),
     now: new Date(),
   });

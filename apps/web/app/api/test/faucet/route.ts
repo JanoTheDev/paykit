@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { faucetMints } from "@paylix/db/schema";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, sql, count } from "drizzle-orm";
 import { authenticateApiKey } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-error";
 import { resolveDeploymentForMode } from "@/lib/deployment";
@@ -43,8 +43,8 @@ export async function POST(request: Request) {
   const deployment = resolveDeploymentForMode(false);
   const cutoff = new Date(Date.now() - FAUCET_WINDOW_MS);
 
-  const walletTotalRow = await db
-    .select({ total: sql<string>`coalesce(sum(${faucetMints.amount}), 0)` })
+  const walletCountRow = await db
+    .select({ mints: count() })
     .from(faucetMints)
     .where(
       and(
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   const decision = checkFaucetLimits({
     walletAddress: address,
     requestedAmount: amountWei,
-    walletMintedInWindow: BigInt(walletTotalRow[0]?.total ?? "0"),
+    walletMintsInWindow: Number(walletCountRow[0]?.mints ?? 0),
     globalMintedInWindow: BigInt(globalTotalRow[0]?.total ?? "0"),
     now: new Date(),
   });

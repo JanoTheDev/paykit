@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   checkFaucetLimits,
-  PER_WALLET_DAILY_LIMIT_WEI,
+  PER_MINT_MAX_WEI,
   GLOBAL_DAILY_LIMIT_WEI,
 } from "./faucet-limits";
 
@@ -9,67 +9,61 @@ describe("checkFaucetLimits", () => {
   const now = new Date("2026-04-12T12:00:00Z");
   const wallet = "0x1111111111111111111111111111111111111111";
 
-  it("allows a mint when no prior mints exist", () => {
+  it("allows a mint when the wallet has no mints in the window", () => {
     const result = checkFaucetLimits({
       walletAddress: wallet,
       requestedAmount: 1_000_000_000n,
-      walletMintedInWindow: 0n,
+      walletMintsInWindow: 0,
       globalMintedInWindow: 0n,
       now,
     });
     expect(result.ok).toBe(true);
   });
 
-  it("denies when wallet total would exceed per-wallet daily cap", () => {
+  it("denies when the wallet has already been funded in the window", () => {
     const result = checkFaucetLimits({
       walletAddress: wallet,
       requestedAmount: 1_000_000_000n,
-      walletMintedInWindow: PER_WALLET_DAILY_LIMIT_WEI,
+      walletMintsInWindow: 1,
       globalMintedInWindow: 0n,
       now,
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("wallet_limit_exceeded");
-    }
+    if (!result.ok) expect(result.code).toBe("wallet_already_funded");
   });
 
   it("denies when global total would exceed daily cap", () => {
     const result = checkFaucetLimits({
       walletAddress: wallet,
       requestedAmount: 1_000_000_000n,
-      walletMintedInWindow: 0n,
+      walletMintsInWindow: 0,
       globalMintedInWindow: GLOBAL_DAILY_LIMIT_WEI,
       now,
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("global_limit_exceeded");
-    }
+    if (!result.ok) expect(result.code).toBe("global_limit_exceeded");
   });
 
-  it("allows exactly at the per-wallet cap boundary", () => {
+  it("rejects amounts over the per-mint max", () => {
     const result = checkFaucetLimits({
       walletAddress: wallet,
-      requestedAmount: 1_000_000_000n,
-      walletMintedInWindow: PER_WALLET_DAILY_LIMIT_WEI - 1_000_000_000n,
-      globalMintedInWindow: 0n,
-      now,
-    });
-    expect(result.ok).toBe(true);
-  });
-
-  it("rejects amounts over the per-wallet cap in a single request", () => {
-    const result = checkFaucetLimits({
-      walletAddress: wallet,
-      requestedAmount: PER_WALLET_DAILY_LIMIT_WEI + 1n,
-      walletMintedInWindow: 0n,
+      requestedAmount: PER_MINT_MAX_WEI + 1n,
+      walletMintsInWindow: 0,
       globalMintedInWindow: 0n,
       now,
     });
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.code).toBe("wallet_limit_exceeded");
-    }
+    if (!result.ok) expect(result.code).toBe("amount_too_large");
+  });
+
+  it("allows exactly the per-mint max", () => {
+    const result = checkFaucetLimits({
+      walletAddress: wallet,
+      requestedAmount: PER_MINT_MAX_WEI,
+      walletMintsInWindow: 0,
+      globalMintedInWindow: 0n,
+      now,
+    });
+    expect(result.ok).toBe(true);
   });
 });
