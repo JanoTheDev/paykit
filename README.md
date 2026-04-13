@@ -1,89 +1,107 @@
 # Paylix
 
-> Open-source crypto payment infrastructure for developers. Accept USDC payments and subscriptions with a few lines of TypeScript.
+> Open-source crypto payments infrastructure. Accept USDC payments and subscriptions on Base with a few lines of TypeScript.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ## What is Paylix?
 
-Paylix lets developers accept one-time and recurring crypto payments without writing Solidity or managing wallets. Smart contracts are fully abstracted behind a clean TypeScript SDK. Self-host the entire platform for free.
+Paylix is a self-hostable payments stack for one-time and recurring USDC billing:
 
-## Quick Start
+- TypeScript SDK (`@paylix/sdk`)
+- Hosted checkout + dashboard (Next.js)
+- On-chain settlement contracts (Foundry)
+- Indexer + keeper for event sync and subscription charging
+
+## Non-Custodial by Design
+
+Paylix is **non-custodial** with **direct settlement**:
+
+- Customer funds are transferred on-chain **directly from buyer wallet to merchant wallet**
+- Paylix does **not** hold user balances in intermediary wallets
+- The platform fee (if enabled) is split during the same on-chain payment flow
+- Buyers can pay gaslessly (relayer pays gas) while USDC still settles directly to the merchant
+
+## Quick Start (SDK)
 
 ```bash
 npm install @paylix/sdk
 ```
 
 ```ts
-import { Paylix } from '@paylix/sdk'
+import { Paylix } from "@paylix/sdk";
 
 const paylix = new Paylix({
-  apiKey: 'pk_test_abc123',
-  network: 'base-sepolia',
-  backendUrl: 'http://localhost:3000',
-})
+  apiKey: "sk_test_...",
+  network: "base-sepolia",
+  backendUrl: "http://localhost:3000",
+});
 
-const { checkoutUrl } = await paylix.createCheckout({
-  productId: 'prod_abc',
-  customerId: 'user_123',
-  successUrl: 'https://myapp.com/success',
-  cancelUrl: 'https://myapp.com/cancel',
-})
-// Redirect your user to checkoutUrl
+const { checkoutUrl, checkoutId } = await paylix.createCheckout({
+  productId: "prod_abc",
+  customerId: "user_123",
+  successUrl: "https://myapp.com/success",
+  cancelUrl: "https://myapp.com/cancel",
+});
+
+// Redirect the customer to checkoutUrl
 ```
 
-## Features
+## Core Features
 
-- **One-time payments** — Accept USDC with a single SDK call
-- **Subscriptions** — Recurring billing with automatic charges
-- **Free trials** — Offer trial periods on subscription products. Customers start without being charged; the first payment fires automatically when the trial ends. Anti-abuse: mandatory email, disposable domain filter, Gmail normalization, wallet activity heuristic, per-product dedup by wallet + email
-- **Dashboard** — Manage products, view payments, track subscribers
-- **Checkout links** — Generate shareable payment links from the dashboard
-- **API keys** — Publishable + secret keys for SDK authentication
-- **Webhooks** — Real-time notifications for payment events
-- **Customer management** — Collect emails, track purchase history
-- **Testnet support** — Full testing on Base Sepolia with mock USDC
-- **Self-hostable** — Deploy with Docker Compose, own your data
-- **0.5% fee** — On officially deployed contracts (0% if self-hosted)
+- **One-time payments** in USDC
+- **Subscriptions** with keeper-driven recurring charges
+- **Free trials** with trialing and trial-conversion lifecycle states
+- **Gasless checkout** via relayer (no ETH required for buyers)
+- **Invoices + receipts** (hosted pages and on-demand PDFs)
+- **Webhooks** for payment and subscription lifecycle events
+- **Customer + product APIs** in the SDK
+- **Checkout links** from the dashboard
+- **Testnet support** on Base Sepolia with MockUSDC
+- **Self-hosting** with Docker Compose and full data ownership
+
+## Monorepo Layout
+
+```text
+apps/
+  web/          Next.js dashboard + API + checkout
+  docs/         Next.js docs site
+packages/
+  sdk/          @paylix/sdk
+  contracts/    Solidity contracts (PaymentVault, SubscriptionManager, MockUSDC)
+  db/           Drizzle schema + migrations
+  indexer/      Event listener + subscription keeper
+  mailer/       Invoice email delivery
+  config/       Shared network/tsconfig utilities
+```
 
 ## Self-Hosting
 
+1) Create environment file:
+
 ```bash
-git clone https://github.com/JanoTheDev/paylix.git
-cd paylix
+cp .env.testnet.example .env
+# or
+# cp .env.mainnet.example .env
+```
 
-# Pick the environment you're running:
-cp .env.testnet.example .env    # Base Sepolia — free, for testing
-# cp .env.mainnet.example .env  # Base mainnet — real money, real deployment
+2) Fill required values in `.env` (RPC, keys, contract addresses, auth secrets).
 
-# Edit .env — at minimum set your RPC_URL and generate fresh wallet keys
+3) Start services:
+
+```bash
 docker compose up -d
 ```
 
-Visit `http://localhost:3000` to create your account and start accepting payments.
+4) Visit `http://localhost:3000` and create your account.
 
-## Architecture
+### What `docker compose` starts
 
-```
-apps/
-  web/          — Next.js dashboard + API + checkout page
-  docs/         — Documentation site
-packages/
-  sdk/          — @paylix/sdk (npm package)
-  contracts/    — Solidity smart contracts (Foundry)
-  db/           — Shared Drizzle schema
-  indexer/      — Blockchain event listener + keeper
-```
+- `web` - dashboard + API
+- `indexer` - blockchain listener + keeper
+- `postgres` - application database
 
-## Tech Stack
-
-- **SDK**: TypeScript + viem
-- **Dashboard**: Next.js 15, Tailwind CSS v4, better-auth, Drizzle ORM
-- **Contracts**: Solidity (Foundry), deployed on Base
-- **Database**: PostgreSQL
-- **Monorepo**: pnpm + Turborepo
-
-## Development
+## Local Development
 
 ```bash
 pnpm install
@@ -92,19 +110,29 @@ pnpm --filter @paylix/db db:push
 pnpm dev
 ```
 
+Useful app-specific dev commands:
+
+```bash
+pnpm --filter @paylix/web dev   # dashboard + API on :3000
+pnpm --filter @paylix/docs dev  # docs site on :3001
+pnpm --filter @paylix/indexer dev
+```
+
 ## Testing
 
 ```bash
-pnpm test                          # run all tests
-pnpm --filter @paylix/sdk test     # SDK tests only
-pnpm --filter @paylix/web test     # API tests only
+pnpm test
+pnpm --filter @paylix/sdk test
+pnpm --filter @paylix/web test
+pnpm --filter @paylix/indexer test
 ```
 
-Smart contract tests (requires Foundry via WSL):
+Contract tests (Foundry via WSL):
+
 ```bash
 wsl bash -lc "cd /mnt/c/path/to/paykit/packages/contracts && ~/.foundry/bin/forge test"
 ```
 
 ## License
 
-[AGPL-3.0](LICENSE) — Free to use, self-host, and modify. If you offer a modified version as a hosted service, you must open-source your changes.
+[AGPL-3.0](LICENSE) - Free to use, self-host, and modify. If you offer a modified version as a hosted service, you must open-source your changes.
