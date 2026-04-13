@@ -156,6 +156,19 @@ export function getAvailableNetworks(): NetworkConfig[] {
 }
 
 /**
+ * Returns every registered network, regardless of active environment. Use this
+ * when the caller needs to support multi-mode at runtime — e.g., wagmi/AppKit
+ * which must let the wallet switch between base-sepolia and base mainnet based
+ * on the current checkout session's mode.
+ *
+ * For UIs that should show only active-environment networks (e.g., a settings
+ * page network picker), use `getAvailableNetworks()` instead.
+ */
+export function getAllNetworks(): NetworkConfig[] {
+  return Object.values(NETWORKS);
+}
+
+/**
  * Resolves a token's on-chain address. Uses the canonical `address` if set
  * (e.g. Circle USDC), otherwise reads the per-deployment env var referenced
  * by `addressEnvVar` (e.g. MockUSDC). Throws loudly if neither path produces

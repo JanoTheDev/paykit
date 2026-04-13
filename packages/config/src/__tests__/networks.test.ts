@@ -4,6 +4,7 @@ import {
   NETWORKS,
   getActiveNetwork,
   getAvailableNetworks,
+  getAllNetworks,
   resolveTokenAddress,
   assertValidNetworkKey,
   assertValidTokenSymbol,
@@ -260,5 +261,22 @@ describe("getToken", () => {
 
   it("throws on unknown symbol", () => {
     expect(() => getToken("base", "DOGE")).toThrow(/DOGE/);
+  });
+});
+
+describe("getAllNetworks", () => {
+  it("returns every network regardless of active environment", () => {
+    const result = getAllNetworks();
+    expect(result.length).toBeGreaterThanOrEqual(2);
+    const keys = result.map((n) => n.key).sort();
+    expect(keys).toContain("base");
+    expect(keys).toContain("base-sepolia");
+  });
+
+  it("includes both mainnet and testnet networks", () => {
+    const result = getAllNetworks();
+    const envs = new Set(result.map((n) => n.environment));
+    expect(envs.has("mainnet")).toBe(true);
+    expect(envs.has("testnet")).toBe(true);
   });
 });
