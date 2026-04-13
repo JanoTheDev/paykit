@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Set up mocks BEFORE importing the route
 const writeContract = vi.fn();
+const checkExistingSubscriptionMock = vi.fn();
 
 const mockDb = {
   select: vi.fn(),
@@ -9,9 +10,31 @@ const mockDb = {
   update: vi.fn(),
 };
 
+const mockDeployment = {
+  network: { key: "base-sepolia", chainId: 84532 },
+  chain: { id: 84532 },
+  chainId: 84532,
+  rpcUrl: "https://test.example",
+  paymentVault: "0x0000000000000000000000000000000000000789" as `0x${string}`,
+  subscriptionManager: "0x0000000000000000000000000000000000000123" as `0x${string}`,
+  usdcAddress: "0x0000000000000000000000000000000000000456" as `0x${string}`,
+};
+
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/relayer", () => ({
   createRelayerClient: () => ({ writeContract }),
+}));
+vi.mock("@/lib/deployment", () => ({
+  resolveDeploymentForMode: vi.fn(() => mockDeployment),
+}));
+vi.mock("./dedup", () => ({
+  checkExistingSubscription: (...args: unknown[]) => checkExistingSubscriptionMock(...args),
+}));
+vi.mock("@/lib/wallet-activity", () => ({
+  checkWalletActivity: vi.fn().mockResolvedValue({ active: true }),
+}));
+vi.mock("@/lib/webhook-dispatch", () => ({
+  dispatchWebhooks: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: () => ({ ok: true }),
@@ -170,6 +193,7 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     writeContract.mockClear();
+    checkExistingSubscriptionMock.mockResolvedValue({ exists: false });
   });
 
   afterEach(() => {
@@ -191,19 +215,7 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     };
     mockDb.select.mockReturnValueOnce(selectFromChain);
 
-    // Setup: 409 guard (no existing trials)
-    const selectExistingTrialsChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi.fn().mockResolvedValue([]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectExistingTrialsChain);
+    // checkExistingSubscription is mocked at module level (returns { exists: false })
 
     // Setup: find customer
     const selectCustomerChain = {
@@ -283,38 +295,11 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     };
     mockDb.select.mockReturnValueOnce(selectFromChain);
 
-    // Trial dedup: hits (wallet has active sub) → auto-fallback.
-    const selectTrialDedupChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "existing-sub-1" }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectTrialDedupChain);
-
-    // Subscription dedup (fallback): also hits with the narrower filter
-    // (status active/trialing/past_due) → final 409.
-    const selectSubDedupChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "existing-sub-1" }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectSubDedupChain);
+    // Trial dedup: hits (wallet has active sub) → auto-fallback, then
+    // subscription-intent dedup also hits → final 409.
+    checkExistingSubscriptionMock
+      .mockResolvedValueOnce({ exists: true })  // trial dedup → fallback
+      .mockResolvedValueOnce({ exists: true }); // subscription dedup → 409
 
     const res = await POST(makeRequest(VALID_BODY), {
       params: Promise.resolve({ id: "sess-1" }),
@@ -344,68 +329,10 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     };
     mockDb.select.mockReturnValueOnce(selectFromChain);
 
-    // Trial dedup: customer lookup returns a customer with no email
-    const selectCustomerLookupChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "cust-1", email: null }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectCustomerLookupChain);
-
-    // Trial dedup: subscription query returns an existing sub matched by customer_id
-    const selectExistingSubsChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "existing-sub" }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectExistingSubsChain);
-
-    // Subscription-intent dedup (fallback): same customer lookup + sub query
-    const selectCustomerLookupChain2 = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "cust-1", email: null }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectCustomerLookupChain2);
-
-    const selectExistingSubsChain2 = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "existing-sub" }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectExistingSubsChain2);
+    // Trial dedup: hits by customer_id → fallback; subscription dedup: also hits → 409.
+    checkExistingSubscriptionMock
+      .mockResolvedValueOnce({ exists: true })  // trial dedup → fallback
+      .mockResolvedValueOnce({ exists: true }); // subscription dedup → 409
 
     const res = await POST(makeRequest(VALID_BODY), {
       params: Promise.resolve({ id: "sess-1" }),
@@ -433,67 +360,10 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     };
     mockDb.select.mockReturnValueOnce(selectFromChain);
 
-    // Trial dedup: customer lookup with email
-    const selectCustomerLookupChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi.fn().mockResolvedValue([
-                { id: "cust-2", email: "buyer@example.com" },
-              ]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectCustomerLookupChain);
-
-    const selectExistingSubsChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "existing-sub-email" }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectExistingSubsChain);
-
-    // Subscription-intent dedup (fallback): repeat
-    const selectCustomerLookupChain2 = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi.fn().mockResolvedValue([
-                { id: "cust-2", email: "buyer@example.com" },
-              ]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectCustomerLookupChain2);
-
-    const selectExistingSubsChain2 = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "existing-sub-email" }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectExistingSubsChain2);
+    // Trial dedup: hits by email → fallback; subscription dedup: also hits → 409.
+    checkExistingSubscriptionMock
+      .mockResolvedValueOnce({ exists: true })  // trial dedup → fallback
+      .mockResolvedValueOnce({ exists: true }); // subscription dedup → 409
 
     const res = await POST(makeRequest(VALID_BODY), {
       params: Promise.resolve({ id: "sess-1" }),
@@ -520,34 +390,10 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     mockDb.select.mockReturnValueOnce(selectFromChain);
 
     // First dedup (trial intent) returns a cancelled row — triggers fallback.
-    const selectTrialDedupChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi
-                .fn()
-                .mockResolvedValue([{ id: "cancelled-sub-1" }]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectTrialDedupChain);
-
     // Second dedup (subscription intent) — no active sub, fallback proceeds.
-    const selectSubDedupChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi.fn().mockResolvedValue([]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectSubDedupChain);
+    checkExistingSubscriptionMock
+      .mockResolvedValueOnce({ exists: true })   // trial dedup → fallback (was cancelled)
+      .mockResolvedValueOnce({ exists: false });  // subscription dedup → no duplicate, proceed
 
     const fakeTxHash =
       "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
@@ -582,19 +428,7 @@ describe("POST /api/checkout/[id]/relay (trial branch)", () => {
     };
     mockDb.select.mockReturnValueOnce(selectFromChain);
 
-    // Dedup subscriptions query: no existing
-    const selectExistingSubsChain = {
-      from: vi.fn(function () {
-        return {
-          where: vi.fn(function () {
-            return {
-              limit: vi.fn().mockResolvedValue([]),
-            };
-          }),
-        };
-      }),
-    };
-    mockDb.select.mockReturnValueOnce(selectExistingSubsChain);
+    // Dedup: no existing subscription (default mock returns { exists: false })
 
     // find customer by (org, identifier) — empty so new customer is inserted
     const selectCustomerChain = {
