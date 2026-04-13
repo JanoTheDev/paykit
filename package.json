@@ -1,6 +1,16 @@
 {
   "name": "paylix",
   "private": true,
+  "description": "Open-source crypto payments infrastructure. Accept USDC payments and subscriptions on Base.",
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JanoTheDev/paylix.git"
+  },
+  "homepage": "https://github.com/JanoTheDev/paylix",
+  "bugs": {
+    "url": "https://github.com/JanoTheDev/paylix/issues"
+  },
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",

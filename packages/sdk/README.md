@@ -14,7 +14,7 @@ npm install @paylix/sdk
 import { Paylix } from '@paylix/sdk'
 
 const paylix = new Paylix({
-  apiKey: 'pk_test_abc123',
+  apiKey: 'sk_test_...',
   network: 'base-sepolia',
   backendUrl: 'http://localhost:3000',
 })

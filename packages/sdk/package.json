@@ -1,6 +1,22 @@
 {
   "name": "@paylix/sdk",
   "version": "0.0.1",
+  "description": "TypeScript SDK for accepting USDC payments and subscriptions via Paylix on Base.",
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JanoTheDev/paylix.git",
+    "directory": "packages/sdk"
+  },
+  "keywords": [
+    "crypto",
+    "payments",
+    "usdc",
+    "base",
+    "subscriptions",
+    "web3",
+    "sdk"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

@@ -10,6 +10,11 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+/// @title PaymentVault
+/// @notice Non-custodial one-time USDC payment settlement. Supports direct
+///         payments and gasless (relayer + permit) flows with EIP-712 intent binding.
+/// @dev Funds move directly from buyer to merchant via safeTransferFrom —
+///      this contract never holds token balances.
 contract PaymentVault is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
     using SafeERC20 for IERC20;
 
@@ -100,6 +105,13 @@ contract PaymentVault is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
         unchecked { intentNonces[buyer] = nonce + 1; }
     }
 
+    /// @notice Execute a direct one-time payment. Caller (buyer) must have
+    ///         pre-approved this contract for at least `amount` of `token`.
+    /// @param token   ERC-20 token address (must be in acceptedTokens)
+    /// @param merchant Recipient of the payment minus platform fee
+    /// @param amount  Total payment amount in token units
+    /// @param productId  Off-chain product identifier
+    /// @param customerId Off-chain customer identifier
     function createPayment(
         address token,
         address merchant,
@@ -134,6 +146,16 @@ contract PaymentVault is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
         bytes32 s;
     }
 
+    /// @notice Gasless payment: relayer submits the buyer's EIP-2612 permit and
+    ///         EIP-712 PaymentIntent signature. Buyer never needs ETH.
+    /// @param token   ERC-20 token address (must be in acceptedTokens)
+    /// @param buyer   Wallet that signed the permit and intent
+    /// @param merchant Recipient of the payment minus platform fee
+    /// @param amount  Total payment amount in token units
+    /// @param productId  Off-chain product identifier
+    /// @param customerId Off-chain customer identifier
+    /// @param permitSig  EIP-2612 permit signature components
+    /// @param intentSignature EIP-712 PaymentIntent signature from the buyer
     function createPaymentWithPermit(
         address token,
         address buyer,
@@ -203,23 +225,27 @@ contract PaymentVault is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
         emit PaymentReceived(buyer, merchant, token, amount, fee, productId, customerId, block.timestamp);
     }
 
+    /// @notice Add or remove a token from the accepted list.
     function setAcceptedToken(address token, bool accepted) external onlyOwner {
         acceptedTokens[token] = accepted;
         emit AcceptedTokenUpdated(token, accepted);
     }
 
+    /// @notice Update the platform fee. Max 1000 bps (10%).
     function setPlatformFee(uint256 _fee) external onlyOwner {
         require(_fee <= 1000, "Fee too high");
         platformFee = _fee;
         emit PlatformFeeUpdated(_fee);
     }
 
+    /// @notice Update the wallet that receives platform fees.
     function setPlatformWallet(address _wallet) external onlyOwner {
         require(_wallet != address(0), "Invalid wallet");
         platformWallet = _wallet;
         emit PlatformWalletUpdated(_wallet);
     }
 
+    /// @notice Set the authorized relayer address for gasless payments.
     function setRelayer(address _relayer) external onlyOwner {
         require(_relayer != address(0), "Invalid relayer address");
         address old = relayer;
@@ -227,6 +253,7 @@ contract PaymentVault is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
         emit RelayerUpdated(old, _relayer);
     }
 
+    /// @notice Toggle gasless payment path without pausing the entire contract.
     function setGaslessPaused(bool _paused) external onlyOwner {
         gaslessPaused = _paused;
         emit GaslessPausedUpdated(_paused);

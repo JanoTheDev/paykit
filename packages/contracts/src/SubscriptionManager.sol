@@ -10,6 +10,12 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+/// @title SubscriptionManager
+/// @notice Non-custodial recurring USDC billing with keeper-driven charges.
+///         Supports direct and gasless (relayer + permit) subscription creation,
+///         automatic past-due handling, and subscriber wallet migration.
+/// @dev Like PaymentVault, this contract never holds token balances — all
+///      transfers are direct buyer-to-merchant via safeTransferFrom.
 contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
     using SafeERC20 for IERC20;
 
@@ -119,6 +125,14 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         unchecked { intentNonces[p.buyer] = nonce + 1; }
     }
 
+    /// @notice Create a subscription and process the first charge immediately.
+    /// @param token    ERC-20 token address (must be in acceptedTokens)
+    /// @param merchant Recipient of recurring payments minus platform fee
+    /// @param amount   Charge amount per interval in token units
+    /// @param interval Seconds between charges
+    /// @param productId  Off-chain product identifier
+    /// @param customerId Off-chain customer identifier
+    /// @return Subscription ID
     function createSubscription(address token, address merchant, uint256 amount, uint256 interval, bytes32 productId, bytes32 customerId) external nonReentrant whenNotPaused returns (uint256) {
         require(acceptedTokens[token], "Token not accepted");
         require(amount > 0, "Amount must be > 0");
@@ -154,6 +168,12 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         bytes32 s;
     }
 
+    /// @notice Gasless subscription creation: relayer submits buyer's permit +
+    ///         EIP-712 SubscriptionIntent signature. The permit value is typically
+    ///         amount * N to cover many billing cycles without re-signing.
+    /// @param p Struct with token, buyer, merchant, amount, interval, permit components
+    /// @param intentSignature EIP-712 SubscriptionIntent signature from the buyer
+    /// @return Subscription ID
     function createSubscriptionWithPermit(
         CreateSubPermitParams calldata p,
         bytes calldata intentSignature
@@ -233,6 +253,10 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         );
     }
 
+    /// @notice Charge a subscription that is due. Callable by subscriber, merchant,
+    ///         or relayer. Moves subscription to PastDue on payment failure instead
+    ///         of reverting, so the keeper stays healthy.
+    /// @param subscriptionId The subscription to charge
     function chargeSubscription(uint256 subscriptionId) external nonReentrant whenNotPaused {
         Subscription storage sub = subscriptions[subscriptionId];
         require(
@@ -254,6 +278,7 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         }
     }
 
+    /// @notice Cancel a subscription. Callable by subscriber or merchant.
     function cancelSubscription(uint256 subscriptionId) external {
         Subscription storage sub = subscriptions[subscriptionId];
         require(msg.sender == sub.subscriber || msg.sender == sub.merchant, "Not authorized");
@@ -263,6 +288,7 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         emit SubscriptionCancelled(subscriptionId);
     }
 
+    /// @notice Gasless cancellation on behalf of a subscriber. Relayer-only.
     function cancelSubscriptionByRelayerForSubscriber(
         uint256 subscriptionId,
         address subscriber
@@ -279,6 +305,7 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         emit SubscriptionCancelled(subscriptionId);
     }
 
+    /// @notice Gasless cancellation on behalf of a merchant. Relayer-only.
     function cancelSubscriptionByRelayerForMerchant(
         uint256 subscriptionId,
         address merchant
@@ -295,6 +322,8 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         emit SubscriptionCancelled(subscriptionId);
     }
 
+    /// @notice Request migrating a subscription to a new wallet. The new wallet
+    ///         must call acceptSubscriptionWalletUpdate to complete the transfer.
     function requestSubscriptionWalletUpdate(uint256 subscriptionId, address newSubscriber) external {
         Subscription storage sub = subscriptions[subscriptionId];
         require(msg.sender == sub.subscriber, "Not subscriber");
@@ -305,6 +334,7 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         emit SubscriptionWalletUpdateRequested(subscriptionId, sub.subscriber, newSubscriber);
     }
 
+    /// @notice Accept a pending wallet migration. Caller becomes the new subscriber.
     function acceptSubscriptionWalletUpdate(uint256 subscriptionId) external {
         require(pendingWalletUpdates[subscriptionId] == msg.sender, "Not pending for caller");
 
@@ -321,23 +351,27 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         emit SubscriptionWalletUpdated(subscriptionId, oldSubscriber, msg.sender);
     }
 
+    /// @notice Add or remove a token from the accepted list.
     function setAcceptedToken(address token, bool accepted) external onlyOwner {
         acceptedTokens[token] = accepted;
         emit AcceptedTokenUpdated(token, accepted);
     }
 
+    /// @notice Update the platform fee. Max 1000 bps (10%).
     function setPlatformFee(uint256 _fee) external onlyOwner {
         require(_fee <= 1000, "Fee too high");
         platformFee = _fee;
         emit PlatformFeeUpdated(_fee);
     }
 
+    /// @notice Update the wallet that receives platform fees.
     function setPlatformWallet(address _wallet) external onlyOwner {
         require(_wallet != address(0), "Invalid wallet");
         platformWallet = _wallet;
         emit PlatformWalletUpdated(_wallet);
     }
 
+    /// @notice Set the authorized relayer address for gasless operations.
     function setRelayer(address _relayer) external onlyOwner {
         require(_relayer != address(0), "Invalid relayer address");
         address old = relayer;
@@ -345,6 +379,7 @@ contract SubscriptionManager is Ownable2Step, ReentrancyGuard, Pausable, EIP712 
         emit RelayerUpdated(old, _relayer);
     }
 
+    /// @notice Toggle gasless paths without pausing the entire contract.
     function setGaslessPaused(bool _paused) external onlyOwner {
         gaslessPaused = _paused;
         emit GaslessPausedUpdated(_paused);
