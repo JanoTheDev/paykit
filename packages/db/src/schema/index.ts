@@ -17,3 +17,4 @@ export * from "./invoices";
 export * from "./invoice-line-items";
 export * from "./audit-logs";
 export * from "./idempotency-keys";
+export * from "./faucet-mints";

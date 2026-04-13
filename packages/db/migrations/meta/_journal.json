@@ -85,6 +85,13 @@
       "when": 1744416000000,
       "tag": "0013_add_livemode",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1744416800000,
+      "tag": "0014_add_faucet_mints",
+      "breakpoints": true
     }
   ]
 }
