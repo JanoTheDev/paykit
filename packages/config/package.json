@@ -7,7 +7,8 @@
     "./tsconfig.base.json": "./tsconfig.base.json",
     "./tsconfig.node.json": "./tsconfig.node.json",
     "./tsconfig.nextjs.json": "./tsconfig.nextjs.json",
-    "./networks": "./src/networks.ts"
+    "./networks": "./src/networks.ts",
+    "./deployments": "./src/deployments.ts"
   },
   "scripts": {
     "test": "vitest run"
