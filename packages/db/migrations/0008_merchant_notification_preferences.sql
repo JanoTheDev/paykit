@@ -1,1 +1,0 @@
-ALTER TABLE "merchant_profiles" ADD COLUMN "notification_preferences" jsonb DEFAULT '{"invoice":true,"trialStarted":true,"trialEndingSoon":true,"trialFailed":true,"subscriptionCreated":true,"subscriptionCancelled":true,"paymentReceipt":true,"pastDue":true}'::jsonb NOT NULL;
