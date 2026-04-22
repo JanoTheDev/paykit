@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { SearchDialog } from "./search-dialog";
 
 type NavItem = { href: string; label: string };
 type NavGroup = { group: string; items: NavItem[] };
@@ -82,6 +83,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         >
           Paylix Docs
         </Link>
+      </div>
+      <div className="border-b border-sidebar-border px-3 py-3">
+        <SearchDialog />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
         {navGroups.map((entry) => {

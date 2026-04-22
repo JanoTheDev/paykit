@@ -5,6 +5,7 @@ import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { SearchDialog } from "./search-dialog";
 
 type NavItem = { href: string; label: string };
 type NavGroup = { group: string; items: NavItem[] };
@@ -88,6 +89,9 @@ export function MobileNav() {
       </header>
       {open && (
         <div className="fixed inset-0 top-14 z-20 overflow-y-auto bg-background lg:hidden">
+          <div className="border-b border-border px-4 py-3">
+            <SearchDialog />
+          </div>
           <nav className="px-2 py-4">
             {navGroups.map((entry) => {
               if ("href" in entry) {

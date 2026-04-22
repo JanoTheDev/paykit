@@ -1,0 +1,1509 @@
+[
+  {
+    "title": "Getting Started",
+    "description": "Paylix lets you accept USDC payments and subscriptions on Base with a few lines of TypeScript. No custodial wallets, no payment processors — funds move directly from customer wallets to yours. Buyers don",
+    "path": "/",
+    "headings": [
+      {
+        "text": "1. Install the SDK",
+        "anchor": "1-install-the-sdk"
+      },
+      {
+        "text": "2. Initialize the Client",
+        "anchor": "2-initialize-the-client"
+      },
+      {
+        "text": "3. Create a Checkout",
+        "anchor": "3-create-a-checkout"
+      },
+      {
+        "text": "4. Verify the Payment",
+        "anchor": "4-verify-the-payment"
+      },
+      {
+        "text": "5. Handle Webhooks",
+        "anchor": "5-handle-webhooks"
+      },
+      {
+        "text": "Dashboard tour",
+        "anchor": "dashboard-tour"
+      },
+      {
+        "text": "Next Steps",
+        "anchor": "next-steps"
+      }
+    ]
+  },
+  {
+    "title": "Analytics",
+    "description": "Dashboard-only endpoint that returns time-series MRR, revenue, active subscribers, and failed-charge rate, plus a windowed ARPU.",
+    "path": "/analytics",
+    "headings": [
+      {
+        "text": "Dashboard",
+        "anchor": "dashboard"
+      },
+      {
+        "text": "Endpoint",
+        "anchor": "endpoint"
+      },
+      {
+        "text": "Response",
+        "anchor": "response"
+      },
+      {
+        "text": "How metrics are computed",
+        "anchor": "how-metrics-are-computed"
+      }
+    ]
+  },
+  {
+    "title": "API Keys",
+    "description": "Publishable and secret API keys, with in-place rotation that keeps the old secret live during a configurable grace period.",
+    "path": "/api-keys",
+    "headings": [
+      {
+        "text": "Two flavors",
+        "anchor": "two-flavors"
+      },
+      {
+        "text": "Create and revoke",
+        "anchor": "create-and-revoke"
+      },
+      {
+        "text": "Rotation with a grace period",
+        "anchor": "rotation-with-a-grace-period"
+      },
+      {
+        "text": "Grace options",
+        "anchor": "grace-options"
+      },
+      {
+        "text": "Auth middleware behavior",
+        "anchor": "auth-middleware-behavior"
+      },
+      {
+        "text": "Audit log",
+        "anchor": "audit-log"
+      }
+    ]
+  },
+  {
+    "title": "Audit Logs",
+    "description": "Paylix records an audit trail for every sensitive operation. Use it to track who did what and when across your team.",
+    "path": "/audit-logs",
+    "headings": [
+      {
+        "text": "What gets logged",
+        "anchor": "what-gets-logged"
+      },
+      {
+        "text": "Where to view",
+        "anchor": "where-to-view"
+      },
+      {
+        "text": "Entry fields",
+        "anchor": "entry-fields"
+      },
+      {
+        "text": "Retention",
+        "anchor": "retention"
+      },
+      {
+        "text": "API access",
+        "anchor": "api-access"
+      }
+    ]
+  },
+  {
+    "title": "Blocklist",
+    "description": "Block specific wallets, emails (full address or domain), or countries from paying through any of your checkouts.",
+    "path": "/blocklist",
+    "headings": [
+      {
+        "text": "Adding entries",
+        "anchor": "adding-entries"
+      },
+      {
+        "text": "Types",
+        "anchor": "types"
+      },
+      {
+        "text": "How a buyer sees it",
+        "anchor": "how-a-buyer-sees-it"
+      }
+    ]
+  },
+  {
+    "title": "Branding",
+    "description": "Put your logo, legal name, support email, and footer text on every outbound email and hosted invoice.",
+    "path": "/branding",
+    "headings": [
+      {
+        "text": "Where to set it",
+        "anchor": "where-to-set-it"
+      },
+      {
+        "text": "Where it shows",
+        "anchor": "where-it-shows"
+      },
+      {
+        "text": "Fallback",
+        "anchor": "fallback"
+      },
+      {
+        "text": "Security",
+        "anchor": "security"
+      }
+    ]
+  },
+  {
+    "title": "API Changelog",
+    "path": "/changelog",
+    "headings": [
+      {
+        "text": "2026-04-22",
+        "anchor": "2026-04-22"
+      },
+      {
+        "text": "Coupons",
+        "anchor": "coupons"
+      },
+      {
+        "text": "Payment Links",
+        "anchor": "payment-links"
+      },
+      {
+        "text": "Analytics dashboard",
+        "anchor": "analytics-dashboard"
+      },
+      {
+        "text": "Webhook replay + send test",
+        "anchor": "webhook-replay-send-test"
+      },
+      {
+        "text": "Abandonment recovery",
+        "anchor": "abandonment-recovery"
+      },
+      {
+        "text": "Email branding",
+        "anchor": "email-branding"
+      },
+      {
+        "text": "Blocklist",
+        "anchor": "blocklist"
+      },
+      {
+        "text": "API key rotation",
+        "anchor": "api-key-rotation"
+      },
+      {
+        "text": "Trial email + webhook lifecycle",
+        "anchor": "trial-email-webhook-lifecycle"
+      },
+      {
+        "text": "Checkout restart route",
+        "anchor": "checkout-restart-route"
+      },
+      {
+        "text": "Indexer observability",
+        "anchor": "indexer-observability"
+      },
+      {
+        "text": "2026-04-12",
+        "anchor": "2026-04-12"
+      },
+      {
+        "text": "Test mode and live mode",
+        "anchor": "test-mode-and-live-mode"
+      },
+      {
+        "text": "Test-mode faucet",
+        "anchor": "test-mode-faucet"
+      },
+      {
+        "text": "Idempotency keys",
+        "anchor": "idempotency-keys"
+      },
+      {
+        "text": "Subscription pause and resume",
+        "anchor": "subscription-pause-and-resume"
+      },
+      {
+        "text": "Smart retries and dunning",
+        "anchor": "smart-retries-and-dunning"
+      },
+      {
+        "text": "Earlier additions (same date)",
+        "anchor": "earlier-additions-same-date"
+      },
+      {
+        "text": "2026-04-01",
+        "anchor": "2026-04-01"
+      }
+    ]
+  },
+  {
+    "title": "Coupons",
+    "description": "Discount codes buyers apply at checkout. Create codes from the dashboard; buyers type them into the hosted checkout and pay the discounted amount on-chain.",
+    "path": "/coupons",
+    "headings": [
+      {
+        "text": "Creating a coupon",
+        "anchor": "creating-a-coupon"
+      },
+      {
+        "text": "Fields",
+        "anchor": "fields"
+      },
+      {
+        "text": "Buyer flow",
+        "anchor": "buyer-flow"
+      },
+      {
+        "text": "Webhook event",
+        "anchor": "webhook-event"
+      },
+      {
+        "text": "Apply at checkout via the API",
+        "anchor": "apply-at-checkout-via-the-api"
+      }
+    ]
+  },
+  {
+    "title": "Customer Management",
+    "description": "Customers are created automatically on first checkout or manually via the SDK. Manage them from the dashboard, the API, or the customer portal.",
+    "path": "/customers",
+    "headings": [
+      {
+        "text": "Overview",
+        "anchor": "overview"
+      },
+      {
+        "text": "Fields",
+        "anchor": "fields"
+      },
+      {
+        "text": "SDK methods",
+        "anchor": "sdk-methods"
+      },
+      {
+        "text": "Create a customer",
+        "anchor": "create-a-customer"
+      },
+      {
+        "text": "Get a customer",
+        "anchor": "get-a-customer"
+      },
+      {
+        "text": "Update a customer",
+        "anchor": "update-a-customer"
+      },
+      {
+        "text": "List customers",
+        "anchor": "list-customers"
+      },
+      {
+        "text": "Delete a customer",
+        "anchor": "delete-a-customer"
+      },
+      {
+        "text": "Dashboard",
+        "anchor": "dashboard"
+      },
+      {
+        "text": "Customer portal",
+        "anchor": "customer-portal"
+      }
+    ]
+  },
+  {
+    "title": "Email Notifications",
+    "description": "Paylix sends transactional emails to customers at key moments in the payment and subscription lifecycle.",
+    "path": "/email-notifications",
+    "headings": [
+      {
+        "text": "Emails sent",
+        "anchor": "emails-sent"
+      },
+      {
+        "text": "Requirements",
+        "anchor": "requirements"
+      },
+      {
+        "text": "Disabling automatic emails",
+        "anchor": "disabling-automatic-emails"
+      },
+      {
+        "text": "Mailer configuration",
+        "anchor": "mailer-configuration"
+      }
+    ]
+  },
+  {
+    "title": "Error Codes",
+    "description": "All Paylix API errors follow a standardized format. Use the code field to handle errors programmatically.",
+    "path": "/error-codes",
+    "headings": [
+      {
+        "text": "Response shape",
+        "anchor": "response-shape"
+      },
+      {
+        "text": "General errors",
+        "anchor": "general-errors"
+      },
+      {
+        "text": "Checkout and payment errors",
+        "anchor": "checkout-and-payment-errors"
+      },
+      {
+        "text": "Subscription and trial errors",
+        "anchor": "subscription-and-trial-errors"
+      }
+    ]
+  },
+  {
+    "title": "Framework Examples",
+    "description": "Step-by-step integration guides for the most popular frameworks. Each guide walks through install, environment variables, file structure, and the code you need to create checkouts, verify payments, and handle webhooks.",
+    "path": "/frameworks",
+    "headings": [
+      {
+        "text": "Pick your framework",
+        "anchor": "pick-your-framework"
+      }
+    ]
+  },
+  {
+    "title": "Express / Fastify",
+    "description": "Standalone Node.js backend without a frontend framework. Use this with any client — a React SPA, a mobile app, or a plain HTML form.",
+    "path": "/frameworks/express",
+    "headings": [
+      {
+        "text": "1. Install",
+        "anchor": "1-install"
+      },
+      {
+        "text": "2. Environment variables",
+        "anchor": "2-environment-variables"
+      },
+      {
+        "text": "3. File structure",
+        "anchor": "3-file-structure"
+      },
+      {
+        "text": "4. SDK instance",
+        "anchor": "4-sdk-instance"
+      },
+      {
+        "text": "5. Express server",
+        "anchor": "5-express-server"
+      },
+      {
+        "text": "6. Checkout route",
+        "anchor": "6-checkout-route"
+      },
+      {
+        "text": "7. Webhook route",
+        "anchor": "7-webhook-route"
+      },
+      {
+        "text": "Fastify variant",
+        "anchor": "fastify-variant"
+      }
+    ]
+  },
+  {
+    "title": "Next.js (App Router)",
+    "description": "Integrate Paylix in a Next.js 13+ project using the App Router. SDK calls live in Route Handlers and Server Actions so your secret key never ships to the client.",
+    "path": "/frameworks/nextjs-app-router",
+    "headings": [
+      {
+        "text": "1. Install",
+        "anchor": "1-install"
+      },
+      {
+        "text": "2. Environment variables",
+        "anchor": "2-environment-variables"
+      },
+      {
+        "text": "3. File structure",
+        "anchor": "3-file-structure"
+      },
+      {
+        "text": "4. Shared SDK instance",
+        "anchor": "4-shared-sdk-instance"
+      },
+      {
+        "text": "5. Create checkout (Route Handler)",
+        "anchor": "5-create-checkout-route-handler"
+      },
+      {
+        "text": "6. Client redirect",
+        "anchor": "6-client-redirect"
+      },
+      {
+        "text": "7. Handle webhooks",
+        "anchor": "7-handle-webhooks"
+      },
+      {
+        "text": "8. Verify a payment",
+        "anchor": "8-verify-a-payment"
+      }
+    ]
+  },
+  {
+    "title": "Next.js (Pages Router)",
+    "description": "Integrate Paylix in a Next.js project using the classic Pages Router. SDK calls live in pages/api/ handlers.",
+    "path": "/frameworks/nextjs-pages-router",
+    "headings": [
+      {
+        "text": "1. Install",
+        "anchor": "1-install"
+      },
+      {
+        "text": "2. Environment variables",
+        "anchor": "2-environment-variables"
+      },
+      {
+        "text": "3. File structure",
+        "anchor": "3-file-structure"
+      },
+      {
+        "text": "4. Shared SDK instance",
+        "anchor": "4-shared-sdk-instance"
+      },
+      {
+        "text": "5. Create checkout",
+        "anchor": "5-create-checkout"
+      },
+      {
+        "text": "6. Client page",
+        "anchor": "6-client-page"
+      },
+      {
+        "text": "7. Handle webhooks",
+        "anchor": "7-handle-webhooks"
+      }
+    ]
+  },
+  {
+    "title": "Nuxt 3",
+    "description": "Integrate Paylix in Nuxt 3 using server/api routes. The SDK instance is exposed via a server util so every route can import it.",
+    "path": "/frameworks/nuxt",
+    "headings": [
+      {
+        "text": "1. Install",
+        "anchor": "1-install"
+      },
+      {
+        "text": "2. Runtime config",
+        "anchor": "2-runtime-config"
+      },
+      {
+        "text": "3. Environment variables",
+        "anchor": "3-environment-variables"
+      },
+      {
+        "text": "4. File structure",
+        "anchor": "4-file-structure"
+      },
+      {
+        "text": "5. SDK instance",
+        "anchor": "5-sdk-instance"
+      },
+      {
+        "text": "6. Create checkout",
+        "anchor": "6-create-checkout"
+      },
+      {
+        "text": "7. Handle webhooks",
+        "anchor": "7-handle-webhooks"
+      },
+      {
+        "text": "8. Vue page",
+        "anchor": "8-vue-page"
+      },
+      {
+        "text": "Choose a plan",
+        "anchor": "choose-a-plan"
+      }
+    ]
+  },
+  {
+    "title": "React (Vite)",
+    "description": "A Vite + React SPA with a small Express backend. The frontend never imports @paylix/sdk directly — all SDK calls go through your own API to keep the secret key server-side.",
+    "path": "/frameworks/react-vite",
+    "headings": [
+      {
+        "text": "1. Install",
+        "anchor": "1-install"
+      },
+      {
+        "text": "2. Environment variables",
+        "anchor": "2-environment-variables"
+      },
+      {
+        "text": "3. File structure",
+        "anchor": "3-file-structure"
+      },
+      {
+        "text": "4. Backend SDK instance",
+        "anchor": "4-backend-sdk-instance"
+      },
+      {
+        "text": "5. Backend server",
+        "anchor": "5-backend-server"
+      },
+      {
+        "text": "6. Checkout route",
+        "anchor": "6-checkout-route"
+      },
+      {
+        "text": "7. Webhook route",
+        "anchor": "7-webhook-route"
+      },
+      {
+        "text": "8. Frontend — trigger checkout",
+        "anchor": "8-frontend-trigger-checkout"
+      },
+      {
+        "text": "9. Vite proxy",
+        "anchor": "9-vite-proxy"
+      },
+      {
+        "text": "Pricing",
+        "anchor": "pricing"
+      }
+    ]
+  },
+  {
+    "title": "Remix",
+    "description": "Integrate Paylix in Remix using loaders and actions. Any .server.ts file is guaranteed to stay out of client bundles.",
+    "path": "/frameworks/remix",
+    "headings": [
+      {
+        "text": "1. Install",
+        "anchor": "1-install"
+      },
+      {
+        "text": "2. Environment variables",
+        "anchor": "2-environment-variables"
+      },
+      {
+        "text": "3. File structure",
+        "anchor": "3-file-structure"
+      },
+      {
+        "text": "4. SDK instance",
+        "anchor": "4-sdk-instance"
+      },
+      {
+        "text": "5. Checkout action",
+        "anchor": "5-checkout-action"
+      },
+      {
+        "text": "6. Handle webhooks",
+        "anchor": "6-handle-webhooks"
+      },
+      {
+        "text": "Choose a plan",
+        "anchor": "choose-a-plan"
+      }
+    ]
+  },
+  {
+    "title": "SvelteKit",
+    "description": "Integrate Paylix in SvelteKit using form actions and server endpoints. The SDK lives in $lib/server so it",
+    "path": "/frameworks/sveltekit",
+    "headings": [
+      {
+        "text": "1. Install",
+        "anchor": "1-install"
+      },
+      {
+        "text": "2. Environment variables",
+        "anchor": "2-environment-variables"
+      },
+      {
+        "text": "3. File structure",
+        "anchor": "3-file-structure"
+      },
+      {
+        "text": "4. SDK instance",
+        "anchor": "4-sdk-instance"
+      },
+      {
+        "text": "5. Checkout form action",
+        "anchor": "5-checkout-form-action"
+      },
+      {
+        "text": "6. Checkout page",
+        "anchor": "6-checkout-page"
+      },
+      {
+        "text": "7. Handle webhooks",
+        "anchor": "7-handle-webhooks"
+      },
+      {
+        "text": "Choose a plan",
+        "anchor": "choose-a-plan"
+      }
+    ]
+  },
+  {
+    "title": "Free Trials",
+    "description": "Let customers try a subscription before paying. Trials are entirely off-chain — no contract changes, no gas, no charge until the trial ends.",
+    "path": "/free-trials",
+    "headings": [
+      {
+        "text": "How it works",
+        "anchor": "how-it-works"
+      },
+      {
+        "text": "Enabling trials",
+        "anchor": "enabling-trials"
+      },
+      {
+        "text": "Via the dashboard",
+        "anchor": "via-the-dashboard"
+      },
+      {
+        "text": "Via the API",
+        "anchor": "via-the-api"
+      },
+      {
+        "text": "Testing with trialMinutes",
+        "anchor": "testing-with-trialminutes"
+      },
+      {
+        "text": "Trial lifecycle",
+        "anchor": "trial-lifecycle"
+      },
+      {
+        "text": "Anti-abuse protections",
+        "anchor": "anti-abuse-protections"
+      },
+      {
+        "text": "Auto-fallback for returning customers",
+        "anchor": "auto-fallback-for-returning-customers"
+      },
+      {
+        "text": "Dashboard and portal",
+        "anchor": "dashboard-and-portal"
+      },
+      {
+        "text": "Merchant dashboard",
+        "anchor": "merchant-dashboard"
+      },
+      {
+        "text": "Customer portal",
+        "anchor": "customer-portal"
+      },
+      {
+        "text": "Webhook events",
+        "anchor": "webhook-events"
+      },
+      {
+        "text": "SDK response",
+        "anchor": "sdk-response"
+      },
+      {
+        "text": "Quick test checklist",
+        "anchor": "quick-test-checklist"
+      }
+    ]
+  },
+  {
+    "title": "Invoices",
+    "description": "Paylix automatically issues a legally-valid invoice for every successful payment — one-time checkouts and every recurring subscription charge. Invoices are immutable, sequentially numbered per merchant, and accessible via hosted link, PDF download, email, dashboard, customer portal, and SDK.",
+    "path": "/invoices",
+    "headings": [
+      {
+        "text": "How it works",
+        "anchor": "how-it-works"
+      },
+      {
+        "text": "Setting up your business profile",
+        "anchor": "setting-up-your-business-profile"
+      },
+      {
+        "text": "Tax rates and reverse charge",
+        "anchor": "tax-rates-and-reverse-charge"
+      },
+      {
+        "text": "Email delivery",
+        "anchor": "email-delivery"
+      },
+      {
+        "text": "Accessing invoices",
+        "anchor": "accessing-invoices"
+      },
+      {
+        "text": "Merchant dashboard",
+        "anchor": "merchant-dashboard"
+      },
+      {
+        "text": "Customer portal",
+        "anchor": "customer-portal"
+      },
+      {
+        "text": "SDK",
+        "anchor": "sdk"
+      },
+      {
+        "text": "Webhook events",
+        "anchor": "webhook-events"
+      },
+      {
+        "text": "Immutability",
+        "anchor": "immutability"
+      }
+    ]
+  },
+  {
+    "title": "Payment Links",
+    "description": "Permanent URLs you can share anywhere. Every visit spawns a fresh checkout session — no per-buyer API call required.",
+    "path": "/payment-links",
+    "headings": [
+      {
+        "text": "When to use them",
+        "anchor": "when-to-use-them"
+      },
+      {
+        "text": "Create from the dashboard",
+        "anchor": "create-from-the-dashboard"
+      },
+      {
+        "text": "Create via the SDK",
+        "anchor": "create-via-the-sdk"
+      },
+      {
+        "text": "Available methods",
+        "anchor": "available-methods"
+      },
+      {
+        "text": "Runtime behavior",
+        "anchor": "runtime-behavior"
+      }
+    ]
+  },
+  {
+    "title": "Products API",
+    "description": "Products define what you sell. Each product has a type, price, and optional billing interval. Create and manage them via the SDK or the dashboard.",
+    "path": "/products",
+    "headings": [
+      {
+        "text": "Product types",
+        "anchor": "product-types"
+      },
+      {
+        "text": "Billing intervals",
+        "anchor": "billing-intervals"
+      },
+      {
+        "text": "Prices",
+        "anchor": "prices"
+      },
+      {
+        "text": "Trial support",
+        "anchor": "trial-support"
+      },
+      {
+        "text": "Checkout fields",
+        "anchor": "checkout-fields"
+      },
+      {
+        "text": "SDK methods",
+        "anchor": "sdk-methods"
+      },
+      {
+        "text": "Create a product",
+        "anchor": "create-a-product"
+      },
+      {
+        "text": "Get a product",
+        "anchor": "get-a-product"
+      },
+      {
+        "text": "Update a product",
+        "anchor": "update-a-product"
+      },
+      {
+        "text": "List products",
+        "anchor": "list-products"
+      }
+    ]
+  },
+  {
+    "title": "Rate Limits",
+    "description": "Paylix enforces rate limits at multiple layers to protect the platform from abuse and ensure fair usage across all merchants.",
+    "path": "/rate-limits",
+    "headings": [
+      {
+        "text": "Per-API-key limits",
+        "anchor": "per-api-key-limits"
+      },
+      {
+        "text": "Per-IP relay limit",
+        "anchor": "per-ip-relay-limit"
+      },
+      {
+        "text": "Webhook delivery limit",
+        "anchor": "webhook-delivery-limit"
+      },
+      {
+        "text": "Webhook replay + test",
+        "anchor": "webhook-replay-test"
+      },
+      {
+        "text": "Payment link resolution",
+        "anchor": "payment-link-resolution"
+      },
+      {
+        "text": "Redis scaling",
+        "anchor": "redis-scaling"
+      },
+      {
+        "text": "Response format",
+        "anchor": "response-format"
+      }
+    ]
+  },
+  {
+    "title": "SDK Reference",
+    "description": "Your secret API key (sk_live_... or sk_test_...).",
+    "path": "/sdk-reference",
+    "headings": [
+      {
+        "text": "Installation",
+        "anchor": "installation"
+      },
+      {
+        "text": "Constructor",
+        "anchor": "constructor"
+      },
+      {
+        "text": "Methods",
+        "anchor": "methods"
+      },
+      {
+        "text": "NETWORKS",
+        "anchor": "networks"
+      }
+    ]
+  },
+  {
+    "title": "Blocklist — SDK Reference",
+    "description": "List, add, and remove wallet / email / country entries that should never be allowed to pay.",
+    "path": "/sdk-reference/blocklist",
+    "headings": [
+      {
+        "text": "paylix.listBlocklist()",
+        "anchor": "paylix-listblocklist"
+      },
+      {
+        "text": "BlocklistEntry",
+        "anchor": "blocklistentry"
+      },
+      {
+        "text": "paylix.addBlocklistEntry(params)",
+        "anchor": "paylix-addblocklistentry-params"
+      },
+      {
+        "text": "paylix.removeBlocklistEntry(id)",
+        "anchor": "paylix-removeblocklistentry-id"
+      },
+      {
+        "text": "Enforcement",
+        "anchor": "enforcement"
+      }
+    ]
+  },
+  {
+    "title": "Checkout & Verification — SDK Reference",
+    "description": "Create checkout sessions and verify payments on-chain.",
+    "path": "/sdk-reference/checkout",
+    "headings": [
+      {
+        "text": "paylix.createCheckout()",
+        "anchor": "paylix-createcheckout"
+      },
+      {
+        "text": "Parameters",
+        "anchor": "parameters"
+      },
+      {
+        "text": "Returns",
+        "anchor": "returns"
+      },
+      {
+        "text": "paylix.verifyPayment()",
+        "anchor": "paylix-verifypayment"
+      },
+      {
+        "text": "Returns",
+        "anchor": "returns"
+      }
+    ]
+  },
+  {
+    "title": "Coupons — SDK Reference",
+    "description": "Create, list, archive, apply, and remove discount codes on checkout sessions.",
+    "path": "/sdk-reference/coupons",
+    "headings": [
+      {
+        "text": "paylix.createCoupon(params)",
+        "anchor": "paylix-createcoupon-params"
+      },
+      {
+        "text": "Coupon",
+        "anchor": "coupon"
+      },
+      {
+        "text": "paylix.listCoupons()",
+        "anchor": "paylix-listcoupons"
+      },
+      {
+        "text": "paylix.archiveCoupon(id)",
+        "anchor": "paylix-archivecoupon-id"
+      },
+      {
+        "text": "paylix.applyCouponToCheckout(sessionId, code)",
+        "anchor": "paylix-applycoupontocheckout-sessionid-code"
+      },
+      {
+        "text": "paylix.removeCouponFromCheckout(sessionId)",
+        "anchor": "paylix-removecouponfromcheckout-sessionid"
+      }
+    ]
+  },
+  {
+    "title": "Payment Links — SDK Reference",
+    "description": "Create, read, update, list, and archive reusable payment links. Every visit to a link spawns a fresh checkout_session.",
+    "path": "/sdk-reference/payment-links",
+    "headings": [
+      {
+        "text": "paylix.createPaymentLink(params)",
+        "anchor": "paylix-createpaymentlink-params"
+      },
+      {
+        "text": "PaymentLink",
+        "anchor": "paymentlink"
+      },
+      {
+        "text": "paylix.listPaymentLinks()",
+        "anchor": "paylix-listpaymentlinks"
+      },
+      {
+        "text": "paylix.getPaymentLink(id)",
+        "anchor": "paylix-getpaymentlink-id"
+      },
+      {
+        "text": "paylix.updatePaymentLink(id, params)",
+        "anchor": "paylix-updatepaymentlink-id-params"
+      },
+      {
+        "text": "paylix.archivePaymentLink(id)",
+        "anchor": "paylix-archivepaymentlink-id"
+      }
+    ]
+  },
+  {
+    "title": "Payments — SDK Reference",
+    "description": "List and retrieve payment records with filtering and customer info.",
+    "path": "/sdk-reference/payments",
+    "headings": [
+      {
+        "text": "paylix.listPayments()",
+        "anchor": "paylix-listpayments"
+      },
+      {
+        "text": "Filter Parameters",
+        "anchor": "filter-parameters"
+      },
+      {
+        "text": "PaymentSummary",
+        "anchor": "paymentsummary"
+      },
+      {
+        "text": "paylix.getPayment()",
+        "anchor": "paylix-getpayment"
+      }
+    ]
+  },
+  {
+    "title": "Customer Portal & Invoices — SDK Reference",
+    "description": "Access customer data, create portal sessions, and list invoices.",
+    "path": "/sdk-reference/portal",
+    "headings": [
+      {
+        "text": "paylix.getCustomerPortal()",
+        "anchor": "paylix-getcustomerportal"
+      },
+      {
+        "text": "Returns",
+        "anchor": "returns"
+      },
+      {
+        "text": "paylix.createPortalSession()",
+        "anchor": "paylix-createportalsession"
+      },
+      {
+        "text": "paylix.listCustomerInvoices()",
+        "anchor": "paylix-listcustomerinvoices"
+      },
+      {
+        "text": "CustomerInvoice",
+        "anchor": "customerinvoice"
+      }
+    ]
+  },
+  {
+    "title": "Subscriptions — SDK Reference",
+    "description": "Create, cancel, list, and manage recurring subscriptions.",
+    "path": "/sdk-reference/subscriptions",
+    "headings": [
+      {
+        "text": "paylix.createSubscription()",
+        "anchor": "paylix-createsubscription"
+      },
+      {
+        "text": "Parameters",
+        "anchor": "parameters"
+      },
+      {
+        "text": "Returns",
+        "anchor": "returns"
+      },
+      {
+        "text": "paylix.cancelSubscription()",
+        "anchor": "paylix-cancelsubscription"
+      },
+      {
+        "text": "paylix.updateSubscriptionWallet()",
+        "anchor": "paylix-updatesubscriptionwallet"
+      },
+      {
+        "text": "Parameters",
+        "anchor": "parameters"
+      },
+      {
+        "text": "paylix.listSubscriptions()",
+        "anchor": "paylix-listsubscriptions"
+      },
+      {
+        "text": "Filter Parameters",
+        "anchor": "filter-parameters"
+      },
+      {
+        "text": "SubscriptionSummary",
+        "anchor": "subscriptionsummary"
+      },
+      {
+        "text": "paylix.getSubscription()",
+        "anchor": "paylix-getsubscription"
+      }
+    ]
+  },
+  {
+    "title": "Webhook Management — SDK Reference",
+    "description": "Create, list, update, and delete webhook endpoints. Verify incoming webhook signatures.",
+    "path": "/sdk-reference/webhooks",
+    "headings": [
+      {
+        "text": "paylix.listWebhooks()",
+        "anchor": "paylix-listwebhooks"
+      },
+      {
+        "text": "Webhook",
+        "anchor": "webhook"
+      },
+      {
+        "text": "paylix.createWebhook()",
+        "anchor": "paylix-createwebhook"
+      },
+      {
+        "text": "Parameters",
+        "anchor": "parameters"
+      },
+      {
+        "text": "paylix.getWebhook()",
+        "anchor": "paylix-getwebhook"
+      },
+      {
+        "text": "paylix.updateWebhook()",
+        "anchor": "paylix-updatewebhook"
+      },
+      {
+        "text": "Parameters",
+        "anchor": "parameters"
+      },
+      {
+        "text": "paylix.deleteWebhook()",
+        "anchor": "paylix-deletewebhook"
+      },
+      {
+        "text": "paylix.replayWebhookDelivery(deliveryId)",
+        "anchor": "paylix-replaywebhookdelivery-deliveryid"
+      },
+      {
+        "text": "paylix.sendTestWebhook(webhookId, event)",
+        "anchor": "paylix-sendtestwebhook-webhookid-event"
+      },
+      {
+        "text": "webhooks.verify()",
+        "anchor": "webhooks-verify"
+      }
+    ]
+  },
+  {
+    "title": "Self-Hosting",
+    "description": "Paylix is fully open-source and designed to be self-hosted. Run your own instance with Docker Compose in under 10 minutes.",
+    "path": "/self-hosting",
+    "headings": [
+      {
+        "text": "Prerequisites",
+        "anchor": "prerequisites"
+      },
+      {
+        "text": "1. Clone the Repository",
+        "anchor": "1-clone-the-repository"
+      },
+      {
+        "text": "2. Configure Environment",
+        "anchor": "2-configure-environment"
+      },
+      {
+        "text": "Required Environment Variables",
+        "anchor": "required-environment-variables"
+      },
+      {
+        "text": "3. Start with Docker Compose",
+        "anchor": "3-start-with-docker-compose"
+      },
+      {
+        "text": "4. Run Database Migrations",
+        "anchor": "4-run-database-migrations"
+      },
+      {
+        "text": "5. Access the Dashboard",
+        "anchor": "5-access-the-dashboard"
+      },
+      {
+        "text": "6. Set Up a Reverse Proxy (Production)",
+        "anchor": "6-set-up-a-reverse-proxy-production"
+      },
+      {
+        "text": "Gas Sponsorship (Gasless Payments)",
+        "anchor": "gas-sponsorship-gasless-payments"
+      },
+      {
+        "text": "1. Generate the relayer wallet",
+        "anchor": "1-generate-the-relayer-wallet"
+      },
+      {
+        "text": "2. Configure the .env",
+        "anchor": "2-configure-the-env"
+      },
+      {
+        "text": "3. Deploy and fund",
+        "anchor": "3-deploy-and-fund"
+      },
+      {
+        "text": "4. Monitor balance",
+        "anchor": "4-monitor-balance"
+      },
+      {
+        "text": "5. Rotating the relayer key",
+        "anchor": "5-rotating-the-relayer-key"
+      },
+      {
+        "text": "6. Emergency pause",
+        "anchor": "6-emergency-pause"
+      },
+      {
+        "text": "7. Mainnet readiness check",
+        "anchor": "7-mainnet-readiness-check"
+      },
+      {
+        "text": "Indexer Confirmations",
+        "anchor": "indexer-confirmations"
+      },
+      {
+        "text": "Optional Environment Variables",
+        "anchor": "optional-environment-variables"
+      },
+      {
+        "text": "Updating",
+        "anchor": "updating"
+      }
+    ]
+  },
+  {
+    "title": "Subscriptions",
+    "path": "/subscriptions",
+    "headings": [
+      {
+        "text": "How subscriptions work",
+        "anchor": "how-subscriptions-work"
+      },
+      {
+        "text": "Creating a subscription",
+        "anchor": "creating-a-subscription"
+      },
+      {
+        "text": "Billing intervals",
+        "anchor": "billing-intervals"
+      },
+      {
+        "text": "The approval mechanism",
+        "anchor": "the-approval-mechanism"
+      },
+      {
+        "text": "Cancelling subscriptions",
+        "anchor": "cancelling-subscriptions"
+      },
+      {
+        "text": "Three cancellation paths",
+        "anchor": "three-cancellation-paths"
+      },
+      {
+        "text": "Step-by-step flow",
+        "anchor": "step-by-step-flow"
+      },
+      {
+        "text": "Failed payments (past_due)",
+        "anchor": "failed-payments-past-due"
+      },
+      {
+        "text": "Webhooks",
+        "anchor": "webhooks"
+      }
+    ]
+  },
+  {
+    "title": "Test Mode",
+    "description": "Build and validate your Paylix integration without touching real money. Test mode runs on Base Sepolia with MockUSDC — live mode runs on Base mainnet with real USDC.",
+    "path": "/test-mode",
+    "headings": [
+      {
+        "text": "Switching modes",
+        "anchor": "switching-modes"
+      },
+      {
+        "text": "Test and live API keys",
+        "anchor": "test-and-live-api-keys"
+      },
+      {
+        "text": "The faucet",
+        "anchor": "the-faucet"
+      },
+      {
+        "text": "1. From the checkout page",
+        "anchor": "1-from-the-checkout-page"
+      },
+      {
+        "text": "2. From the SDK",
+        "anchor": "2-from-the-sdk"
+      },
+      {
+        "text": "3. Manual mint via Foundry",
+        "anchor": "3-manual-mint-via-foundry"
+      },
+      {
+        "text": "Webhook livemode field",
+        "anchor": "webhook-livemode-field"
+      },
+      {
+        "text": "Going live",
+        "anchor": "going-live"
+      }
+    ]
+  },
+  {
+    "title": "Testnet Setup",
+    "description": "Test your Paylix integration on Base Sepolia before going live. Testnet uses MockUSDC so you can develop without spending real funds.",
+    "path": "/testnet",
+    "headings": [
+      {
+        "text": "1. Configure the SDK for Testnet",
+        "anchor": "1-configure-the-sdk-for-testnet"
+      },
+      {
+        "text": "2. Get Test ETH on Base Sepolia",
+        "anchor": "2-get-test-eth-on-base-sepolia"
+      },
+      {
+        "text": "3. Add Base Sepolia to Your Wallet",
+        "anchor": "3-add-base-sepolia-to-your-wallet"
+      },
+      {
+        "text": "4. Get MockUSDC Tokens",
+        "anchor": "4-get-mockusdc-tokens"
+      },
+      {
+        "text": "5. Test a Checkout",
+        "anchor": "5-test-a-checkout"
+      },
+      {
+        "text": "6. Verify the Test Payment",
+        "anchor": "6-verify-the-test-payment"
+      },
+      {
+        "text": "Going Live",
+        "anchor": "going-live"
+      }
+    ]
+  },
+  {
+    "title": "Webhook Verification",
+    "description": "Verify webhook signatures in any language. Every Paylix webhook includes an x-paylix-signature header containing an HMAC-SHA256 digest of the raw request body.",
+    "path": "/webhook-verification",
+    "headings": [
+      {
+        "text": "How it works",
+        "anchor": "how-it-works"
+      },
+      {
+        "text": "Node.js",
+        "anchor": "node-js"
+      },
+      {
+        "text": "Manual (without the SDK)",
+        "anchor": "manual-without-the-sdk"
+      },
+      {
+        "text": "Python",
+        "anchor": "python"
+      },
+      {
+        "text": "Flask example",
+        "anchor": "flask-example"
+      },
+      {
+        "text": "Go",
+        "anchor": "go"
+      },
+      {
+        "text": "net/http example",
+        "anchor": "net-http-example"
+      },
+      {
+        "text": "Ruby",
+        "anchor": "ruby"
+      },
+      {
+        "text": "Sinatra example",
+        "anchor": "sinatra-example"
+      },
+      {
+        "text": "Important notes",
+        "anchor": "important-notes"
+      }
+    ]
+  },
+  {
+    "title": "Webhooks",
+    "description": "Paylix sends webhook events to your server when payments and subscriptions change state. Use webhooks to fulfill orders, activate subscriptions, and keep your system in sync with on-chain activity.",
+    "path": "/webhooks",
+    "headings": [
+      {
+        "text": "Setting Up Webhooks",
+        "anchor": "setting-up-webhooks"
+      },
+      {
+        "text": "Programmatic Setup",
+        "anchor": "programmatic-setup"
+      },
+      {
+        "text": "Signature Verification",
+        "anchor": "signature-verification"
+      },
+      {
+        "text": "Next.js App Router",
+        "anchor": "next-js-app-router"
+      },
+      {
+        "text": "Express",
+        "anchor": "express"
+      },
+      {
+        "text": "Event Types",
+        "anchor": "event-types"
+      },
+      {
+        "text": "payment.confirmed",
+        "anchor": "payment-confirmed"
+      },
+      {
+        "text": "subscription.created",
+        "anchor": "subscription-created"
+      },
+      {
+        "text": "subscription.charged",
+        "anchor": "subscription-charged"
+      },
+      {
+        "text": "subscription.past_due",
+        "anchor": "subscription-past-due"
+      },
+      {
+        "text": "subscription.cancelled",
+        "anchor": "subscription-cancelled"
+      },
+      {
+        "text": "subscription.trial_started",
+        "anchor": "subscription-trial-started"
+      },
+      {
+        "text": "subscription.trial_ending",
+        "anchor": "subscription-trial-ending"
+      },
+      {
+        "text": "subscription.trial_converted",
+        "anchor": "subscription-trial-converted"
+      },
+      {
+        "text": "subscription.trial_cancelled",
+        "anchor": "subscription-trial-cancelled"
+      },
+      {
+        "text": "invoice.issued",
+        "anchor": "invoice-issued"
+      },
+      {
+        "text": "invoice.email_sent",
+        "anchor": "invoice-email-sent"
+      },
+      {
+        "text": "invoice.email_failed",
+        "anchor": "invoice-email-failed"
+      },
+      {
+        "text": "system.relayer_balance_low",
+        "anchor": "system-relayer-balance-low"
+      },
+      {
+        "text": "system.keeper_balance_low",
+        "anchor": "system-keeper-balance-low"
+      },
+      {
+        "text": "coupon.redeemed",
+        "anchor": "coupon-redeemed"
+      },
+      {
+        "text": "Replay a past delivery",
+        "anchor": "replay-a-past-delivery"
+      },
+      {
+        "text": "Send a test event",
+        "anchor": "send-a-test-event"
+      },
+      {
+        "text": "Best Practices",
+        "anchor": "best-practices"
+      }
+    ]
+  }
+]
