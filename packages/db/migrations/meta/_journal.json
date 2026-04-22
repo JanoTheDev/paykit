@@ -134,6 +134,13 @@
       "when": 1745625600000,
       "tag": "0020_add_payment_links",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1745712000000,
+      "tag": "0021_add_blocklist",
+      "breakpoints": true
     }
   ]
 }

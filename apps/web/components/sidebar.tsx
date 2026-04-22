@@ -15,6 +15,7 @@ import {
   Webhook,
   Settings,
   Shield,
+  Ban,
   LogOut,
   ChevronUp,
   User,
@@ -36,6 +37,7 @@ const navItems = [
   { href: "/customers", label: "Customers", icon: UserCircle },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/api-keys", label: "API Keys", icon: Key },
+  { href: "/blocklist", label: "Blocklist", icon: Ban },
   { href: "/audit-log", label: "Audit Log", icon: Shield },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

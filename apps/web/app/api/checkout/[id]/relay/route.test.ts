@@ -21,6 +21,9 @@ const mockDeployment = {
 };
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
+vi.mock("@/lib/blocklist-load", () => ({
+  loadOrgBlocklist: vi.fn().mockResolvedValue([]),
+}));
 vi.mock("@/lib/relayer", () => ({
   createRelayerClient: () => ({ writeContract }),
 }));

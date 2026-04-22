@@ -31,6 +31,8 @@ import { signPortalToken } from "@/lib/portal-tokens";
 import { normalizeEmail, isDisposableEmail } from "@/lib/email-normalize";
 import { checkWalletActivity } from "@/lib/wallet-activity";
 import { dispatchWebhooks } from "@/lib/webhook-dispatch";
+import { findBlocklistMatch, BLOCKLIST_MESSAGE } from "@/lib/blocklist";
+import { loadOrgBlocklist } from "@/lib/blocklist-load";
 
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -195,6 +197,27 @@ export async function POST(
       },
       { status: 400 },
     );
+  }
+
+  // Blocklist: wallet / email / country. Load once per relay attempt —
+  // small per-org row count, fine to do inline without caching.
+  const blocklist = await loadOrgBlocklist(
+    session.organizationId,
+    session.livemode,
+  );
+  if (blocklist.length > 0) {
+    const hit = findBlocklistMatch({
+      wallet: buyer,
+      email: session.buyerEmail ?? null,
+      country: session.buyerCountry ?? null,
+      entries: blocklist,
+    });
+    if (hit) {
+      return NextResponse.json(
+        { error: { code: "blocked", message: BLOCKLIST_MESSAGE } },
+        { status: 403 },
+      );
+    }
   }
 
   // 5. Trial subscription branch
