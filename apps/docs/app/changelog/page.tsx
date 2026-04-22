@@ -59,6 +59,18 @@ export default function ChangelogPage() {
         passes. Blocklist still applies.
       </p>
 
+      <SubsectionHeading>Tax helpers + preview API</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        New <code>lib/tax-rates.ts</code> ships headline VAT rates for
+        EU + UK/NO/CH and US state sales tax for 50 states + DC.{" "}
+        <code>POST /api/tax/preview</code> returns{" "}
+        <code>{"{ rateBps, label, taxCents, totalCents }"}</code> for a
+        given country/state/subtotal. Per-product{" "}
+        <code>productRateBps</code> override + reverse-charge
+        short-circuit. Full checkout integration (signing permit with
+        tax included) is a follow-up.
+      </p>
+
       <SubsectionHeading>Payment detail drawer</SubsectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         New <code>GET /api/payments/:id/detail</code> returns the

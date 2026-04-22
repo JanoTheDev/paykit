@@ -57,6 +57,7 @@ const navGroups: (NavItem | NavGroup)[] = [
       { href: "/gift-subscriptions", label: "Gift Subscriptions" },
       { href: "/csv-export", label: "CSV Export" },
       { href: "/refunds", label: "Refunds" },
+      { href: "/tax", label: "Tax" },
       { href: "/webhooks", label: "Webhooks" },
     ],
   },

@@ -178,6 +178,10 @@
         "anchor": "gift-subscriptions"
       },
       {
+        "text": "Tax helpers + preview API",
+        "anchor": "tax-helpers-preview-api"
+      },
+      {
         "text": "Payment detail drawer",
         "anchor": "payment-detail-drawer"
       },
@@ -1427,6 +1431,33 @@
       {
         "text": "Webhooks",
         "anchor": "webhooks"
+      }
+    ]
+  },
+  {
+    "title": "Tax",
+    "description": "Built-in VAT + US sales tax rates keyed by the buyer",
+    "path": "/tax",
+    "headings": [
+      {
+        "text": "POST /api/tax/preview",
+        "anchor": "post-api-tax-preview"
+      },
+      {
+        "text": "US sales tax",
+        "anchor": "us-sales-tax"
+      },
+      {
+        "text": "Reverse charge",
+        "anchor": "reverse-charge"
+      },
+      {
+        "text": "Per-product override",
+        "anchor": "per-product-override"
+      },
+      {
+        "text": "Coverage",
+        "anchor": "coverage"
       }
     ]
   },
