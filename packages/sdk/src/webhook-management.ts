@@ -85,3 +85,65 @@ export async function deleteWebhook(
   }
   return (await res.json()) as { success: true };
 }
+
+export interface ReplayWebhookDeliveryResult {
+  deliveryId: string;
+  status: "delivered" | "failed";
+  httpStatus?: number;
+  error?: string;
+}
+
+export async function replayWebhookDelivery(
+  config: PaylixConfig,
+  deliveryId: string,
+): Promise<ReplayWebhookDeliveryResult> {
+  const res = await fetch(
+    `${config.backendUrl}/api/webhooks/deliveries/${deliveryId}/replay`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+    },
+  );
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const msg =
+      (body.error as { message?: string } | undefined)?.message ??
+      `Failed to replay delivery (${res.status})`;
+    throw new Error(msg);
+  }
+  return body as unknown as ReplayWebhookDeliveryResult;
+}
+
+export interface SendTestWebhookResult {
+  deliveryId: string;
+  eventId: string;
+  status: "delivered" | "failed";
+  httpStatus?: number;
+  error?: string;
+}
+
+export async function sendTestWebhook(
+  config: PaylixConfig,
+  webhookId: string,
+  event: string,
+): Promise<SendTestWebhookResult> {
+  const res = await fetch(
+    `${config.backendUrl}/api/webhooks/${webhookId}/send-test`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({ event }),
+    },
+  );
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) {
+    const msg =
+      (body.error as { message?: string } | undefined)?.message ??
+      `Failed to send test event (${res.status})`;
+    throw new Error(msg);
+  }
+  return body as unknown as SendTestWebhookResult;
+}

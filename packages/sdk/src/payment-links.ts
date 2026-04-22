@@ -77,3 +77,47 @@ export async function archivePaymentLink(
     throw new Error(`Paylix payment link archive failed: ${response.statusText}`);
   }
 }
+
+export async function getPaymentLink(
+  config: PaylixConfig,
+  id: string,
+): Promise<PaymentLink> {
+  const response = await fetch(`${config.backendUrl}/api/payment-links/${id}`, {
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+  });
+  if (!response.ok) {
+    throw new Error(`Paylix payment link fetch failed: ${response.statusText}`);
+  }
+  return (await response.json()) as PaymentLink;
+}
+
+export interface UpdatePaymentLinkParams {
+  name?: string;
+  maxRedemptions?: number | null;
+  isActive?: boolean;
+  metadata?: Record<string, string>;
+}
+
+export async function updatePaymentLink(
+  config: PaylixConfig,
+  id: string,
+  params: UpdatePaymentLinkParams,
+): Promise<PaymentLink> {
+  const response = await fetch(`${config.backendUrl}/api/payment-links/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    const error = (await response
+      .json()
+      .catch(() => ({ error: "Request failed" }))) as { error?: string };
+    throw new Error(
+      `Paylix payment link update failed: ${error.error || response.statusText}`,
+    );
+  }
+  return (await response.json()) as PaymentLink;
+}

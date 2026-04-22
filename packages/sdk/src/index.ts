@@ -5,7 +5,24 @@ export type {
   CreatePaymentLinkParams,
   CreatePaymentLinkResult,
   PaymentLink,
+  UpdatePaymentLinkParams,
 } from "./payment-links";
+export type {
+  Coupon,
+  CouponType,
+  CouponDuration,
+  CreateCouponParams,
+  ApplyCouponResult,
+} from "./coupons";
+export type {
+  BlocklistEntry,
+  BlocklistType,
+  AddBlocklistEntryParams,
+} from "./blocklist";
+export type {
+  ReplayWebhookDeliveryResult,
+  SendTestWebhookResult,
+} from "./webhook-management";
 export type {
   PaylixConfig,
   CreateCheckoutParams,

@@ -139,6 +139,29 @@ await paylix.updateWebhook("wh_abc123", {
       <CodeBlock language="ts">{`paylix.deleteWebhook(id: string): Promise<{ success: true }>`}</CodeBlock>
       <CodeBlock language="ts">{`await paylix.deleteWebhook("wh_abc123");`}</CodeBlock>
 
+      <SectionHeading>paylix.replayWebhookDelivery(deliveryId)</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Re-sends a historical delivery's exact payload as a brand-new
+        delivery row. Re-signs with the webhook's current secret so
+        replays work across secret rotations. Rate-limited to 10 per
+        minute per webhook.
+      </p>
+      <CodeBlock language="ts">{`paylix.replayWebhookDelivery(deliveryId: string): Promise<ReplayWebhookDeliveryResult>`}</CodeBlock>
+      <CodeBlock language="ts">{`const r = await paylix.replayWebhookDelivery("del_abc");
+console.log(r.status, r.httpStatus);`}</CodeBlock>
+
+      <SectionHeading>paylix.sendTestWebhook(webhookId, event)</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Dispatches a synthetic event to one of your webhooks. The
+        envelope carries <code>livemode: false</code> and an{" "}
+        <code>event_id</code> prefixed with{" "}
+        <code>evt_test_</code> so receivers can filter. Rate-limited
+        to 20 per minute per org. The webhook must already be
+        subscribed to the event.
+      </p>
+      <CodeBlock language="ts">{`paylix.sendTestWebhook(webhookId: string, event: string): Promise<SendTestWebhookResult>`}</CodeBlock>
+      <CodeBlock language="ts">{`await paylix.sendTestWebhook("wh_abc", "payment.confirmed");`}</CodeBlock>
+
       <SectionHeading>webhooks.verify()</SectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         Verifies a webhook signature to ensure the event was sent by Paylix.

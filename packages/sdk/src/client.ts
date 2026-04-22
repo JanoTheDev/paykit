@@ -57,16 +57,40 @@ import {
   getWebhook,
   updateWebhook,
   deleteWebhook,
+  replayWebhookDelivery,
+  sendTestWebhook,
+  type ReplayWebhookDeliveryResult,
+  type SendTestWebhookResult,
 } from "./webhook-management";
 import { faucet } from "./test";
 import {
   createPaymentLink,
   listPaymentLinks,
   archivePaymentLink,
+  getPaymentLink,
+  updatePaymentLink,
   type CreatePaymentLinkParams,
   type CreatePaymentLinkResult,
   type PaymentLink,
+  type UpdatePaymentLinkParams,
 } from "./payment-links";
+import {
+  createCoupon,
+  listCoupons,
+  archiveCoupon,
+  applyCouponToCheckout,
+  removeCouponFromCheckout,
+  type Coupon,
+  type CreateCouponParams,
+  type ApplyCouponResult,
+} from "./coupons";
+import {
+  listBlocklist,
+  addBlocklistEntry,
+  removeBlocklistEntry,
+  type BlocklistEntry,
+  type AddBlocklistEntryParams,
+} from "./blocklist";
 
 export class Paylix {
   private config: PaylixConfig;
@@ -211,7 +235,55 @@ export class Paylix {
     return listPaymentLinks(this.config);
   }
 
+  async getPaymentLink(id: string): Promise<PaymentLink> {
+    return getPaymentLink(this.config, id);
+  }
+
+  async updatePaymentLink(id: string, params: UpdatePaymentLinkParams): Promise<PaymentLink> {
+    return updatePaymentLink(this.config, id, params);
+  }
+
   async archivePaymentLink(id: string): Promise<void> {
     return archivePaymentLink(this.config, id);
+  }
+
+  async createCoupon(params: CreateCouponParams): Promise<Coupon> {
+    return createCoupon(this.config, params);
+  }
+
+  async listCoupons(): Promise<Coupon[]> {
+    return listCoupons(this.config);
+  }
+
+  async archiveCoupon(id: string): Promise<void> {
+    return archiveCoupon(this.config, id);
+  }
+
+  async applyCouponToCheckout(sessionId: string, code: string): Promise<ApplyCouponResult> {
+    return applyCouponToCheckout(this.config, sessionId, code);
+  }
+
+  async removeCouponFromCheckout(sessionId: string): Promise<void> {
+    return removeCouponFromCheckout(this.config, sessionId);
+  }
+
+  async listBlocklist(): Promise<BlocklistEntry[]> {
+    return listBlocklist(this.config);
+  }
+
+  async addBlocklistEntry(params: AddBlocklistEntryParams): Promise<BlocklistEntry> {
+    return addBlocklistEntry(this.config, params);
+  }
+
+  async removeBlocklistEntry(id: string): Promise<void> {
+    return removeBlocklistEntry(this.config, id);
+  }
+
+  async replayWebhookDelivery(deliveryId: string): Promise<ReplayWebhookDeliveryResult> {
+    return replayWebhookDelivery(this.config, deliveryId);
+  }
+
+  async sendTestWebhook(webhookId: string, event: string): Promise<SendTestWebhookResult> {
+    return sendTestWebhook(this.config, webhookId, event);
   }
 }
