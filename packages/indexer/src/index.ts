@@ -1,6 +1,10 @@
 import { startListener } from "./listener";
 import { runKeeper, sweepLongPastDue } from "./keeper";
-import { runTrialConverterTick, runTrialReminderTick } from "./trial-converter";
+import {
+  runTrialConverterTick,
+  runTrialReminderTick,
+  runTrialStartedEmailTick,
+} from "./trial-converter";
 import { config, deployments } from "./config";
 import { createDb } from "@paylix/db/client";
 import { systemStatus } from "@paylix/db/schema";
@@ -86,6 +90,9 @@ async function main() {
       });
       await runTrialReminderTick().catch((err) => {
         console.error("[Indexer] trial reminder failed:", err);
+      });
+      await runTrialStartedEmailTick().catch((err) => {
+        console.error("[Indexer] trial started email failed:", err);
       });
     } catch (err) {
       console.error("[Keeper] Unhandled error:", err);

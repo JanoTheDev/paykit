@@ -1225,11 +1225,33 @@ export async function handleSubscriptionPaymentReceived(log: Log, args: {
       console.error("[Handler] sendInvoiceEmail failed:", err);
     });
   }
-  void sendSubscriptionEmail({
-    kind: "payment-receipt",
-    subscriptionId: subscription.id,
-    paymentId: result.payment.id,
-  }).catch((err) => console.error("[Handler] payment-receipt email failed:", err));
+  // If this is the first charge of a converted trial (no prior payment was
+  // linked on the subscription), send the trial-converted receipt instead of
+  // the generic recurring payment receipt. Idempotent via the
+  // trial_converted_email_sent_at column — the guard covers the rare race
+  // where a duplicate payment event makes it past txHash idempotency.
+  const isFirstChargeAfterTrial =
+    !subscription.lastPaymentId && !subscription.trialConvertedEmailSentAt;
+  if (isFirstChargeAfterTrial) {
+    await db
+      .update(subscriptions)
+      .set({ trialConvertedEmailSentAt: new Date() })
+      .where(eq(subscriptions.id, subscription.id));
+    const { sendTrialEmail } = await import("./emails/send-trial-email");
+    void sendTrialEmail({
+      kind: "trial-converted",
+      subscriptionId: subscription.id,
+      paymentId: result.payment.id,
+    }).catch((err) =>
+      console.error("[Handler] trial-converted email failed:", err),
+    );
+  } else {
+    void sendSubscriptionEmail({
+      kind: "payment-receipt",
+      subscriptionId: subscription.id,
+      paymentId: result.payment.id,
+    }).catch((err) => console.error("[Handler] payment-receipt email failed:", err));
+  }
 }
 
 export async function handleSubscriptionPastDue(log: Log, args: {

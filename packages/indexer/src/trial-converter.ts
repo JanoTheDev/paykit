@@ -314,3 +314,43 @@ export async function runTrialReminderTick(): Promise<{ scanned: number }> {
 
   return { scanned: rows.length };
 }
+
+/**
+ * Sends the trial-started welcome email for trialing subscriptions that
+ * don't yet have `trial_started_email_sent_at` stamped. Runs alongside the
+ * other trial ticks so the email fires within ~30s of the relay call.
+ */
+export async function runTrialStartedEmailTick(): Promise<{ scanned: number }> {
+  const { createDb } = await import("@paylix/db/client");
+  const { subscriptions } = await import("@paylix/db/schema");
+  const { and, eq, isNull } = await import("drizzle-orm");
+  const { config } = await import("./config");
+
+  const db = createDb(config.databaseUrl);
+
+  const rows = await db
+    .select({ id: subscriptions.id })
+    .from(subscriptions)
+    .where(
+      and(
+        eq(subscriptions.status, "trialing"),
+        isNull(subscriptions.trialStartedEmailSentAt),
+      ),
+    )
+    .limit(50);
+
+  for (const row of rows) {
+    try {
+      const { sendTrialEmail } = await import("./emails/send-trial-email");
+      await sendTrialEmail({ kind: "trial-started", subscriptionId: row.id });
+      await db
+        .update(subscriptions)
+        .set({ trialStartedEmailSentAt: new Date() })
+        .where(eq(subscriptions.id, row.id));
+    } catch (err) {
+      console.error("[TrialStartedEmail] failed for", row.id, err);
+    }
+  }
+
+  return { scanned: rows.length };
+}

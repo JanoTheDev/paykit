@@ -70,6 +70,8 @@ export const subscriptions = pgTable(
     trialConversionAttempts: integer("trial_conversion_attempts").notNull().default(0),
     trialConversionLastError: text("trial_conversion_last_error"),
     trialReminderSentAt: timestamp("trial_reminder_sent_at", { withTimezone: true }),
+    trialStartedEmailSentAt: timestamp("trial_started_email_sent_at", { withTimezone: true }),
+    trialConvertedEmailSentAt: timestamp("trial_converted_email_sent_at", { withTimezone: true }),
     trialConversionSubmittedAt: timestamp("trial_conversion_submitted_at", { withTimezone: true }),
     livemode: boolean("livemode").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

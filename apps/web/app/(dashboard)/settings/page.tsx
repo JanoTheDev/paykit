@@ -43,6 +43,10 @@ const NOTIFICATION_LABELS: Record<
     label: "Trial ending soon",
     description: "Sent a few days before a trial converts to a paid subscription.",
   },
+  trialConverted: {
+    label: "Trial converted receipt",
+    description: "Sent after the first real charge that follows a successful trial conversion.",
+  },
   trialFailed: {
     label: "Trial conversion failed",
     description: "Sent when we can't charge the first payment after a trial ends.",

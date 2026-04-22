@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { eq } from "drizzle-orm";
 import { sendMail } from "@paylix/mailer";
 import { createDb } from "@paylix/db/client";
-import { subscriptions, products, customers } from "@paylix/db/schema";
+import { subscriptions, products, customers, payments } from "@paylix/db/schema";
 import { getToken, type NetworkKey } from "@paylix/config/networks";
 import { config } from "../config";
 import type { TrialConversionFailureReason } from "./trial-conversion-failed";
@@ -17,6 +17,8 @@ function kindToNotification(
       return "trialStarted";
     case "trial-ending-soon":
       return "trialEndingSoon";
+    case "trial-converted":
+      return "trialConverted";
     case "trial-conversion-failed":
       return "trialFailed";
   }
@@ -25,6 +27,7 @@ function kindToNotification(
 export type SendTrialEmailArgs =
   | { kind: "trial-started"; subscriptionId: string }
   | { kind: "trial-ending-soon"; subscriptionId: string }
+  | { kind: "trial-converted"; subscriptionId: string; paymentId: string }
   | {
       kind: "trial-conversion-failed";
       subscriptionId: string;
@@ -147,6 +150,36 @@ export async function sendTrialEmail(args: SendTrialEmailArgs): Promise<void> {
         daysLeft,
         amountLabel,
         firstChargeDate,
+      });
+    } else if (args.kind === "trial-converted") {
+      const { TrialConvertedEmail } = await import("./trial-converted");
+      const [paymentRow] = await db
+        .select({
+          amount: payments.amount,
+          txHash: payments.txHash,
+          createdAt: payments.createdAt,
+        })
+        .from(payments)
+        .where(eq(payments.id, args.paymentId))
+        .limit(1);
+
+      // Receipt charge shows the paid amount using the subscription's token
+      // (cents are stored scaled already on the payment row for subscriptions).
+      const chargeAmount = paymentRow
+        ? `${(paymentRow.amount / 100).toFixed(2)} ${subscription.tokenSymbol}`
+        : amountLabel;
+      const chargeDate = formatDate(paymentRow?.createdAt ?? new Date());
+      const nextChargeDate = subscription.nextChargeDate
+        ? formatDate(new Date(subscription.nextChargeDate))
+        : null;
+
+      subject = `Your ${productName} subscription is active`;
+      react = createElement(TrialConvertedEmail, {
+        productName,
+        amountLabel: chargeAmount,
+        chargeDate,
+        nextChargeDate,
+        txHash: paymentRow?.txHash ?? null,
       });
     } else {
       const { TrialConversionFailedEmail } = await import("./trial-conversion-failed");
