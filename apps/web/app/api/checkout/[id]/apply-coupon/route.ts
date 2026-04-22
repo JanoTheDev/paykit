@@ -43,17 +43,6 @@ export async function POST(
     // Amount isn't known yet (awaiting_currency). Buyer must pick a currency first.
     return apiError("awaiting_currency", "Pick a currency before applying a coupon", 409);
   }
-  if (session.type !== "one_time") {
-    // v1: coupons only apply to one-time payments. Subscription support
-    // requires per-cycle amount override on-chain (SubscriptionManager
-    // stores a fixed amount). Tracked as follow-up.
-    return apiError(
-      "not_supported",
-      "Coupons are not yet supported on subscriptions",
-      409,
-    );
-  }
-
   const [coupon] = await db
     .select()
     .from(coupons)
@@ -66,6 +55,20 @@ export async function POST(
     )
     .limit(1);
   if (!coupon) return apiError("not_found", "Coupon not found", 404);
+
+  // Subscription coupons: SubscriptionManager stores a single amount
+  // that every future charge uses. Lowering session.amount before the
+  // SubscriptionIntent is signed makes the whole subscription run at
+  // the discounted amount — i.e. "forever" semantics. "once" and
+  // "repeating" would require a dual-permit checkout which is out of
+  // scope for this release.
+  if (session.type === "subscription" && coupon.duration !== "forever") {
+    return apiError(
+      "not_supported",
+      "Only 'forever' coupons apply to subscriptions; 'once' and 'repeating' are deferred",
+      409,
+    );
+  }
 
   const couponForMath: CouponForMath = {
     type: coupon.type,

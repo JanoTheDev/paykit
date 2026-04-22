@@ -395,6 +395,7 @@ export async function POST(
         trialEndsAt,
         pendingPermitSignature,
         intervalSeconds: Number(intervalSeconds),
+        appliedCouponId: session.appliedCouponId,
         metadata: {},
       })
       .returning();
@@ -529,10 +530,11 @@ export async function POST(
     );
   }
 
-  // Coupon redemption bookkeeping for one-time payments. Runs after a
-  // successful on-chain submission, fire-and-forget — a failure here must
-  // not block the buyer's successful payment.
-  if (!isSubscription && session.appliedCouponId && session.discountCents) {
+  // Coupon redemption bookkeeping. Fires on both one-time and
+  // subscription (forever) coupons — subscription coupons get logged
+  // once at sub creation because every recurring charge runs at the
+  // same discounted on-chain amount.
+  if (session.appliedCouponId && session.discountCents) {
     const couponId = session.appliedCouponId;
     const discountCents = session.discountCents;
     void (async () => {

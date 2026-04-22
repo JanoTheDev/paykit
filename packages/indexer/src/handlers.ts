@@ -905,6 +905,7 @@ export async function handleSubscriptionCreated(log: Log, args: {
         tokenSymbol: subTokenSymbol,
         intervalSeconds,
         metadata: session.metadata ?? {},
+        appliedCouponId: session.appliedCouponId,
         livemode: ctx.livemode,
       })
       .returning();

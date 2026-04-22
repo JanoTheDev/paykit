@@ -18,9 +18,13 @@ export default function CouponsPage() {
       />
 
       <Callout variant="info" title="v1.5 scope">
-        Coupons apply to one-time payments only. Both{" "}
-        <strong>percent</strong> and <strong>fixed-amount</strong> coupons
-        are supported. Subscription-cycle coupons are still in the works.
+        Both <strong>percent</strong> and <strong>fixed-amount</strong>{" "}
+        coupons are supported on one-time payments. Subscriptions accept{" "}
+        <strong>forever</strong>-duration coupons (every charge runs at
+        the discounted amount — zero contract changes, set at sub
+        creation). <strong>once</strong> and <strong>repeating</strong>{" "}
+        on subscriptions remain deferred (they need a dual-permit
+        checkout to split the first charge from the recurring amount).
       </Callout>
 
       <SectionHeading>Creating a coupon</SectionHeading>
