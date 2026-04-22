@@ -61,6 +61,7 @@ const navGroups: (NavItem | NavGroup)[] = [
       { href: "/self-hosting", label: "Self-Hosting" },
       { href: "/test-mode", label: "Test Mode" },
       { href: "/testnet", label: "Testnet Setup" },
+      { href: "/api-keys", label: "API Keys" },
       { href: "/audit-logs", label: "Audit Logs" },
       { href: "/changelog", label: "API Changelog" },
       { href: "/webhook-verification", label: "Webhook Verification" },

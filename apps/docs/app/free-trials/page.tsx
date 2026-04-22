@@ -214,7 +214,7 @@ export default function FreeTrialsPage() {
 
       <SectionHeading>Webhook events</SectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
-        Two webhook events are specific to trials:
+        Four webhook events are specific to trials:
       </p>
       <ul className="mt-4 space-y-1.5 pl-5 text-sm leading-relaxed text-foreground-muted [&>li]:list-disc">
         <li>
@@ -225,9 +225,23 @@ export default function FreeTrialsPage() {
         </li>
         <li>
           <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            subscription.trial_ending
+          </code>{" "}
+          — fired once per trial, within 3 days of{" "}
+          <code>trial_ends_at</code>.
+        </li>
+        <li>
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
             subscription.trial_converted
           </code>{" "}
           — fired when a trial converts to an active paid subscription.
+        </li>
+        <li>
+          <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+            subscription.trial_cancelled
+          </code>{" "}
+          — fired when a trialing subscription is cancelled before converting
+          (merchant or customer).
         </li>
       </ul>
       <p className="mt-4 text-sm leading-relaxed text-foreground-muted">

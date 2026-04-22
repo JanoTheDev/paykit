@@ -93,6 +93,31 @@ export default function RateLimitsPage() {
         triggers an avalanche of retries.
       </p>
 
+      <SectionHeading>Webhook replay + test</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Replaying a past delivery is capped at{" "}
+        <strong className="text-foreground">
+          10 replays per minute per webhook
+        </strong>
+        . Test events are capped at{" "}
+        <strong className="text-foreground">
+          20 test events per minute per organization
+        </strong>
+        .
+      </p>
+
+      <SectionHeading>Payment link resolution</SectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Hitting{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          /pay/:linkId
+        </code>{" "}
+        is limited to{" "}
+        <strong className="text-foreground">60 requests per minute</strong>{" "}
+        per source IP. Each successful request spawns a new checkout
+        session.
+      </p>
+
       <SectionHeading>Redis scaling</SectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         By default, rate limiting runs in-memory and is scoped to a single

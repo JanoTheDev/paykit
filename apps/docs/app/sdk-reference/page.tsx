@@ -48,14 +48,50 @@ const sections = [
   {
     href: "/sdk-reference/webhooks",
     title: "Webhook Management",
-    description: "Create, list, update, and delete webhook endpoints. Verify signatures.",
+    description: "Create, list, update, delete, replay, and test webhook endpoints. Verify signatures.",
     methods: [
       "listWebhooks()",
       "createWebhook()",
       "getWebhook()",
       "updateWebhook()",
       "deleteWebhook()",
+      "replayWebhookDelivery()",
+      "sendTestWebhook()",
       "webhooks.verify()",
+    ],
+  },
+  {
+    href: "/sdk-reference/coupons",
+    title: "Coupons",
+    description: "Create and manage discount codes, apply them to checkout sessions.",
+    methods: [
+      "createCoupon()",
+      "listCoupons()",
+      "archiveCoupon()",
+      "applyCouponToCheckout()",
+      "removeCouponFromCheckout()",
+    ],
+  },
+  {
+    href: "/sdk-reference/payment-links",
+    title: "Payment Links",
+    description: "Create reusable URLs that spawn a fresh checkout session on every visit.",
+    methods: [
+      "createPaymentLink()",
+      "listPaymentLinks()",
+      "getPaymentLink()",
+      "updatePaymentLink()",
+      "archivePaymentLink()",
+    ],
+  },
+  {
+    href: "/sdk-reference/blocklist",
+    title: "Blocklist",
+    description: "Block wallets, emails, or countries from paying through your checkouts.",
+    methods: [
+      "listBlocklist()",
+      "addBlocklistEntry()",
+      "removeBlocklistEntry()",
     ],
   },
 ];

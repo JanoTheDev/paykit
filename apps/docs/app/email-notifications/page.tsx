@@ -207,7 +207,7 @@ export default function EmailNotificationsPage() {
           <strong className="text-foreground">Per-type toggles</strong> —
           turn individual email types on or off independently. For example,
           send your own custom welcome email but still let Paylix send
-          recurring receipts and past-due reminders. Each of the 8 email
+          recurring receipts and past-due reminders. Each of the 10 email
           types above has its own switch.
         </li>
       </ul>

@@ -26,6 +26,101 @@ export default function ChangelogPage() {
         }
       />
 
+      <SectionHeading>2026-04-22</SectionHeading>
+
+      <SubsectionHeading>Coupons</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Merchant-managed discount codes. Create percent or fixed-amount
+        coupons from{" "}
+        <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px] text-primary">
+          /dashboard/coupons
+        </code>{" "}
+        or via the SDK; buyers enter them on the hosted checkout. Apply
+        mutates <code>session.amount</code> and preserves the original on
+        <code> subtotalAmount</code>. Fires a new{" "}
+        <code>coupon.redeemed</code> webhook after the on-chain charge
+        settles. One-time payments only in this release.
+      </p>
+
+      <SubsectionHeading>Payment Links</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Permanent URLs (<code>/pay/:linkId</code>) that spawn a fresh
+        checkout session on every visit. Useful for socials and link-in-
+        bio. Enforces <code>max_redemptions</code> atomically and can
+        pre-lock to a specific (network, token).
+      </p>
+
+      <SubsectionHeading>Analytics dashboard</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        MRR, revenue, active subscribers, failed-charge rate, and ARPU
+        at <code>/dashboard/analytics</code>. Range picker 7d / 30d /
+        90d. Backed by <code>GET /api/analytics</code> with a 5-minute
+        private cache.
+      </p>
+
+      <SubsectionHeading>Webhook replay + send test</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Replay any past delivery from the dashboard or SDK. Send a
+        synthetic event for any subscribed event type. Test events carry
+        <code> livemode: false</code> and an{" "}
+        <code>event_id</code> prefixed with <code>evt_test_</code>.
+      </p>
+
+      <SubsectionHeading>Abandonment recovery</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Indexer tick emails a recovery link to buyers who left their
+        checkout with an email submitted and sat idle for 60+ minutes.
+        Gated by a new <code>checkoutRecovery</code> notification toggle.
+      </p>
+
+      <SubsectionHeading>Email branding</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Every outbound email now renders the merchant logo, legal name,
+        support email, and invoice footer via a shared{" "}
+        <code>BrandedEmail</code> wrapper. Empty profile fields fall back
+        to default Paylix branding.
+      </p>
+
+      <SubsectionHeading>Blocklist</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Block wallets, emails (full address or domain), or countries per
+        org from <code>/dashboard/blocklist</code>. Enforced in the relay
+        path with a generic 403 <code>blocked</code> response.
+      </p>
+
+      <SubsectionHeading>API key rotation</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Rotate a key on the same id and keep the old secret valid for a
+        grace window (none / 24h / 7d). Auth middleware accepts either
+        the current hash or the previous hash until{" "}
+        <code>expires_at</code>.
+      </p>
+
+      <SubsectionHeading>Trial email + webhook lifecycle</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Four trial webhook events (
+        <code>subscription.trial_started</code>,{" "}
+        <code>trial_ending</code>, <code>trial_converted</code>,{" "}
+        <code>trial_cancelled</code>) now fire end-to-end. New{" "}
+        <code>trial-converted</code> receipt email sent on the first real
+        charge after conversion.
+      </p>
+
+      <SubsectionHeading>Checkout restart route</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        <code>/checkout/restart/:sessionId</code> resumes live sessions
+        and clones expired/completed ones. Used by the abandonment
+        recovery email and surfaced on failed trial conversions.
+      </p>
+
+      <SubsectionHeading>Indexer observability</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        The unmatched-event retry loop emits a structured JSON log each
+        pass (<code>unmatched_retry_pass</code>) with pending / retried /
+        matched counts and p95 age, plus a warning when depth exceeds
+        50 or oldest age exceeds 5 minutes.
+      </p>
+
       <SectionHeading>2026-04-12</SectionHeading>
 
       <SubsectionHeading>Test mode and live mode</SubsectionHeading>
