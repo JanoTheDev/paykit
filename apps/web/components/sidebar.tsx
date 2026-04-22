@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
+  LineChart,
   Package,
   CreditCard,
   Link2,
@@ -26,6 +27,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 
 const navItems = [
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
+  { href: "/analytics", label: "Analytics", icon: LineChart },
   { href: "/products", label: "Products", icon: Package },
   { href: "/payments", label: "Payments", icon: CreditCard },
   { href: "/checkout-links", label: "Checkout Links", icon: Link2 },
