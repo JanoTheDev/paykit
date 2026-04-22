@@ -47,6 +47,48 @@ const { checkoutUrl, checkoutId } = await paylix.createCheckout({
 // Redirect the customer to checkoutUrl
 ```
 
+## Gasless Checkout
+
+Buyers never need ETH. Paylix's hosted checkout takes two off-chain signatures from the buyer's wallet and the relayer pays gas on-chain.
+
+Merchant integration stays one call — gasless is the default when the buyer lands on the hosted page:
+
+```ts
+import { Paylix } from "@paylix/sdk";
+
+const paylix = new Paylix({
+  apiKey: "sk_test_...",
+  network: "base-sepolia",
+  backendUrl: "http://localhost:3000",
+});
+
+// One-time payment. Amount lives on the product (integer cents of USDC).
+const { checkoutUrl } = await paylix.createCheckout({
+  productId: "prod_abc",
+  customerId: "user_123",
+  successUrl: "https://myapp.com/success",
+  cancelUrl: "https://myapp.com/cancel",
+});
+
+// Or a subscription with the same API:
+const { checkoutUrl: subUrl } = await paylix.createSubscription({
+  productId: "prod_monthly",
+  customerId: "user_123",
+  successUrl: "https://myapp.com/success",
+  cancelUrl: "https://myapp.com/cancel",
+});
+
+// Redirect the buyer. The hosted page collects the two signatures
+// and posts them to the relay endpoint for on-chain settlement.
+```
+
+On the hosted checkout, the buyer signs:
+
+1. **EIP-2612 permit** — authorises the `PaymentVault` (or `SubscriptionManager`) to pull exactly the amount of USDC needed.
+2. **Paylix `PaymentIntent`** (or `SubscriptionIntent` for subscriptions) — binds the merchant, amount, and a per-session nonce so the signed permit can only be used for *this* payment.
+
+The relayer then submits the transaction and pays gas. The contract's `_consumePaymentIntent` check runs **before** `safeTransferFrom`, which means a compromised relayer cannot redirect funds or double-spend a signature — the intent pins the exact destination and amount. Buyer funds settle directly from buyer wallet to merchant wallet on-chain; Paylix never custody anything in between.
+
 ## Core Features
 
 - **One-time payments** in USDC
