@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, isNull } from "drizzle-orm";
 import { keccak256, stringToBytes } from "viem";
 import { db } from "@/lib/db";
-import { checkoutSessions, products, subscriptions, customers } from "@paylix/db/schema";
+import {
+  checkoutSessions,
+  products,
+  subscriptions,
+  customers,
+  coupons,
+  couponRedemptions,
+} from "@paylix/db/schema";
+import { sql } from "drizzle-orm";
 import { createRelayerClient } from "@/lib/relayer";
 import {
   PAYMENT_VAULT_ABI,
@@ -117,6 +125,10 @@ export async function POST(
       buyerEmail: checkoutSessions.buyerEmail,
       buyerPhone: checkoutSessions.buyerPhone,
       livemode: checkoutSessions.livemode,
+      metadata: checkoutSessions.metadata,
+      appliedCouponId: checkoutSessions.appliedCouponId,
+      discountCents: checkoutSessions.discountCents,
+      subtotalAmount: checkoutSessions.subtotalAmount,
       billingInterval: products.billingInterval,
       trialDays: products.trialDays,
       trialMinutes: products.trialMinutes,
@@ -492,6 +504,57 @@ export async function POST(
       { error: { code: "relay_failed", message: message.slice(0, 400) } },
       { status: 502 },
     );
+  }
+
+  // Coupon redemption bookkeeping for one-time payments. Runs after a
+  // successful on-chain submission, fire-and-forget — a failure here must
+  // not block the buyer's successful payment.
+  if (!isSubscription && session.appliedCouponId && session.discountCents) {
+    const couponId = session.appliedCouponId;
+    const discountCents = session.discountCents;
+    void (async () => {
+      try {
+        // Atomic increment gated on max_redemptions. If the coupon is
+        // already exhausted (another buyer claimed the last slot during
+        // the relay window), we still accept this payment — the chain
+        // call already succeeded — but we don't record the redemption.
+        const [incremented] = await db
+          .update(coupons)
+          .set({ redemptionCount: sql`${coupons.redemptionCount} + 1` })
+          .where(
+            and(
+              eq(coupons.id, couponId),
+              eq(coupons.isActive, true),
+              or(
+                isNull(coupons.maxRedemptions),
+                sql`${coupons.redemptionCount} < ${coupons.maxRedemptions}`,
+              ),
+            ),
+          )
+          .returning({ id: coupons.id });
+        if (!incremented) return;
+
+        await db.insert(couponRedemptions).values({
+          couponId,
+          organizationId: session.organizationId,
+          checkoutSessionId: session.id,
+          discountCents,
+          cycleNumber: 0,
+          livemode: session.livemode,
+        });
+
+        void dispatchWebhooks(session.organizationId, "coupon.redeemed", {
+          couponId,
+          checkoutSessionId: session.id,
+          discountCents,
+          amount: session.amount.toString(),
+          subtotalAmount: session.subtotalAmount?.toString() ?? null,
+          metadata: session.metadata ?? {},
+        }).catch((err) => console.error("[Relay] coupon.redeemed webhook failed:", err));
+      } catch (err) {
+        console.error("[Relay] coupon redemption bookkeeping failed:", err);
+      }
+    })();
   }
 
   return NextResponse.json({ txHash });

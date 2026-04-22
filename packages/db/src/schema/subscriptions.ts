@@ -71,6 +71,8 @@ export const subscriptions = pgTable(
     trialConversionLastError: text("trial_conversion_last_error"),
     trialReminderSentAt: timestamp("trial_reminder_sent_at", { withTimezone: true }),
     trialStartedEmailSentAt: timestamp("trial_started_email_sent_at", { withTimezone: true }),
+    appliedCouponId: uuid("applied_coupon_id"),
+    couponCyclesRemaining: integer("coupon_cycles_remaining"),
     trialConvertedEmailSentAt: timestamp("trial_converted_email_sent_at", { withTimezone: true }),
     trialConversionSubmittedAt: timestamp("trial_conversion_submitted_at", { withTimezone: true }),
     livemode: boolean("livemode").notNull().default(false),

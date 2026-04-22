@@ -77,6 +77,7 @@ const ALL_EVENTS: { value: string; label: string }[] = [
   { value: "invoice.issued", label: "Invoice issued" },
   { value: "invoice.email_sent", label: "Invoice email sent" },
   { value: "invoice.email_failed", label: "Invoice email failed" },
+  { value: "coupon.redeemed", label: "Coupon redeemed" },
 ];
 
 const deliveryColumns: ColumnDef<DeliveryRow, unknown>[] = [

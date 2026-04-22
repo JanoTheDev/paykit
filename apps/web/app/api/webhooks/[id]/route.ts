@@ -22,6 +22,7 @@ const VALID_EVENTS = [
   "invoice.issued",
   "invoice.email_sent",
   "invoice.email_failed",
+  "coupon.redeemed",
 ] as const;
 
 const updateWebhookSchema = z.object({

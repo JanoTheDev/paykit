@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, bigint, boolean, timestamp, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, bigint, boolean, timestamp, jsonb, pgEnum, integer } from "drizzle-orm/pg-core";
 import { organization } from "./auth";
 import { products } from "./products";
 
@@ -18,6 +18,7 @@ export const checkoutSessions = pgTable("checkout_sessions", {
   customerId: text("customer_id"),
   merchantWallet: text("merchant_wallet").notNull(),
   amount: bigint("amount", { mode: "bigint" }).notNull(),
+  subtotalAmount: bigint("subtotal_amount", { mode: "bigint" }),
   networkKey: text("network_key"),   // nullable while awaiting_currency
   tokenSymbol: text("token_symbol"), // nullable while awaiting_currency
   type: text("type").notNull().default("one_time"),
@@ -33,6 +34,8 @@ export const checkoutSessions = pgTable("checkout_sessions", {
   successUrl: text("success_url"),
   cancelUrl: text("cancel_url"),
   metadata: jsonb("metadata").$type<Record<string, string>>().default({}),
+  appliedCouponId: uuid("applied_coupon_id"),
+  discountCents: integer("discount_cents"),
   paymentId: uuid("payment_id"),
   subscriptionId: uuid("subscription_id"),
   viewedAt: timestamp("viewed_at", { withTimezone: true }),

@@ -53,6 +53,9 @@ interface CheckoutSession {
   trialDays: number | null;
   trialMinutes: number | null;
   livemode: boolean;
+  appliedCouponId?: string | null;
+  discountCents?: number | null;
+  subtotalAmount?: number | bigint | null;
 }
 
 interface CheckoutClientProps {
@@ -93,6 +96,45 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
   const [indexerOnline, setIndexerOnline] = useState<boolean>(true);
   const [customerUuid, setCustomerUuid] = useState<string | null>(null);
   const [portalToken, setPortalToken] = useState<string | null>(null);
+  const [couponInput, setCouponInput] = useState("");
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const canUseCoupon = session.type === "one_time";
+
+  async function handleApplyCoupon() {
+    if (!couponInput.trim()) return;
+    setApplyingCoupon(true);
+    setCouponError(null);
+    try {
+      const res = await fetch(`/api/checkout/${session.id}/apply-coupon`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponInput.trim() }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setCouponError(data.error?.message ?? "Could not apply this code");
+      }
+    } catch {
+      setCouponError("Could not apply this code");
+    } finally {
+      setApplyingCoupon(false);
+    }
+  }
+
+  async function handleRemoveCoupon() {
+    setApplyingCoupon(true);
+    try {
+      await fetch(`/api/checkout/${session.id}/apply-coupon`, {
+        method: "DELETE",
+      });
+      window.location.reload();
+    } catch {
+      setApplyingCoupon(false);
+    }
+  }
 
   // Check indexer status on mount and every 30s
   useEffect(() => {
@@ -1087,6 +1129,55 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
                     </Button>
                     {fundingError && (
                       <p className="mt-3 text-xs text-destructive">{fundingError}</p>
+                    )}
+                  </div>
+                )}
+
+                {canUseCoupon && session.networkKey && (
+                  <div className="rounded-md border border-border bg-background p-3 text-xs">
+                    {session.appliedCouponId ? (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium text-foreground">
+                            Coupon applied
+                          </span>
+                          {session.discountCents ? (
+                            <span className="ml-2 text-muted-foreground">
+                              — {session.discountCents} off
+                            </span>
+                          ) : null}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={applyingCoupon}
+                          onClick={handleRemoveCoupon}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="coupon">Discount code</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="coupon"
+                            value={couponInput}
+                            onChange={(e) => setCouponInput(e.target.value)}
+                            placeholder="SPRING25"
+                          />
+                          <Button
+                            variant="outline"
+                            disabled={applyingCoupon || !couponInput.trim()}
+                            onClick={handleApplyCoupon}
+                          >
+                            {applyingCoupon ? "Applying…" : "Apply"}
+                          </Button>
+                        </div>
+                        {couponError && (
+                          <p className="text-xs text-destructive">{couponError}</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

@@ -57,6 +57,9 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       trialDays: products.trialDays,
       trialMinutes: products.trialMinutes,
       livemode: checkoutSessions.livemode,
+      appliedCouponId: checkoutSessions.appliedCouponId,
+      discountCents: checkoutSessions.discountCents,
+      subtotalAmount: checkoutSessions.subtotalAmount,
     })
     .from(checkoutSessions)
     .innerJoin(products, eq(checkoutSessions.productId, products.id))
