@@ -155,6 +155,13 @@
       "when": 1745884800000,
       "tag": "0023_add_gift_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1745971200000,
+      "tag": "0024_add_refunds",
+      "breakpoints": true
     }
   ]
 }

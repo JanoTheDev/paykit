@@ -22,6 +22,9 @@ export default async function PaymentsPage() {
       customerWallet: customers.walletAddress,
       invoiceNumber: invoices.number,
       invoiceHostedToken: invoices.hostedToken,
+      fromAddress: payments.fromAddress,
+      toAddress: payments.toAddress,
+      refundedCents: payments.refundedCents,
     })
     .from(payments)
     .leftJoin(products, eq(payments.productId, products.id))

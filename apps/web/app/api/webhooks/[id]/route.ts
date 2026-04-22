@@ -11,6 +11,7 @@ import { apiError } from "@/lib/api-error";
 
 const VALID_EVENTS = [
   "payment.confirmed",
+  "payment.refunded",
   "subscription.created",
   "subscription.charged",
   "subscription.past_due",

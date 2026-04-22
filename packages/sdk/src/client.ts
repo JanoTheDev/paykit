@@ -98,6 +98,11 @@ import {
   type GiftSubscriptionParams,
   type GiftedSubscription,
 } from "./subscription-schedule";
+import {
+  refundPayment,
+  type RefundPaymentParams,
+  type Refund,
+} from "./refunds";
 
 export class Paylix {
   private config: PaylixConfig;
@@ -296,6 +301,10 @@ export class Paylix {
 
   async resumeSubscriptionSchedule(subscriptionId: string): Promise<void> {
     return resumeSubscriptionSchedule(this.config, subscriptionId);
+  }
+
+  async refundPayment(params: RefundPaymentParams): Promise<Refund> {
+    return refundPayment(this.config, params);
   }
 
   async replayWebhookDelivery(deliveryId: string): Promise<ReplayWebhookDeliveryResult> {

@@ -56,6 +56,7 @@ const navGroups: (NavItem | NavGroup)[] = [
       { href: "/scheduled-cancellation", label: "Scheduled Cancellation" },
       { href: "/gift-subscriptions", label: "Gift Subscriptions" },
       { href: "/csv-export", label: "CSV Export" },
+      { href: "/refunds", label: "Refunds" },
       { href: "/webhooks", label: "Webhooks" },
     ],
   },

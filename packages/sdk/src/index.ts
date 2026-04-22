@@ -28,6 +28,7 @@ export type {
   GiftedSubscription,
   CancelWhen,
 } from "./subscription-schedule";
+export type { RefundPaymentParams, Refund } from "./refunds";
 export type {
   PaylixConfig,
   CreateCheckoutParams,

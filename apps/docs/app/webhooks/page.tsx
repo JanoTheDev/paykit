@@ -194,6 +194,28 @@ app.post(
   }
 }`}</CodeBlock>
 
+      <SubsectionHeading>payment.refunded</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent when a merchant records a refund on a payment. Refunds are
+        non-custodial — the merchant sent USDC from their own wallet
+        back to the buyer and pasted the tx hash into the dashboard or
+        SDK. Paylix verifies the transfer on-chain before firing this
+        event. The 0.5% platform fee on the original charge is not
+        returned.
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "payment.refunded",
+  "timestamp": "2026-04-22T14:00:00.000Z",
+  "data": {
+    "paymentId": "1f23...",
+    "refundId": "rfd_...",
+    "amount": 1000,
+    "reason": "Customer requested refund",
+    "txHash": "0xabcd...",
+    "metadata": { "orderId": "42" }
+  }
+}`}</CodeBlock>
+
       <SubsectionHeading>subscription.created</SubsectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         Sent when a customer successfully sets up a new subscription and the

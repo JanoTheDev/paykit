@@ -66,6 +66,7 @@ type DeliveryRow = {
 
 const ALL_EVENTS: { value: string; label: string }[] = [
   { value: "payment.confirmed", label: "Payment confirmed" },
+  { value: "payment.refunded", label: "Payment refunded" },
   { value: "subscription.created", label: "Subscription created" },
   { value: "subscription.charged", label: "Subscription charged" },
   { value: "subscription.past_due", label: "Subscription past due" },

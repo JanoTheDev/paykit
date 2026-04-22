@@ -10,6 +10,7 @@
 
 export const WEBHOOK_EVENT_TYPES = [
   "payment.confirmed",
+  "payment.refunded",
   "subscription.created",
   "subscription.charged",
   "subscription.past_due",
@@ -46,6 +47,15 @@ export function fixtureDataFor(event: WebhookEventType): Record<string, unknown>
         txHash: "0xtest0000000000000000000000000000000000000000000000000000000000",
         fromAddress: "0x1111111111111111111111111111111111111111",
         toAddress: "0x2222222222222222222222222222222222222222",
+        metadata: { orderId: "test-order" },
+      };
+    case "payment.refunded":
+      return {
+        paymentId: "pay_test_0000000000000000",
+        refundId: "rfd_test_0000000000000000",
+        amount: 1000,
+        reason: "customer request",
+        txHash: "0xtestrefund0000000000000000000000000000000000000000000000000000",
         metadata: { orderId: "test-order" },
       };
     case "subscription.created":

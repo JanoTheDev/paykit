@@ -178,6 +178,10 @@
         "anchor": "gift-subscriptions"
       },
       {
+        "text": "Refunds",
+        "anchor": "refunds"
+      },
+      {
         "text": "Coupons — subscription once + repeating",
         "anchor": "coupons-subscription-once-repeating"
       },
@@ -933,6 +937,33 @@
     ]
   },
   {
+    "title": "Refunds",
+    "description": "Return USDC to a buyer and record the refund on the payment. Paylix is non-custodial — the merchant",
+    "path": "/refunds",
+    "headings": [
+      {
+        "text": "How it works",
+        "anchor": "how-it-works"
+      },
+      {
+        "text": "SDK",
+        "anchor": "sdk"
+      },
+      {
+        "text": "Validation",
+        "anchor": "validation"
+      },
+      {
+        "text": "Webhook",
+        "anchor": "webhook"
+      },
+      {
+        "text": "Partial refunds",
+        "anchor": "partial-refunds"
+      }
+    ]
+  },
+  {
     "title": "Scheduled Cancellation",
     "description": "Let customers cancel mid-cycle but keep access until the end of the billing period, with the option to undo before the boundary passes.",
     "path": "/scheduled-cancellation",
@@ -1520,6 +1551,10 @@
       {
         "text": "payment.confirmed",
         "anchor": "payment-confirmed"
+      },
+      {
+        "text": "payment.refunded",
+        "anchor": "payment-refunded"
       },
       {
         "text": "subscription.created",

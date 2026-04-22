@@ -59,6 +59,18 @@ export default function ChangelogPage() {
         passes. Blocklist still applies.
       </p>
 
+      <SubsectionHeading>Refunds</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        New <code>POST /api/payments/:id/refund</code> +{" "}
+        <code>paylix.refundPayment()</code>. Merchant sends USDC back to
+        the buyer from their own wallet; Paylix fetches the receipt,
+        decodes the Transfer log, and verifies the merchant → buyer
+        transfer before recording. Partial + cumulative refunds
+        supported. Webhook: <code>payment.refunded</code>. The 0.5%
+        platform fee is <strong>not</strong> returned — merchant bears
+        the full refund amount.
+      </p>
+
       <SubsectionHeading>Coupons — subscription once + repeating</SubsectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         <code>SubscriptionManager</code> gains{" "}

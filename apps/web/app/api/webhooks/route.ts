@@ -13,6 +13,7 @@ import { withIdempotency } from "@/lib/idempotency";
 
 const VALID_EVENTS = [
   "payment.confirmed",
+  "payment.refunded",
   "subscription.created",
   "subscription.charged",
   "subscription.past_due",
