@@ -178,6 +178,10 @@
         "anchor": "gift-subscriptions"
       },
       {
+        "text": "Customer refund requests",
+        "anchor": "customer-refund-requests"
+      },
+      {
         "text": "Tax helpers + preview API",
         "anchor": "tax-helpers-preview-api"
       },

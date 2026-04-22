@@ -59,6 +59,20 @@ export default function ChangelogPage() {
         passes. Blocklist still applies.
       </p>
 
+      <SubsectionHeading>Customer refund requests</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        New <code>refund_requests</code> table (migration 0027).
+        Customers initiate via{" "}
+        <code>POST /api/portal/refund-requests</code>; partial unique
+        index limits one open request per payment per customer.
+        Merchants list via <code>GET /api/refund-requests</code> and
+        decline via <code>POST /api/refund-requests/:id/decline</code>.
+        Approval goes through the existing refund flow and links the
+        row via <code>refund_id</code>. Webhooks:{" "}
+        <code>refund.requested</code>, <code>refund.approved</code>,{" "}
+        <code>refund.declined</code>.
+      </p>
+
       <SubsectionHeading>Tax helpers + preview API</SubsectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         New <code>lib/tax-rates.ts</code> ships headline VAT rates for

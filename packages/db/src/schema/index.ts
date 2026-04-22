@@ -23,3 +23,4 @@ export * from "./payment-links";
 export * from "./blocklist-entries";
 export * from "./refunds";
 export * from "./customer-notification-prefs";
+export * from "./refund-requests";
