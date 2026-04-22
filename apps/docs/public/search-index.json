@@ -186,6 +186,14 @@
         "anchor": "customer-refund-requests"
       },
       {
+        "text": "Portal wallets + notification prefs UI",
+        "anchor": "portal-wallets-notification-prefs-ui"
+      },
+      {
+        "text": "Idempotency on more routes",
+        "anchor": "idempotency-on-more-routes"
+      },
+      {
         "text": "Tax helpers + preview API",
         "anchor": "tax-helpers-preview-api"
       },

@@ -78,12 +78,42 @@ export default function ChangelogPage() {
         Customers initiate via{" "}
         <code>POST /api/portal/refund-requests</code>; partial unique
         index limits one open request per payment per customer.
-        Merchants list via <code>GET /api/refund-requests</code> and
-        decline via <code>POST /api/refund-requests/:id/decline</code>.
-        Approval goes through the existing refund flow and links the
-        row via <code>refund_id</code>. Webhooks:{" "}
-        <code>refund.requested</code>, <code>refund.approved</code>,{" "}
-        <code>refund.declined</code>.
+        Merchants list via <code>GET /api/refund-requests</code>,
+        approve via <code>POST /api/refund-requests/:id/approve</code>{" "}
+        (paste merchant→buyer tx hash; Paylix verifies on-chain, inserts
+        the refund, links <code>refund_id</code>, fires{" "}
+        <code>refund.approved</code> + <code>payment.refunded</code>),
+        and decline via{" "}
+        <code>POST /api/refund-requests/:id/decline</code>. Dashboard
+        page <code>/refund-requests</code> with approve + decline
+        dialogs. Portal adds a "Request refund" button per confirmed
+        payment and a status list.
+      </p>
+
+      <SubsectionHeading>Portal wallets + notification prefs UI</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Customer portal now exposes wallet management (add / remove /
+        make-primary) and per-category email notification toggles
+        (marketing, trial reminders, abandonment, receipts) via{" "}
+        <code>GET/PATCH /api/portal/notifications</code>. All
+        portal-token authenticated; the HMAC one-click unsubscribe
+        landing page continues to work out-of-band.
+      </p>
+
+      <SubsectionHeading>Idempotency on more routes</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Expanded <code>Idempotency-Key</code> coverage beyond{" "}
+        <code>refunds</code> + <code>gift subscriptions</code>:{" "}
+        <code>POST /api/coupons</code>,{" "}
+        <code>POST /api/blocklist</code>,{" "}
+        <code>POST /api/payment-links</code>,{" "}
+        <code>POST /api/keys/:id/rotate</code>,{" "}
+        <code>POST /api/webhooks/:id/send-test</code>,{" "}
+        <code>POST /api/webhooks/deliveries/:id/replay</code>,{" "}
+        <code>POST /api/subscriptions/:id/{"{cancel,pause,resume}"}</code>.
+        Retries with the same key + body are deduped for 24h; same
+        key + different body returns 409{" "}
+        <code>idempotency_key_reused</code>.
       </p>
 
       <SubsectionHeading>Tax helpers + preview API</SubsectionHeading>
