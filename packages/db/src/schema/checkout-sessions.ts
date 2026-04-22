@@ -42,6 +42,7 @@ export const checkoutSessions = pgTable("checkout_sessions", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   relayInFlightAt: timestamp("relay_in_flight_at", { withTimezone: true }),
+  recoveryEmailSentAt: timestamp("recovery_email_sent_at", { withTimezone: true }),
   livemode: boolean("livemode").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

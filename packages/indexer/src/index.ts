@@ -5,6 +5,7 @@ import {
   runTrialReminderTick,
   runTrialStartedEmailTick,
 } from "./trial-converter";
+import { runCheckoutRecoveryTick } from "./abandonment";
 import { config, deployments } from "./config";
 import { createDb } from "@paylix/db/client";
 import { systemStatus } from "@paylix/db/schema";
@@ -93,6 +94,9 @@ async function main() {
       });
       await runTrialStartedEmailTick().catch((err) => {
         console.error("[Indexer] trial started email failed:", err);
+      });
+      await runCheckoutRecoveryTick().catch((err) => {
+        console.error("[Indexer] checkout recovery failed:", err);
       });
     } catch (err) {
       console.error("[Keeper] Unhandled error:", err);

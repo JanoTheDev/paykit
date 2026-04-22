@@ -67,6 +67,10 @@ const NOTIFICATION_LABELS: Record<
     label: "Past-due reminder",
     description: "Sent when a recurring charge fails and the subscription needs attention.",
   },
+  checkoutRecovery: {
+    label: "Abandonment recovery",
+    description: "Sent to buyers who left their checkout without paying, once their session was idle for over an hour.",
+  },
 };
 
 interface UserSettings {

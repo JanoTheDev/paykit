@@ -18,6 +18,7 @@ export const NOTIFICATION_KINDS = [
   "subscriptionCancelled",
   "paymentReceipt",
   "pastDue",
+  "checkoutRecovery",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -33,6 +34,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   subscriptionCancelled: true,
   paymentReceipt: true,
   pastDue: true,
+  checkoutRecovery: true,
 };
 
 export const merchantProfiles = pgTable("merchant_profiles", {
