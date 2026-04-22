@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { subscriptions } from "@paylix/db/schema";
 import { eq } from "drizzle-orm";
 import { verifyPortalToken } from "@/lib/portal-tokens";
+import { dispatchWebhooks } from "@/lib/webhook-dispatch";
 
 /**
  * Customer-initiated trial cancellation via portal token. Pure DB state
@@ -63,6 +64,17 @@ export async function POST(request: Request) {
     .update(subscriptions)
     .set({ status: "cancelled", pendingPermitSignature: null })
     .where(eq(subscriptions.id, subscriptionId));
+
+  void dispatchWebhooks(sub.organizationId, "subscription.trial_cancelled", {
+    subscriptionId,
+    productId: sub.productId,
+    customerId: sub.customerId,
+    subscriberAddress: sub.subscriberAddress,
+    trialEndsAt: sub.trialEndsAt?.toISOString() ?? null,
+    cancelledBy: "customer",
+    cancelledAt: new Date().toISOString(),
+    metadata: sub.metadata ?? {},
+  }).catch((err) => console.error("[portal cancel-trial] webhook failed:", err));
 
   return NextResponse.json({ ok: true });
 }

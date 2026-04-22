@@ -253,6 +253,7 @@ export async function runTrialReminderTick(): Promise<{ scanned: number }> {
   const { subscriptions } = await import("@paylix/db/schema");
   const { and, eq, gt, lte, isNull } = await import("drizzle-orm");
   const { config } = await import("./config");
+  const { dispatchWebhooks } = await import("./webhook-dispatch");
 
   const db = createDb(config.databaseUrl);
   const now = new Date();
@@ -263,7 +264,11 @@ export async function runTrialReminderTick(): Promise<{ scanned: number }> {
       id: subscriptions.id,
       organizationId: subscriptions.organizationId,
       customerId: subscriptions.customerId,
+      productId: subscriptions.productId,
+      subscriberAddress: subscriptions.subscriberAddress,
       trialEndsAt: subscriptions.trialEndsAt,
+      metadata: subscriptions.metadata,
+      livemode: subscriptions.livemode,
     })
     .from(subscriptions)
     .where(
@@ -287,6 +292,21 @@ export async function runTrialReminderTick(): Promise<{ scanned: number }> {
         .update(subscriptions)
         .set({ trialReminderSentAt: new Date() })
         .where(eq(subscriptions.id, row.id));
+      await dispatchWebhooks(
+        row.organizationId,
+        "subscription.trial_ending",
+        {
+          subscriptionId: row.id,
+          productId: row.productId,
+          customerId: row.customerId,
+          subscriberAddress: row.subscriberAddress,
+          trialEndsAt: row.trialEndsAt?.toISOString() ?? null,
+          metadata: row.metadata ?? {},
+        },
+        row.livemode,
+      ).catch((err) =>
+        console.error("[TrialReminder] webhook failed for", row.id, err),
+      );
     } catch (err) {
       console.error("[TrialReminder] failed for", row.id, err);
     }

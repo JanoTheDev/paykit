@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { resolveActiveOrg } from "@/lib/require-active-org";
 import { orgScope } from "@/lib/org-scope";
 import { recordAudit } from "@/lib/audit";
+import { dispatchWebhooks } from "@/lib/webhook-dispatch";
 
 export async function POST(
   request: Request,
@@ -60,6 +61,17 @@ export async function POST(
     resourceId: id,
     ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
   });
+
+  void dispatchWebhooks(organizationId, "subscription.trial_cancelled", {
+    subscriptionId: id,
+    productId: row.productId,
+    customerId: row.customerId,
+    subscriberAddress: row.subscriberAddress,
+    trialEndsAt: row.trialEndsAt?.toISOString() ?? null,
+    cancelledBy: "merchant",
+    cancelledAt: new Date().toISOString(),
+    metadata: row.metadata ?? {},
+  }).catch((err) => console.error("[cancel-trial] webhook failed:", err));
 
   return NextResponse.json({ ok: true });
 }

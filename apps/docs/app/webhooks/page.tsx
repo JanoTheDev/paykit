@@ -277,6 +277,87 @@ app.post(
   }
 }`}</CodeBlock>
 
+      <SubsectionHeading>subscription.trial_started</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent the moment a customer finishes a trial-enabled checkout. The
+        subscription exists only off-chain at this stage — no USDC has moved,
+        no contract call has run. Subscribe if you want to provision access
+        up-front.
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "subscription.trial_started",
+  "timestamp": "2026-04-10T18:23:05.166Z",
+  "data": {
+    "subscriptionId": "3a1f...",
+    "checkoutId": "chk_abc",
+    "productId": "prod_xyz",
+    "customerId": "cust_123",
+    "subscriberAddress": "0x1234...",
+    "trialEndsAt": "2026-04-17T18:23:05.166Z",
+    "metadata": { "orderId": "42" }
+  }
+}`}</CodeBlock>
+
+      <SubsectionHeading>subscription.trial_ending</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent once per trial, when the trial is within 3 days of expiring.
+        Pairs with the keeper-driven reminder email; subscribe if you want to
+        send your own in-app nudge before conversion.
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "subscription.trial_ending",
+  "timestamp": "2026-04-16T18:23:05.166Z",
+  "data": {
+    "subscriptionId": "3a1f...",
+    "productId": "prod_xyz",
+    "customerId": "cust_123",
+    "subscriberAddress": "0x1234...",
+    "trialEndsAt": "2026-04-17T18:23:05.166Z",
+    "metadata": { "orderId": "42" }
+  }
+}`}</CodeBlock>
+
+      <SubsectionHeading>subscription.trial_converted</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent when the keeper replays the stored signatures and the contract
+        emits <code>SubscriptionCreated</code>, flipping the row from
+        <code> trialing</code> to <code>active</code>. A
+        <code> subscription.created</code> event fires immediately after with
+        the full on-chain subscription payload.
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "subscription.trial_converted",
+  "timestamp": "2026-04-17T18:23:05.166Z",
+  "data": {
+    "subscriptionId": "3a1f...",
+    "onChainId": "17",
+    "subscriberAddress": "0x1234...",
+    "merchantAddress": "0xabcd...",
+    "txHash": "0xdead..."
+  }
+}`}</CodeBlock>
+
+      <SubsectionHeading>subscription.trial_cancelled</SubsectionHeading>
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Sent when a trialing subscription is cancelled before it converts —
+        either by the merchant via the dashboard or by the customer via the
+        portal. <code>cancelledBy</code> distinguishes the two.
+      </p>
+      <CodeBlock language="json">{`{
+  "event": "subscription.trial_cancelled",
+  "timestamp": "2026-04-14T18:23:05.166Z",
+  "data": {
+    "subscriptionId": "3a1f...",
+    "productId": "prod_xyz",
+    "customerId": "cust_123",
+    "subscriberAddress": "0x1234...",
+    "trialEndsAt": "2026-04-17T18:23:05.166Z",
+    "cancelledBy": "customer",
+    "cancelledAt": "2026-04-14T18:23:05.166Z",
+    "metadata": { "orderId": "42" }
+  }
+}`}</CodeBlock>
+
       <SubsectionHeading>invoice.issued</SubsectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">
         Sent the moment an invoice is created — always inside the same
