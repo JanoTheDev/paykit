@@ -4,6 +4,7 @@ import {
   invoices,
   payments,
   products,
+  refundRequests,
   subscriptions,
 } from "@paylix/db/schema";
 import { db } from "@/lib/db";
@@ -12,6 +13,7 @@ import {
   PortalClient,
   type PortalInvoice,
   type PortalPayment,
+  type PortalRefundRequest,
   type PortalSubscription,
 } from "./portal-client";
 import { verifyPortalToken } from "@/lib/portal-tokens";
@@ -84,6 +86,7 @@ export default async function PortalPage({
     .select({
       id: payments.id,
       amount: payments.amount,
+      refundedCents: payments.refundedCents,
       status: payments.status,
       txHash: payments.txHash,
       token: payments.token,
@@ -109,6 +112,32 @@ export default async function PortalPage({
     .where(eq(invoices.customerId, customer.id))
     .orderBy(desc(invoices.issuedAt))
     .limit(100);
+
+  const refundReqRows = await db
+    .select({
+      id: refundRequests.id,
+      paymentId: refundRequests.paymentId,
+      amount: refundRequests.amount,
+      reason: refundRequests.reason,
+      status: refundRequests.status,
+      merchantReason: refundRequests.merchantReason,
+      decidedAt: refundRequests.decidedAt,
+      createdAt: refundRequests.createdAt,
+    })
+    .from(refundRequests)
+    .where(eq(refundRequests.customerId, customer.id))
+    .orderBy(desc(refundRequests.createdAt));
+
+  const portalRefundRequests: PortalRefundRequest[] = refundReqRows.map((r) => ({
+    id: r.id,
+    paymentId: r.paymentId,
+    amount: r.amount,
+    reason: r.reason,
+    status: r.status,
+    merchantReason: r.merchantReason,
+    decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
+    createdAt: r.createdAt.toISOString(),
+  }));
 
   const portalInvoices: PortalInvoice[] = invRows.map((r) => ({
     id: r.id,
@@ -137,6 +166,7 @@ export default async function PortalPage({
   const portalPayments: PortalPayment[] = payRows.map((r) => ({
     id: r.id,
     amount: r.amount,
+    refundedCents: r.refundedCents,
     status: r.status,
     txHash: r.txHash,
     token: r.token,
@@ -158,6 +188,7 @@ export default async function PortalPage({
         subscriptions={portalSubs}
         payments={portalPayments}
         invoices={portalInvoices}
+        refundRequests={portalRefundRequests}
       />
     </Web3Providers>
   );

@@ -2,7 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   PageShell,
   PageHeader,
@@ -48,6 +60,7 @@ function humanizeTrialReason(reason: string | null): string {
 export interface PortalPayment {
   id: string;
   amount: number;
+  refundedCents: number;
   status: string;
   txHash: string | null;
   token: string;
@@ -64,6 +77,17 @@ export interface PortalInvoice {
   hostedToken: string;
 }
 
+export interface PortalRefundRequest {
+  id: string;
+  paymentId: string;
+  amount: number;
+  reason: string | null;
+  status: "pending" | "approved" | "declined" | "expired";
+  merchantReason: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
 interface PortalClientProps {
   customerLabel: string;
   customerId: string;
@@ -71,6 +95,7 @@ interface PortalClientProps {
   subscriptions: PortalSubscription[];
   payments: PortalPayment[];
   invoices: PortalInvoice[];
+  refundRequests: PortalRefundRequest[];
 }
 
 type PortalPaymentRow = {
@@ -80,6 +105,16 @@ type PortalPaymentRow = {
   amount: number;
   status: string;
   txHash: string | null;
+};
+
+const refundStatusVariant: Record<
+  PortalRefundRequest["status"],
+  "info" | "success" | "warning" | "default"
+> = {
+  pending: "info",
+  approved: "success",
+  declined: "warning",
+  expired: "default",
 };
 
 const paymentColumns = [
@@ -110,6 +145,7 @@ export function PortalClient({
   subscriptions,
   payments,
   invoices,
+  refundRequests,
 }: PortalClientProps) {
   const router = useRouter();
   const [cancelTarget, setCancelTarget] = useState<PortalSubscription | null>(
@@ -119,6 +155,63 @@ export function PortalClient({
     useState<PortalSubscription | null>(null);
   const [pauseTarget, setPauseTarget] = useState<PortalSubscription | null>(null);
   const [resumeTarget, setResumeTarget] = useState<PortalSubscription | null>(null);
+  const [refundTarget, setRefundTarget] = useState<PortalPayment | null>(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [refundBusy, setRefundBusy] = useState(false);
+
+  const openRequestByPayment = new Map<string, PortalRefundRequest>();
+  for (const r of refundRequests) {
+    if (r.status === "pending" && !openRequestByPayment.has(r.paymentId)) {
+      openRequestByPayment.set(r.paymentId, r);
+    }
+  }
+
+  function startRefund(p: PortalPayment) {
+    const remaining = p.amount - p.refundedCents;
+    setRefundTarget(p);
+    setRefundAmount((remaining / 100).toFixed(2));
+    setRefundReason("");
+  }
+
+  async function submitRefund() {
+    if (!refundTarget) return;
+    const dollars = Number(refundAmount);
+    if (!Number.isFinite(dollars) || dollars <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    const amountCents = Math.round(dollars * 100);
+    const remaining = refundTarget.amount - refundTarget.refundedCents;
+    if (amountCents > remaining) {
+      toast.error("Amount exceeds remaining refundable");
+      return;
+    }
+    setRefundBusy(true);
+    try {
+      const res = await fetch("/api/portal/refund-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: refundTarget.id,
+          customerId,
+          token: portalToken,
+          amount: amountCents,
+          reason: refundReason.trim() || undefined,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Refund requested");
+        setRefundTarget(null);
+        router.refresh();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error?.message ?? "Request failed");
+      }
+    } finally {
+      setRefundBusy(false);
+    }
+  }
 
   async function handleConfirmed() {
     // Trigger the server-component refresh and hold the dialog's "Working..."
@@ -315,7 +408,82 @@ export function PortalClient({
             />
           }
         />
+        {payments.some(
+          (p) =>
+            p.status === "confirmed" &&
+            p.amount - p.refundedCents > 0 &&
+            !openRequestByPayment.has(p.id),
+        ) && (
+          <div className="mt-3 flex flex-col gap-2 text-sm">
+            <p className="text-xs text-foreground-muted">Need a refund?</p>
+            {payments
+              .filter(
+                (p) =>
+                  p.status === "confirmed" &&
+                  p.amount - p.refundedCents > 0 &&
+                  !openRequestByPayment.has(p.id),
+              )
+              .map((p) => {
+                const remaining = p.amount - p.refundedCents;
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between rounded-lg border border-border bg-surface-1 px-4 py-2"
+                  >
+                    <div className="min-w-0 flex-1 truncate">
+                      <span className="text-foreground">{p.productName}</span>
+                      <span className="ml-2 font-mono text-xs text-foreground-muted">
+                        {(remaining / 100).toFixed(2)} {p.token}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startRefund(p)}
+                    >
+                      Request refund
+                    </Button>
+                  </div>
+                );
+              })}
+          </div>
+        )}
       </Section>
+
+      {refundRequests.length > 0 && (
+        <Section title="Refund requests">
+          <div className="flex flex-col gap-2">
+            {refundRequests.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-col gap-1 rounded-lg border border-border bg-surface-1 px-4 py-3 text-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-xs text-foreground-muted">
+                    {formatDate(r.createdAt)}
+                  </span>
+                  <span className="font-mono tabular-nums text-foreground">
+                    ${(r.amount / 100).toFixed(2)}
+                  </span>
+                  <Badge variant={refundStatusVariant[r.status]}>
+                    {r.status}
+                  </Badge>
+                </div>
+                {r.reason && (
+                  <p className="text-xs text-foreground-muted">
+                    Your reason: {r.reason}
+                  </p>
+                )}
+                {r.status === "declined" && r.merchantReason && (
+                  <p className="text-xs text-warning">
+                    Merchant: {r.merchantReason}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       <Section title="Invoices">
         {invoices.length === 0 ? (
@@ -483,6 +651,58 @@ export function PortalClient({
           await handleConfirmed();
         }}
       />
+
+      <Dialog
+        open={refundTarget !== null}
+        onOpenChange={(v) => !v && setRefundTarget(null)}
+      >
+        <DialogContent className="border-border bg-surface-1 sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Request a refund</DialogTitle>
+            <DialogDescription>
+              The merchant will review your request. If approved, the
+              refund is sent back to your wallet on-chain.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 text-sm">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="rf-amount">Amount (USDC)</Label>
+              <Input
+                id="rf-amount"
+                inputMode="decimal"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                className="font-mono"
+              />
+              {refundTarget && (
+                <p className="text-xs text-foreground-muted">
+                  Remaining refundable: $
+                  {((refundTarget.amount - refundTarget.refundedCents) / 100).toFixed(
+                    2,
+                  )}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="rf-reason">Reason (optional)</Label>
+              <Input
+                id="rf-reason"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                placeholder="What went wrong?"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRefundTarget(null)}>
+              Cancel
+            </Button>
+            <Button onClick={submitRefund} disabled={refundBusy}>
+              {refundBusy ? "Sending…" : "Submit request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
