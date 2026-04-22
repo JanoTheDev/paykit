@@ -19,3 +19,4 @@ export * from "./audit-logs";
 export * from "./idempotency-keys";
 export * from "./faucet-mints";
 export * from "./coupons";
+export * from "./payment-links";

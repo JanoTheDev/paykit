@@ -127,6 +127,13 @@
       "when": 1745539200000,
       "tag": "0019_add_checkout_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1745625600000,
+      "tag": "0020_add_payment_links",
+      "breakpoints": true
     }
   ]
 }

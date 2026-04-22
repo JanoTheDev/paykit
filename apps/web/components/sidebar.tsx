@@ -31,6 +31,7 @@ const navItems = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/payments", label: "Payments", icon: CreditCard },
   { href: "/checkout-links", label: "Checkout Links", icon: Link2 },
+  { href: "/payment-links", label: "Payment Links", icon: Link2 },
   { href: "/coupons", label: "Coupons", icon: Tag },
   { href: "/customers", label: "Customers", icon: UserCircle },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },

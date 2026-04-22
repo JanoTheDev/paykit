@@ -2,6 +2,11 @@ export { Paylix } from "./client";
 export { webhooks } from "./webhooks";
 export { NETWORKS } from "./networks";
 export type {
+  CreatePaymentLinkParams,
+  CreatePaymentLinkResult,
+  PaymentLink,
+} from "./payment-links";
+export type {
   PaylixConfig,
   CreateCheckoutParams,
   CreateCheckoutResult,

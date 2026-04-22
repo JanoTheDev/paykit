@@ -59,6 +59,14 @@ import {
   deleteWebhook,
 } from "./webhook-management";
 import { faucet } from "./test";
+import {
+  createPaymentLink,
+  listPaymentLinks,
+  archivePaymentLink,
+  type CreatePaymentLinkParams,
+  type CreatePaymentLinkResult,
+  type PaymentLink,
+} from "./payment-links";
 
 export class Paylix {
   private config: PaylixConfig;
@@ -193,5 +201,17 @@ export class Paylix {
 
   async testFaucet(req: { address: string; amount?: number }): Promise<{ success: true; txHash: string; amountMinted: number }> {
     return faucet(this.config, req);
+  }
+
+  async createPaymentLink(params: CreatePaymentLinkParams): Promise<CreatePaymentLinkResult> {
+    return createPaymentLink(this.config, params);
+  }
+
+  async listPaymentLinks(): Promise<PaymentLink[]> {
+    return listPaymentLinks(this.config);
+  }
+
+  async archivePaymentLink(id: string): Promise<void> {
+    return archivePaymentLink(this.config, id);
   }
 }
