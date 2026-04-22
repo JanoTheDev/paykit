@@ -26,6 +26,12 @@ const VALID_EVENTS = [
   "invoice.email_sent",
   "invoice.email_failed",
   "coupon.redeemed",
+  "system.relayer_balance_low",
+  "system.keeper_balance_low",
+  "system.keeper_failure_rate_high",
+  "system.webhook_failure_rate_high",
+  "system.unmatched_retry_queue_deep",
+  "system.trial_conversion_failure_rate_high",
 ] as const;
 
 const createWebhookSchema = z.object({
