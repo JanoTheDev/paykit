@@ -211,7 +211,12 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
       networkKey: string;
       chainName: string;
       displayLabel: string;
-      tokens: string[];
+      tokens: Array<{
+        symbol: string;
+        name: string;
+        bridged: boolean;
+        usable: boolean;
+      }>;
     }>
   >([]);
 
@@ -243,21 +248,33 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
   }, [mode, initialData]);
 
   useEffect(() => {
-    // Load merchant's enabled networks from /api/settings
+    // Load merchant's enabled networks from /api/settings. For each network
+    // we surface every registered token, filtered to those currently usable
+    // by the relay route (`isTokenUsable`), with bridged-token flags the
+    // dropdown uses to show a warning badge.
     let cancelled = false;
     fetch("/api/settings")
       .then((r) => (r.ok ? r.json() : null))
       .then(async (data) => {
         if (cancelled || !data?.networks) return;
-        const { NETWORKS } = await import("@paylix/config/networks");
+        const { NETWORKS, isTokenUsable } = await import("@paylix/config/networks");
         const enabled = data.networks
           .filter((n: { enabled: boolean }) => n.enabled)
-          .map((n: { networkKey: string; chainName: string; displayLabel: string }) => ({
-            networkKey: n.networkKey,
-            chainName: n.chainName,
-            displayLabel: n.displayLabel,
-            tokens: Object.keys(NETWORKS[n.networkKey as keyof typeof NETWORKS].tokens),
-          }));
+          .map((n: { networkKey: string; chainName: string; displayLabel: string }) => {
+            const network = NETWORKS[n.networkKey as keyof typeof NETWORKS];
+            const tokens = Object.values(network.tokens).map((t) => ({
+              symbol: t.symbol,
+              name: t.name,
+              bridged: Boolean(t.bridged),
+              usable: isTokenUsable(t),
+            }));
+            return {
+              networkKey: n.networkKey,
+              chainName: n.chainName,
+              displayLabel: n.displayLabel,
+              tokens,
+            };
+          });
         if (!cancelled) setEnabledNetworks(enabled);
       });
     return () => {
@@ -576,9 +593,10 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
             <div>
               <h3 className="text-sm font-medium">Prices</h3>
               <p className="text-xs text-muted-foreground">
-                One or more prices per product. Each entry is an independent
-                (network, token, amount) combination. Buyers pick between them at
-                checkout if you don&apos;t pre-lock the currency.
+                Set the price buyers pay. Each row is one network (blockchain)
+                plus one token (the currency they pay in) plus the amount.
+                Add a row for every network and currency you want to accept —
+                buyers pick at checkout. Example: <span className="font-mono">Base &middot; USDC &middot; 10.00</span>.
               </p>
             </div>
 
@@ -629,11 +647,30 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
                           enabledNetworks
                             .find((n) => n.networkKey === p.networkKey)
                             ?.tokens.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
+                              <option
+                                key={t.symbol}
+                                value={t.symbol}
+                                disabled={!t.usable}
+                              >
+                                {t.symbol}
+                                {t.bridged ? " (bridged)" : ""}
+                                {!t.usable ? " — coming soon" : ""}
                               </option>
                             ))}
                       </select>
+                      {p.networkKey && p.tokenSymbol && (() => {
+                        const tok = enabledNetworks
+                          .find((n) => n.networkKey === p.networkKey)
+                          ?.tokens.find((t) => t.symbol === p.tokenSymbol);
+                        if (tok?.bridged) {
+                          return (
+                            <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-500">
+                              Bridged token — not the original issuer&apos;s deployment. Funds pass through a bridge contract.
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     <div>

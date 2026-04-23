@@ -90,6 +90,12 @@ interface NetworkConfigUI {
   enabled: boolean;
   usesDefault: boolean;
   overrideAddress: string | null;
+  environment?: "mainnet" | "testnet";
+  tokenSummary?: Array<{
+    symbol: string;
+    bridged: boolean;
+    usable: boolean;
+  }>;
 }
 
 interface CheckoutDefaults {
@@ -147,7 +153,28 @@ export default function SettingsPage() {
           setCheckoutDefaults(data.checkoutFieldDefaults);
         }
         if (Array.isArray(data.networks)) {
-          setNetworks(data.networks);
+          // Enrich each network with its environment + usable-token summary so
+          // the UI can show per-card mainnet/testnet badges and the list of
+          // currencies merchants will actually accept there.
+          const { NETWORKS, isTokenUsable } = await import(
+            "@paylix/config/networks"
+          );
+          setNetworks(
+            data.networks.map((n: NetworkConfigUI) => {
+              const net = NETWORKS[n.networkKey as keyof typeof NETWORKS];
+              return {
+                ...n,
+                environment: net?.environment,
+                tokenSummary: net
+                  ? Object.values(net.tokens).map((t) => ({
+                      symbol: t.symbol,
+                      bridged: Boolean(t.bridged),
+                      usable: isTokenUsable(t),
+                    }))
+                  : [],
+              };
+            }),
+          );
         }
         if (data.businessProfile) setProfile(data.businessProfile);
         if (typeof data.notificationsEnabled === "boolean") {
@@ -352,15 +379,17 @@ export default function SettingsPage() {
         {/* Payments tab: wallet + networks */}
         <TabsContent value="payments" className="space-y-6">
           <FormSection
-            title="Payout Wallet"
-            description="Successful checkouts deposit USDC into this wallet."
+            title="Default payout wallet"
+            description="Where customer payments land. Same Ethereum address works across every EVM network you enable below. Override per-network only if you need a different wallet for a specific chain."
           >
             <div className="flex items-center gap-2 pb-2">
               <Badge variant={isMainnet ? "success" : "info"}>
-                {isMainnet ? "Mainnet" : "Testnet"}
+                {isMainnet ? "Live mode (mainnet)" : "Test mode (testnet)"}
               </Badge>
               <span className="text-xs text-foreground-muted">
-                {isMainnet ? "Base (Mainnet)" : "Base Sepolia (Testnet)"}
+                {isMainnet
+                  ? "Payments settle in real funds. Use a hardware wallet or Safe multisig here."
+                  : "Test mode — payments use mock USDC with no real value."}
               </span>
             </div>
             <FormRow label="Wallet address" htmlFor="wallet-address">
@@ -369,10 +398,13 @@ export default function SettingsPage() {
                 type="text"
                 value={walletAddress}
                 onChange={(e) => setWalletAddress(e.target.value)}
-                placeholder="0x…"
+                placeholder="0x… (your Ethereum-format address)"
                 className="font-mono"
               />
             </FormRow>
+            <p className="text-[11px] text-foreground-muted">
+              New to crypto wallets? Create one free at metamask.io, rabby.io, or app.safe.global (recommended for mainnet — Safe is a multisig wallet that needs multiple approvals per transaction, dramatically safer).
+            </p>
             {walletError && (
               <Alert variant="destructive">
                 <AlertDescription>{walletError}</AlertDescription>
@@ -387,7 +419,7 @@ export default function SettingsPage() {
 
           <FormSection
             title="Networks"
-            description="Choose which blockchains to accept payments on. Override the wallet per-network if needed."
+            description="Each network is one blockchain. Turning it on lets you create products priced in that network's tokens. Buyers on that network send payments to the wallet shown on each card."
           >
             <div className="flex flex-col gap-3">
               {networks.map((n) => (
@@ -395,12 +427,57 @@ export default function SettingsPage() {
                   key={n.networkKey}
                   className="rounded-lg border border-border bg-surface-1 p-4"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium">{n.displayLabel}</div>
-                      <div className="text-xs text-foreground-muted">
-                        {n.chainName}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium">
+                          {n.chainName}
+                        </span>
+                        {n.environment && (
+                          <Badge
+                            variant={
+                              n.environment === "mainnet" ? "success" : "info"
+                            }
+                          >
+                            {n.environment === "mainnet"
+                              ? "Mainnet"
+                              : "Testnet"}
+                          </Badge>
+                        )}
                       </div>
+                      {n.tokenSummary && n.tokenSummary.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {n.tokenSummary.map((t) => (
+                            <span
+                              key={t.symbol}
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
+                                t.usable
+                                  ? "border-border text-foreground"
+                                  : "border-border/50 text-foreground-muted line-through"
+                              }`}
+                              title={
+                                !t.usable
+                                  ? "Coming soon — Permit2 / DAI-permit path not wired yet"
+                                  : t.bridged
+                                    ? "Bridged token — not the issuer's canonical deployment"
+                                    : undefined
+                              }
+                            >
+                              {t.symbol}
+                              {t.bridged && (
+                                <span className="text-amber-600 dark:text-amber-500">
+                                  *
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                          {n.tokenSummary.some((t) => t.bridged) && (
+                            <span className="text-[10px] text-foreground-muted">
+                              * bridged
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <Switch
                       checked={n.enabled}
@@ -409,7 +486,10 @@ export default function SettingsPage() {
                   </div>
 
                   {n.enabled && (
-                    <div className="mt-3 flex flex-col gap-2">
+                    <div className="mt-3 flex flex-col gap-2 pt-3 border-t border-border/50">
+                      <div className="text-[11px] text-foreground-muted">
+                        Payout wallet for {n.chainName}:
+                      </div>
                       <div className="flex gap-4 text-xs">
                         <label className="flex items-center gap-2">
                           <input
@@ -419,7 +499,7 @@ export default function SettingsPage() {
                               setNetworkMode(n.networkKey, "default")
                             }
                           />
-                          Use default wallet
+                          Use default wallet (same as above)
                         </label>
                         <label className="flex items-center gap-2">
                           <input
@@ -429,13 +509,13 @@ export default function SettingsPage() {
                               setNetworkMode(n.networkKey, "override")
                             }
                           />
-                          Override
+                          Use a different wallet here
                         </label>
                       </div>
                       {!n.usesDefault && (
                         <Input
                           type="text"
-                          placeholder="0x..."
+                          placeholder={`0x… (wallet for ${n.chainName} only)`}
                           value={n.overrideAddress ?? ""}
                           onChange={(e) =>
                             updateOverride(n.networkKey, e.target.value)
