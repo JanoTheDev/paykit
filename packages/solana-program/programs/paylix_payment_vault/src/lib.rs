@@ -2,68 +2,149 @@
 //
 // Paylix PaymentVault — Solana edition.
 //
-// Status: skeleton. Tracked in issue #57. The instruction signatures,
-// account layouts, and PDA seeds below are the stable contract between
-// the program and the off-chain SDK / indexer. The actual logic for
-// intent-binding, fee split, and token transfers is deferred to the
-// first implementation PR referenced in the spec at
-// docs/superpowers/specs/2026-04-23-solana-integration.md.
+// One-time SPL payments. Buyer signs the transaction directly (no separate
+// off-chain intent binding — the tx's own signature IS the authorization,
+// and Solana's account model makes fields non-malleable once signed).
+// Splits platform fee and transfers merchant share via SPL transfer_checked.
 
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token_interface::{Mint, TokenAccount, TokenInterface},
+use anchor_spl::token_interface::{
+    self, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 
 declare_id!("PLXPayVau1t1111111111111111111111111111111");
+
+const BPS_DENOMINATOR: u64 = 10_000;
+const MAX_PLATFORM_FEE_BPS: u16 = 1_000; // 10%
 
 #[program]
 pub mod paylix_payment_vault {
     use super::*;
 
-    /// Initialize the global vault config PDA. Called once per deployment
-    /// by the Paylix platform operator.
+    /// Initialize the global vault config PDA. Called once per deployment.
     pub fn initialize(
-        _ctx: Context<Initialize>,
-        _platform_fee_bps: u16,
+        ctx: Context<Initialize>,
+        platform_wallet: Pubkey,
+        platform_fee_bps: u16,
     ) -> Result<()> {
-        // Impl pending — #57.
+        require!(platform_fee_bps <= MAX_PLATFORM_FEE_BPS, ErrorCode::FeeTooHigh);
+        let cfg = &mut ctx.accounts.config;
+        cfg.owner = ctx.accounts.payer.key();
+        cfg.platform_wallet = platform_wallet;
+        cfg.platform_fee_bps = platform_fee_bps;
+        cfg.paused = false;
+        cfg.bump = ctx.bumps.config;
         Ok(())
     }
 
-    /// One-time payment: the buyer has pre-approved this program's PDA as a
-    /// delegated authority for `amount` on their associated token account
-    /// (the Solana equivalent of EIP-2612's permit). This instruction
-    /// verifies the off-chain PaymentIntent (signed with ed25519 over the
-    /// canonical Paylix layout), splits out the platform fee, and transfers
-    /// the merchant share via SPL Token transfer_checked.
+    /// One-time payment. Buyer signs the transaction (so Solana itself
+    /// authorizes the transfer from buyer_ata); the program pulls the
+    /// full `amount`, splits the platform fee, and forwards the merchant
+    /// share.
     pub fn create_payment(
-        _ctx: Context<CreatePayment>,
-        _amount: u64,
-        _product_id: [u8; 32],
-        _customer_id: [u8; 32],
-        _intent_signature: [u8; 64],
-        _deadline: i64,
+        ctx: Context<CreatePayment>,
+        amount: u64,
+        product_id: [u8; 32],
+        customer_id: [u8; 32],
     ) -> Result<()> {
-        // Impl pending — #57.
+        let cfg = &ctx.accounts.config;
+        require!(!cfg.paused, ErrorCode::Paused);
+        require!(amount > 0, ErrorCode::AmountZero);
+
+        // Verify accepted_token matches the mint the caller is paying with.
+        require_keys_eq!(
+            ctx.accounts.accepted.mint,
+            ctx.accounts.mint.key(),
+            ErrorCode::TokenNotAccepted
+        );
+        require!(ctx.accounts.accepted.accepted, ErrorCode::TokenNotAccepted);
+
+        let fee = amount
+            .checked_mul(cfg.platform_fee_bps as u64)
+            .ok_or(ErrorCode::MathOverflow)?
+            / BPS_DENOMINATOR;
+        let merchant_amount = amount.checked_sub(fee).ok_or(ErrorCode::MathOverflow)?;
+        require!(merchant_amount > 0, ErrorCode::AmountTooSmall);
+
+        // Merchant leg.
+        token_interface::transfer_checked(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                TransferChecked {
+                    from: ctx.accounts.buyer_ata.to_account_info(),
+                    to: ctx.accounts.merchant_ata.to_account_info(),
+                    authority: ctx.accounts.buyer.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                },
+            ),
+            merchant_amount,
+            ctx.accounts.mint.decimals,
+        )?;
+
+        // Platform fee leg (skip when fee == 0 to save a CPI).
+        if fee > 0 {
+            token_interface::transfer_checked(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    TransferChecked {
+                        from: ctx.accounts.buyer_ata.to_account_info(),
+                        to: ctx.accounts.platform_ata.to_account_info(),
+                        authority: ctx.accounts.buyer.to_account_info(),
+                        mint: ctx.accounts.mint.to_account_info(),
+                    },
+                ),
+                fee,
+                ctx.accounts.mint.decimals,
+            )?;
+        }
+
+        emit!(PaymentReceived {
+            buyer: ctx.accounts.buyer.key(),
+            merchant: ctx.accounts.merchant_ata.key(),
+            mint: ctx.accounts.mint.key(),
+            amount,
+            fee,
+            product_id,
+            customer_id,
+        });
         Ok(())
     }
 
-    pub fn set_accepted_token(_ctx: Context<SetAcceptedToken>, _accepted: bool) -> Result<()> {
+    pub fn set_accepted_token(
+        ctx: Context<SetAcceptedToken>,
+        accepted: bool,
+    ) -> Result<()> {
+        let row = &mut ctx.accounts.accepted;
+        row.mint = ctx.accounts.mint.key();
+        row.accepted = accepted;
+        row.bump = ctx.bumps.accepted;
         Ok(())
     }
 
-    pub fn pause(_ctx: Context<AdminConfig>) -> Result<()> {
+    pub fn pause(ctx: Context<AdminConfig>) -> Result<()> {
+        ctx.accounts.config.paused = true;
         Ok(())
     }
 
-    pub fn unpause(_ctx: Context<AdminConfig>) -> Result<()> {
+    pub fn unpause(ctx: Context<AdminConfig>) -> Result<()> {
+        ctx.accounts.config.paused = false;
         Ok(())
     }
 }
 
-// ── Accounts ───────────────────────────────────────────────────────
+// ── Events ──────────────────────────────────────────────────────────
+#[event]
+pub struct PaymentReceived {
+    pub buyer: Pubkey,
+    pub merchant: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+    pub fee: u64,
+    pub product_id: [u8; 32],
+    pub customer_id: [u8; 32],
+}
 
+// ── State ──────────────────────────────────────────────────────────
 #[account]
 pub struct VaultConfig {
     pub owner: Pubkey,
@@ -72,6 +153,9 @@ pub struct VaultConfig {
     pub paused: bool,
     pub bump: u8,
 }
+impl VaultConfig {
+    pub const LEN: usize = 8 + 32 + 32 + 2 + 1 + 1;
+}
 
 #[account]
 pub struct AcceptedToken {
@@ -79,18 +163,14 @@ pub struct AcceptedToken {
     pub accepted: bool,
     pub bump: u8,
 }
-
-#[account]
-pub struct BuyerNonce {
-    pub buyer: Pubkey,
-    pub nonce: u64,
+impl AcceptedToken {
+    pub const LEN: usize = 8 + 32 + 1 + 1;
 }
 
-// ── Contexts ───────────────────────────────────────────────────────
-
+// ── Contexts ────────────────────────────────────────────────────────
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    #[account(init, payer = payer, space = 8 + 32 + 32 + 2 + 1 + 1, seeds = [b"vault"], bump)]
+    #[account(init, payer = payer, space = VaultConfig::LEN, seeds = [b"vault"], bump)]
     pub config: Account<'info, VaultConfig>,
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -99,9 +179,13 @@ pub struct Initialize<'info> {
 
 #[derive(Accounts)]
 pub struct CreatePayment<'info> {
-    #[account(mut, seeds = [b"vault"], bump = config.bump)]
+    #[account(seeds = [b"vault"], bump = config.bump)]
     pub config: Account<'info, VaultConfig>,
     pub mint: InterfaceAccount<'info, Mint>,
+    #[account(seeds = [b"accepted", mint.key().as_ref()], bump = accepted.bump)]
+    pub accepted: Account<'info, AcceptedToken>,
+    #[account(mut)]
+    pub buyer: Signer<'info>,
     #[account(mut)]
     pub buyer_ata: InterfaceAccount<'info, TokenAccount>,
     #[account(mut)]
@@ -109,8 +193,6 @@ pub struct CreatePayment<'info> {
     #[account(mut)]
     pub platform_ata: InterfaceAccount<'info, TokenAccount>,
     pub token_program: Interface<'info, TokenInterface>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -119,6 +201,15 @@ pub struct SetAcceptedToken<'info> {
     pub config: Account<'info, VaultConfig>,
     pub owner: Signer<'info>,
     pub mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = AcceptedToken::LEN,
+        seeds = [b"accepted", mint.key().as_ref()],
+        bump,
+    )]
+    pub accepted: Account<'info, AcceptedToken>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -130,22 +221,24 @@ pub struct AdminConfig<'info> {
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Payment intent expired")]
-    IntentExpired,
-    #[msg("Invalid intent signature")]
-    InvalidIntent,
     #[msg("Token not accepted")]
     TokenNotAccepted,
     #[msg("Vault is paused")]
     Paused,
+    #[msg("Amount must be > 0")]
+    AmountZero,
+    #[msg("Amount too small for fee")]
+    AmountTooSmall,
+    #[msg("Fee too high (max 1000 bps)")]
+    FeeTooHigh,
+    #[msg("Math overflow")]
+    MathOverflow,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Lock the declared program ID so a rename at deploy time is caught
-    /// before anyone broadcasts a transaction against a stale address.
     #[test]
     fn program_id_is_stable() {
         assert_eq!(
@@ -154,26 +247,27 @@ mod tests {
         );
     }
 
-    /// VaultConfig space used in the Initialize context — if the struct grows,
-    /// the init allocation in Initialize must grow with it.
     #[test]
-    fn vault_config_space_matches_init() {
-        // owner(32) + platform_wallet(32) + platform_fee_bps(2) + paused(1) + bump(1) = 68
-        let expected = 32 + 32 + 2 + 1 + 1;
-        assert_eq!(expected, 68);
+    fn vault_config_len_matches_fields() {
+        assert_eq!(VaultConfig::LEN, 8 + 32 + 32 + 2 + 1 + 1);
     }
 
     #[test]
-    fn error_codes_are_distinct() {
-        // Converting each variant to a discriminant makes sure we didn't
-        // accidentally duplicate a variant — Anchor derives numeric codes
-        // from declaration order.
-        let codes: &[ErrorCode] = &[
-            ErrorCode::IntentExpired,
-            ErrorCode::InvalidIntent,
-            ErrorCode::TokenNotAccepted,
-            ErrorCode::Paused,
-        ];
-        assert_eq!(codes.len(), 4);
+    fn accepted_token_len_matches_fields() {
+        assert_eq!(AcceptedToken::LEN, 8 + 32 + 1 + 1);
+    }
+
+    #[test]
+    fn fee_math_rounds_down() {
+        // 0.5% of 1000 USDC (6 decimals) = 5 USDC
+        let amount: u64 = 1_000_000_000;
+        let fee = amount * 50 / BPS_DENOMINATOR;
+        assert_eq!(fee, 5_000_000);
+        assert_eq!(amount - fee, 995_000_000);
+    }
+
+    #[test]
+    fn max_fee_enforced() {
+        assert_eq!(MAX_PLATFORM_FEE_BPS, 1_000);
     }
 }

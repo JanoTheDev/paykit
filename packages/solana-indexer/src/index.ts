@@ -1,40 +1,69 @@
 /**
- * Solana indexer — skeleton. Issue #57.
+ * Solana indexer. Two long-running jobs in one process:
+ *   1. Listener — subscribes to `onLogs` for paylix_payment_vault +
+ *      paylix_subscription_manager, dispatches Anchor events to the DB.
+ *   2. Keeper — polls the shared Postgres for due subscriptions on
+ *      network_key='solana' | 'solana-devnet' and submits
+ *      charge_subscription transactions via the SubscriptionManager PDA.
  *
- * Mirrors the EVM indexer's job mix: a log listener that watches the
- * Anchor program IDs for PaymentReceived / SubscriptionCreated /
- * SubscriptionPaymentReceived events, plus a keeper loop that charges due
- * subscriptions via the SubscriptionManager program's CPI path.
- *
- * Runs as a separate Node process from the EVM indexer — no shared state
- * besides the Postgres tables keyed by `network_key = 'solana' |
- * 'solana-devnet'`.
- *
- * This file wires imports + outlines the service loop. Full listener /
- * keeper implementations land in the #57 follow-up PR.
+ * Runs as a separate process from the EVM indexer; both write to the same
+ * schema keyed by network_key.
  */
 
-import { Connection } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { startListener } from "./listener";
 import { startKeeper } from "./keeper";
 
-async function main() {
-  const rpcUrl = process.env.SOLANA_RPC_URL;
-  if (!rpcUrl) {
+function requireEnv(key: string): string {
+  const v = process.env[key];
+  if (!v) throw new Error(`${key} is required`);
+  return v;
+}
+
+async function main(): Promise<void> {
+  const rpcUrl = requireEnv("SOLANA_RPC_URL");
+  const commitment =
+    (process.env.SOLANA_COMMITMENT as "finalized" | "confirmed" | undefined) ??
+    "finalized";
+  const connection = new Connection(rpcUrl, commitment);
+
+  const programIds: PublicKey[] = [];
+  const vaultId = process.env.SOLANA_PAYMENT_VAULT_PROGRAM_ID;
+  if (vaultId) programIds.push(new PublicKey(vaultId));
+  const mgrId = process.env.SOLANA_SUBSCRIPTION_MANAGER_PROGRAM_ID;
+  if (mgrId) programIds.push(new PublicKey(mgrId));
+  if (programIds.length === 0) {
     throw new Error(
-      "SOLANA_RPC_URL is required. Use your own QuickNode / Helius endpoint for production — the public devnet endpoint has aggressive rate limits.",
+      "At least one of SOLANA_PAYMENT_VAULT_PROGRAM_ID / SOLANA_SUBSCRIPTION_MANAGER_PROGRAM_ID must be set.",
     );
   }
-  const connection = new Connection(rpcUrl, "finalized");
 
-  const listenerHandle = await startListener({ connection });
-  const keeperHandle = await startKeeper({ connection });
-
-  process.on("SIGINT", async () => {
-    await listenerHandle.stop();
-    await keeperHandle.stop();
-    process.exit(0);
+  const listener = await startListener({
+    connection,
+    programIds,
+    commitment,
+    onEvent: async (ev) => {
+      // Hook point for the DB writer — real integration in the #57 follow-up
+      // PR that adds Postgres bindings for Solana network_key tables.
+      console.log(`[solana-listener] ${ev.kind} at slot ${ev.slot} sig=${ev.signature}`);
+    },
   });
+
+  const keeper = await startKeeper({
+    connection,
+    // Full wiring (keeper keypair load, due-subscription query) needs the
+    // DB bindings above. Running in skeleton mode here lets the service
+    // boot cleanly until that lands.
+  });
+
+  const shutdown = async (): Promise<void> => {
+    console.log("[solana-indexer] shutdown");
+    await listener.stop();
+    await keeper.stop();
+  };
+
+  process.on("SIGINT", () => void shutdown().then(() => process.exit(0)));
+  process.on("SIGTERM", () => void shutdown().then(() => process.exit(0)));
 }
 
 if (process.env.NODE_ENV !== "test") {
