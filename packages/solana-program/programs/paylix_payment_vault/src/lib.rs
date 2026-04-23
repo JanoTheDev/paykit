@@ -202,6 +202,9 @@ pub struct CreatePayment<'info> {
 pub struct SetAcceptedToken<'info> {
     #[account(has_one = owner)]
     pub config: Account<'info, VaultConfig>,
+    // owner pays rent for the accepted-token PDA on first call, so must be
+    // `mut`. Second+ calls re-use the already-initialized account.
+    #[account(mut)]
     pub owner: Signer<'info>,
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
