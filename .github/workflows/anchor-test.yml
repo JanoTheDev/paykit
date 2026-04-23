@@ -74,15 +74,25 @@ jobs:
       - name: Install Solana CLI
         # Install Solana and commit its bin dir to GITHUB_PATH so every
         # subsequent step in this job can find `solana-keygen` and `solana`.
-        # Retry the installer on transient SSL failures — release.solana.com
-        # intermittently drops connections on fresh runners.
+        # release.solana.com intermittently fails SSL handshake on fresh
+        # runners, so we download the installer to a file and retry.
         run: |
+          set -e
           for i in 1 2 3 4 5; do
-            if sh -c "$(curl -sSfL --retry 3 --retry-delay 5 --connect-timeout 30 https://release.solana.com/v${SOLANA_VERSION}/install)"; then
-              break
+            if curl -sSfL --retry 5 --retry-delay 5 --connect-timeout 30 \
+                https://release.solana.com/v${SOLANA_VERSION}/install \
+                -o /tmp/solana-install.sh; then
+              chmod +x /tmp/solana-install.sh
+              if sh /tmp/solana-install.sh; then
+                break
+              fi
             fi
             echo "solana installer failed (attempt $i), retrying in 15s..."
             sleep 15
+            if [ $i -eq 5 ]; then
+              echo "solana installer exhausted all retries"
+              exit 1
+            fi
           done
           SOL_BIN="$HOME/.local/share/solana/install/active_release/bin"
           echo "$SOL_BIN" >> $GITHUB_PATH
