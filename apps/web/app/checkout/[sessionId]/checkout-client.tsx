@@ -12,6 +12,7 @@ import {
 } from "@/lib/contracts";
 import { NETWORKS, type TokenConfig } from "@paylix/config/networks";
 import { QRCodeSVG } from "qrcode.react";
+import { SolanaPay } from "./solana-pay";
 import { intervalToSeconds, formatInterval } from "@/lib/billing-intervals";
 import { formatTrialDuration } from "@/lib/format-trial";
 import { fromNativeUnits, formatNativeAmount } from "@/lib/amounts";
@@ -66,6 +67,13 @@ interface CheckoutSession {
   couponDurationInCycles?: number | null;
 }
 
+interface SolanaConfig {
+  paymentVaultProgramId: string;
+  subscriptionManagerProgramId: string;
+  platformWallet: string;
+  usdcMint: string;
+}
+
 interface CheckoutClientProps {
   session: CheckoutSession;
   availablePrices: Array<{
@@ -80,9 +88,10 @@ interface CheckoutClientProps {
   paymentVaultAddress: `0x${string}`;
   subscriptionManagerAddress: `0x${string}`;
   usdcAddress: `0x${string}`;
+  solanaConfig?: SolanaConfig | null;
 }
 
-export function CheckoutClient({ session, availablePrices, chainId, paymentVaultAddress, subscriptionManagerAddress, usdcAddress }: CheckoutClientProps) {
+export function CheckoutClient({ session, availablePrices, chainId, paymentVaultAddress, subscriptionManagerAddress, usdcAddress, solanaConfig }: CheckoutClientProps) {
   const { open } = useAppKit();
   const { address: wagmiAddress, status: wagmiStatus } = useAccount();
   const { isConnected: appkitConnected, address: appkitAddress } =
@@ -1218,10 +1227,62 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
   // ──────────────────────────────────────────────────────────────────
   // Solana render branch
   // ──────────────────────────────────────────────────────────────────
-  // Full @solana/wallet-adapter-react integration lands in a follow-up;
-  // until then show a clear "use your Solana wallet directly" screen so
-  // buyers aren't stuck staring at a broken EVM wallet-connect modal.
+  // Buyer connects Phantom/Solflare via wallet-adapter, signs SPL approve
+  // (for subs) + program instruction. Falls back to instructional view
+  // when the operator hasn't configured the Solana program IDs yet.
   if (networkFamily === "solana" && status !== "completed") {
+    const solanaReady =
+      solanaConfig &&
+      solanaConfig.paymentVaultProgramId &&
+      solanaConfig.subscriptionManagerProgramId &&
+      solanaConfig.platformWallet &&
+      solanaConfig.usdcMint &&
+      session.networkKey === "solana-devnet" || session.networkKey === "solana";
+
+    if (solanaReady && solanaConfig) {
+      const isSub = session.type === "subscription";
+      const programId = isSub
+        ? solanaConfig.subscriptionManagerProgramId
+        : solanaConfig.paymentVaultProgramId;
+      const intervalSeconds = isSub
+        ? intervalToSeconds(session.billingInterval)
+        : 0;
+      // Subscription id must be stable per session. Low bits of keccak-256
+      // of the session id give us a deterministic u64 that matches the
+      // on-chain `next_id` slot when the client assumes first-subscription.
+      // For production operators should read the manager's `next_id` on
+      // chain at session-creation time and pass it down — tracked as a
+      // known limitation.
+      const idHex = keccak256(stringToBytes(session.id));
+      const subscriptionId = BigInt("0x" + idHex.slice(2, 18));
+
+      return (
+        <SolanaPay
+          sessionId={session.id}
+          productName={session.productName}
+          productDescription={session.productDescription}
+          productId={session.productId}
+          amount={BigInt(session.amount)}
+          decimals={activeToken?.decimals ?? 6}
+          tokenSymbol={session.tokenSymbol ?? "USDC"}
+          networkKey={session.networkKey as "solana" | "solana-devnet"}
+          merchantWallet={session.merchantWallet}
+          mint={solanaConfig.usdcMint}
+          programId={programId}
+          platformWallet={solanaConfig.platformWallet}
+          isSubscription={isSub}
+          intervalSeconds={intervalSeconds}
+          subscriptionId={subscriptionId}
+          onComplete={(sig) => {
+            setTxHash(sig as `0x${string}`);
+            setStatus("completed");
+          }}
+        />
+      );
+    }
+
+    // Fallback: operator hasn't configured Solana programs yet. Keep
+    // the instructional card so buyers aren't stuck.
     const decimals = activeToken?.decimals ?? 6;
     const amountStr = formatNativeAmount(
       BigInt(session.amount),

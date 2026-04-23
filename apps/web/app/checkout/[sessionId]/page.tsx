@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { NETWORKS } from "@paylix/config/networks";
 import { CheckoutProviders } from "@/components/providers";
 import { CheckoutClient } from "./checkout-client";
+import { SolanaProviders } from "@/components/solana-providers";
 import { resolveDeploymentForMode } from "@/lib/deployment";
 
 interface CheckoutPageProps {
@@ -145,16 +146,58 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
       );
   }
 
-  return (
-    <CheckoutProviders>
-      <CheckoutClient
-        session={session}
-        availablePrices={availablePrices}
-        chainId={deployment.chainId}
-        paymentVaultAddress={deployment.paymentVault}
-        subscriptionManagerAddress={deployment.subscriptionManager}
-        usdcAddress={deployment.usdcAddress}
-      />
-    </CheckoutProviders>
+  const isSolanaSession =
+    session.networkKey === "solana" || session.networkKey === "solana-devnet";
+
+  const solanaConfig = isSolanaSession
+    ? {
+        paymentVaultProgramId:
+          process.env.SOLANA_PAYMENT_VAULT_PROGRAM_ID ??
+          process.env.NEXT_PUBLIC_SOLANA_PAYMENT_VAULT_PROGRAM_ID ??
+          "",
+        subscriptionManagerProgramId:
+          process.env.SOLANA_SUBSCRIPTION_MANAGER_PROGRAM_ID ??
+          process.env.NEXT_PUBLIC_SOLANA_SUBSCRIPTION_MANAGER_PROGRAM_ID ??
+          "",
+        platformWallet:
+          process.env.SOLANA_PLATFORM_WALLET ??
+          process.env.NEXT_PUBLIC_SOLANA_PLATFORM_WALLET ??
+          "",
+        // USDC SPL mint. Mainnet = Circle's canonical, devnet = the test
+        // mint Circle publishes for devnet faucet usage.
+        usdcMint:
+          session.networkKey === "solana"
+            ? process.env.NEXT_PUBLIC_SOLANA_USDC_MINT ??
+              "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+            : process.env.NEXT_PUBLIC_SOLANA_DEVNET_USDC_MINT ??
+              "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      }
+    : null;
+
+  const clientTree = (
+    <CheckoutClient
+      session={session}
+      availablePrices={availablePrices}
+      chainId={deployment.chainId}
+      paymentVaultAddress={deployment.paymentVault}
+      subscriptionManagerAddress={deployment.subscriptionManager}
+      usdcAddress={deployment.usdcAddress}
+      solanaConfig={solanaConfig}
+    />
   );
+
+  // Only mount the Solana wallet-adapter tree for Solana sessions — keeps it
+  // out of the bundle for every EVM checkout and avoids two wallet-discovery
+  // stacks colliding at runtime.
+  if (isSolanaSession) {
+    return (
+      <CheckoutProviders>
+        <SolanaProviders cluster={session.networkKey === "solana" ? "mainnet-beta" : "devnet"}>
+          {clientTree}
+        </SolanaProviders>
+      </CheckoutProviders>
+    );
+  }
+
+  return <CheckoutProviders>{clientTree}</CheckoutProviders>;
 }
