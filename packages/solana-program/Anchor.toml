@@ -1,0 +1,28 @@
+# Anchor workspace for the Solana side of Paylix.
+# See docs/superpowers/specs/2026-04-23-solana-integration.md for the full
+# design. Implementation scaffolded, on-chain programs not yet functional.
+
+[toolchain]
+anchor_version = "0.30.1"
+
+[features]
+seeds = false
+skip-lint = false
+
+[programs.devnet]
+paylix_payment_vault = "PLXPayVau1t1111111111111111111111111111111"
+paylix_subscription_manager = "PLXSubMan11111111111111111111111111111111"
+
+[programs.localnet]
+paylix_payment_vault = "PLXPayVau1t1111111111111111111111111111111"
+paylix_subscription_manager = "PLXSubMan11111111111111111111111111111111"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"

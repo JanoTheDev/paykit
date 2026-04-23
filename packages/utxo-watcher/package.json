@@ -1,0 +1,28 @@
+{
+  "name": "@paylix/utxo-watcher",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./descriptors": "./src/descriptors.ts",
+    "./hd": "./src/hd.ts",
+    "./electrum": "./src/electrum.ts",
+    "./watcher": "./src/watcher.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "bitcoinjs-lib": "^6.1.6",
+    "bip32": "^4.0.0",
+    "bip39": "^3.1.0",
+    "ecpair": "^2.1.0",
+    "tiny-secp256k1": "^2.2.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4",
+    "@types/node": "^20"
+  }
+}
