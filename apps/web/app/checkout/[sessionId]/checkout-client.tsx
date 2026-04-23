@@ -795,9 +795,30 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
   }
 
   if (status === "awaiting_currency") {
+    // Group prices by network so the picker is "pick a blockchain, then pick
+    // a coin on it" — mirrors how buyers think rather than dumping every
+    // combination as a flat list.
+    const groups = new Map<
+      string,
+      {
+        networkKey: string;
+        displayLabel: string;
+        items: typeof availablePrices;
+      }
+    >();
+    for (const p of availablePrices) {
+      const g = groups.get(p.networkKey);
+      if (g) g.items.push(p);
+      else
+        groups.set(p.networkKey, {
+          networkKey: p.networkKey,
+          displayLabel: p.displayLabel,
+          items: [p],
+        });
+    }
+
     return (
-      <Card className="w-full max-w-[480px] p-8 shadow-2xl">
-        {/* Product Info */}
+      <Card className="w-full max-w-[520px] p-8 shadow-2xl">
         <div className="mb-6">
           <h1 className="text-xl font-semibold tracking-[-0.4px]">
             {session.productName}
@@ -809,22 +830,56 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
           )}
         </div>
 
-        <h3 className="mb-3 text-sm font-medium">Choose how to pay</h3>
-        <div className="flex flex-col gap-2">
-          {availablePrices.map((p) => (
-            <button
-              key={`${p.networkKey}:${p.tokenSymbol}`}
-              onClick={() => handlePickCurrency(p.networkKey, p.tokenSymbol)}
-              disabled={isPicking}
-              className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3 text-sm transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
+        <h3 className="mb-1 text-sm font-medium">Pick a network and coin</h3>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Pay on the blockchain and with the coin you already hold. The amount
+          is identical either way — pick what&apos;s cheapest to move.
+        </p>
+
+        <div className="flex flex-col gap-4">
+          {Array.from(groups.values()).map((g) => (
+            <div
+              key={g.networkKey}
+              className="rounded-xl border border-border bg-surface-1 p-4"
             >
-              <span className="font-medium">
-                {p.tokenSymbol} on {p.displayLabel}
-              </span>
-              <MonoText className="tabular-nums">
-                {formatNativeAmount(BigInt(p.amount), p.decimals, p.tokenSymbol)}
-              </MonoText>
-            </button>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-sm font-medium">{g.displayLabel}</span>
+                <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wide">
+                  {g.networkKey.includes("sepolia") ||
+                  g.networkKey.includes("amoy") ||
+                  g.networkKey.includes("fuji") ||
+                  g.networkKey.includes("testnet")
+                    ? "Testnet"
+                    : "Mainnet"}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {g.items.map((p) => (
+                  <button
+                    key={`${p.networkKey}:${p.tokenSymbol}`}
+                    onClick={() =>
+                      handlePickCurrency(p.networkKey, p.tokenSymbol)
+                    }
+                    disabled={isPicking}
+                    className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3 text-sm transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">{p.tokenSymbol}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {p.tokenName}
+                      </span>
+                    </div>
+                    <MonoText className="tabular-nums font-medium">
+                      {formatNativeAmount(
+                        BigInt(p.amount),
+                        p.decimals,
+                        p.tokenSymbol,
+                      )}
+                    </MonoText>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
           {availablePrices.length === 0 && (
             <Alert variant="destructive">
@@ -841,7 +896,12 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
           </Alert>
         )}
 
-        <div className=" text-center">
+        <p className="mt-6 text-center text-[11px] text-muted-foreground">
+          New to crypto? A wallet like MetaMask or Rabby lets you hold and
+          send coins. You&apos;ll pick yours on the next screen after you choose.
+        </p>
+
+        <div className="mt-2 text-center">
           <span className="text-xs tracking-[0.2px] text-muted-foreground">
             Powered by Paylix
           </span>
