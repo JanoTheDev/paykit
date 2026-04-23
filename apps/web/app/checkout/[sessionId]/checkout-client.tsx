@@ -460,6 +460,132 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
       const tokenName = activeToken.name;
 
       // ──────────────────────────────────────────────────────────────────
+      // DAI-permit branch (Ethereum-mainnet DAI, one-time only)
+      // ──────────────────────────────────────────────────────────────────
+      // DAI uses a legacy permit shape:
+      //   permit(holder, spender, nonce, expiry, allowed, v, r, s)
+      // Signing `allowed=true` grants uint(-1) allowance. No separate amount
+      // field — vault then pulls `amount` via safeTransferFrom.
+      if (activeToken.signatureScheme === "dai-permit" && !isSubscription) {
+        const tokenAddress = (activeToken.address ?? usdcAddress) as `0x${string}`;
+
+        // DAI exposes a `nonces(address)` getter the same as EIP-2612 tokens.
+        const daiNonce = (await publicClient.readContract({
+          address: tokenAddress,
+          abi: ERC20_PERMIT_ABI,
+          functionName: "nonces",
+          args: [address as `0x${string}`],
+        })) as bigint;
+
+        setPayStep("approving");
+        const daiSignature = await signTypedDataAsync({
+          domain: {
+            name: tokenName as string,
+            version: tokenVersion as string,
+            chainId,
+            verifyingContract: tokenAddress,
+          },
+          types: {
+            Permit: [
+              { name: "holder", type: "address" },
+              { name: "spender", type: "address" },
+              { name: "nonce", type: "uint256" },
+              { name: "expiry", type: "uint256" },
+              { name: "allowed", type: "bool" },
+            ],
+          },
+          primaryType: "Permit",
+          message: {
+            holder: address as `0x${string}`,
+            spender: paymentVaultAddress,
+            nonce: daiNonce,
+            expiry: deadline,
+            allowed: true,
+          },
+        });
+
+        // Split into v/r/s.
+        const sigHexDai = daiSignature.slice(2);
+        const rDai = `0x${sigHexDai.slice(0, 64)}` as `0x${string}`;
+        const sDai = `0x${sigHexDai.slice(64, 128)}` as `0x${string}`;
+        const rawVDai = parseInt(sigHexDai.slice(128, 130), 16);
+        const vDai = rawVDai < 27 ? rawVDai + 27 : rawVDai;
+
+        // Paylix PaymentIntent binding — identical shape to EIP-2612 path.
+        const productIdBytesDai = keccak256(stringToBytes(session.productId));
+        const customerIdBytesDai = keccak256(stringToBytes(session.id));
+        const intentNonceDai = (await publicClient.readContract({
+          address: paymentVaultAddress,
+          abi: PAYMENT_VAULT_ABI,
+          functionName: "getIntentNonce",
+          args: [address as `0x${string}`],
+        })) as bigint;
+
+        const intentSigDai = await signTypedDataAsync({
+          domain: {
+            name: "Paylix PaymentVault",
+            version: "1",
+            chainId,
+            verifyingContract: paymentVaultAddress,
+          },
+          types: {
+            PaymentIntent: [
+              { name: "buyer", type: "address" },
+              { name: "token", type: "address" },
+              { name: "merchant", type: "address" },
+              { name: "amount", type: "uint256" },
+              { name: "productId", type: "bytes32" },
+              { name: "customerId", type: "bytes32" },
+              { name: "nonce", type: "uint256" },
+              { name: "deadline", type: "uint256" },
+            ],
+          },
+          primaryType: "PaymentIntent",
+          message: {
+            buyer: address as `0x${string}`,
+            token: tokenAddress,
+            merchant: session.merchantWallet as `0x${string}`,
+            amount: usdcAmount,
+            productId: productIdBytesDai,
+            customerId: customerIdBytesDai,
+            nonce: intentNonceDai,
+            deadline,
+          },
+        });
+
+        setPayStep("paying");
+        const relayResDai = await fetch(`/api/checkout/${session.id}/relay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            buyer: address,
+            deadline: deadline.toString(),
+            daiPermit: {
+              nonce: daiNonce.toString(),
+              v: vDai,
+              r: rDai,
+              s: sDai,
+            },
+            intentSignature: intentSigDai,
+            networkKey: session.networkKey,
+            tokenSymbol: session.tokenSymbol,
+          }),
+        });
+        if (!relayResDai.ok) {
+          const errBody = await relayResDai.json().catch(() => ({}));
+          const errMsg =
+            errBody?.error?.message ||
+            errBody?.error?.code ||
+            `Relay failed (${relayResDai.status})`;
+          throw new Error(errMsg);
+        }
+        const relayBodyDai = (await relayResDai.json()) as { txHash?: `0x${string}` };
+        if (relayBodyDai.txHash) setTxHash(relayBodyDai.txHash);
+        setStatus("completed");
+        return;
+      }
+
+      // ──────────────────────────────────────────────────────────────────
       // Permit2 SUBSCRIPTION branch (AllowanceTransfer)
       // ──────────────────────────────────────────────────────────────────
       // Buyer signs a PermitSingle granting SubscriptionManager an allowance

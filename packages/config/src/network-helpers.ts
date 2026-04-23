@@ -105,12 +105,12 @@ export function getToken(networkKey: NetworkKey, tokenSymbol: string): TokenConf
  */
 const SCHEME_USABLE = {
   eip2612: true,
-  // Permit2 one-time payments are wired end-to-end as of the #56 part 2
-  // changes. Subscription Permit2 still needs relay-payload wiring, but
-  // the product form / checkout picker gate by payment type before this
-  // helper sees the token — safe to flip here.
+  // Permit2 one-time + subscriptions wired end-to-end as of #56 part 2 + #62.
   permit2: true,
-  "dai-permit": false,
+  // DAI-permit wired for one-time payments in #64. Subscription-side DAI
+  // still routes through standard paths (bridged DAI on L2s uses Permit2;
+  // Ethereum-mainnet DAI subs are out of scope for now).
+  "dai-permit": true,
   none: false,
 } as const;
 

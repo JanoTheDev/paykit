@@ -31,6 +31,13 @@ export interface RelayRequestBody {
     nonce?: unknown;      // uint48 as number/string
     sigDeadline?: unknown;// uint256 as string/number
   };
+  // DAI-permit fields (Ethereum-mainnet DAI legacy permit shape).
+  daiPermit?: {
+    nonce?: unknown;     // uint256 as string/number
+    v?: unknown;         // uint8
+    r?: unknown;         // bytes32 hex
+    s?: unknown;         // bytes32 hex
+  };
   intentSignature?: unknown;
   networkKey?: unknown;
   tokenSymbol?: unknown;
@@ -42,6 +49,13 @@ export interface Permit2AllowanceInput {
   nonce: number;
   sigDeadline: bigint;
   signature: `0x${string}`;
+}
+
+export interface DaiPermitInput {
+  nonce: bigint;
+  v: number;
+  r: `0x${string}`;
+  s: `0x${string}`;
 }
 
 export interface ValidatedRelayInput {
@@ -57,6 +71,8 @@ export interface ValidatedRelayInput {
   permit2Signature: `0x${string}` | null;
   // Permit2 AllowanceTransfer (subscriptions).
   permit2Allowance: Permit2AllowanceInput | null;
+  // DAI-permit (Ethereum-mainnet DAI one-time payments).
+  daiPermit: DaiPermitInput | null;
   intentSignature: `0x${string}`;
   networkKey: string;
   tokenSymbol: string;
@@ -100,6 +116,7 @@ export function parseRelayBody(
     permit2Signature,
     permit2Allowance,
     permit2AllowanceSignature,
+    daiPermit,
     intentSignature,
     networkKey,
     tokenSymbol,
@@ -128,15 +145,16 @@ export function parseRelayBody(
   const hasPermit2One = permit2Nonce !== undefined || permit2Signature !== undefined;
   const hasPermit2Allowance =
     permit2Allowance !== undefined || permit2AllowanceSignature !== undefined;
+  const hasDaiPermit = daiPermit !== undefined;
   const has2612 = v !== undefined || r !== undefined || s !== undefined || permitValue !== undefined;
-  const shapeCount = [hasPermit2One, hasPermit2Allowance, has2612].filter(Boolean).length;
+  const shapeCount = [hasPermit2One, hasPermit2Allowance, hasDaiPermit, has2612].filter(Boolean).length;
   if (shapeCount > 1) {
     return {
       ok: false,
       error: {
         code: "invalid_body",
         message:
-          "Request must carry exactly one of: EIP-2612 (v/r/s/permitValue), Permit2 SignatureTransfer (permit2Nonce/permit2Signature), or Permit2 AllowanceTransfer (permit2Allowance/permit2AllowanceSignature)",
+          "Request must carry exactly one of: EIP-2612 (v/r/s/permitValue), Permit2 SignatureTransfer (permit2Nonce/permit2Signature), Permit2 AllowanceTransfer (permit2Allowance/permit2AllowanceSignature), or DAI-permit (daiPermit)",
       },
     };
   }
@@ -182,6 +200,39 @@ export function parseRelayBody(
     normalizedV = normalizePermitV(v);
     rHex = r as `0x${string}`;
     sHex = s as `0x${string}`;
+  }
+
+  // DAI-permit (Ethereum-mainnet DAI one-time)
+  let daiPermitVal: DaiPermitInput | null = null;
+  if (hasDaiPermit) {
+    if (!daiPermit || typeof daiPermit !== "object") {
+      return { ok: false, error: { code: "invalid_body", message: "daiPermit must be an object" } };
+    }
+    const { nonce: dn, v: dv, r: dr, s: ds } = daiPermit;
+    if (dn === undefined || dv === undefined || dr === undefined || ds === undefined) {
+      return { ok: false, error: { code: "invalid_body", message: "daiPermit requires nonce, v, r, s" } };
+    }
+    let nonceBig: bigint;
+    try {
+      nonceBig = BigInt(dn as string | number);
+    } catch {
+      return { ok: false, error: { code: "invalid_body", message: "daiPermit.nonce must be bigint-representable" } };
+    }
+    if (typeof dv !== "number" || !Number.isInteger(dv) || dv < 0 || dv > 255) {
+      return { ok: false, error: { code: "invalid_body", message: "daiPermit.v must be uint8" } };
+    }
+    if (typeof dr !== "string" || !HEX_BYTES32_RE.test(dr)) {
+      return { ok: false, error: { code: "invalid_body", message: "daiPermit.r must be 0x-prefixed 32-byte hex" } };
+    }
+    if (typeof ds !== "string" || !HEX_BYTES32_RE.test(ds)) {
+      return { ok: false, error: { code: "invalid_body", message: "daiPermit.s must be 0x-prefixed 32-byte hex" } };
+    }
+    daiPermitVal = {
+      nonce: nonceBig,
+      v: normalizePermitV(dv),
+      r: dr as `0x${string}`,
+      s: ds as `0x${string}`,
+    };
   }
 
   // Permit2 AllowanceTransfer (subscriptions)
@@ -312,6 +363,7 @@ export function parseRelayBody(
       permit2Nonce: permit2NonceBig,
       permit2Signature: permit2SignatureHex,
       permit2Allowance: permit2AllowanceVal,
+      daiPermit: daiPermitVal,
       intentSignature: intentSignature as `0x${string}`,
       networkKey: networkKey,
       tokenSymbol: tokenSymbol,

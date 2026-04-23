@@ -22,7 +22,14 @@ describe("solana-indexer listener", () => {
     expect(removeOnLogsListener).toHaveBeenCalledTimes(2);
   });
 
-  it("dispatches Program data log lines to onEvent", async () => {
+  it("dispatches decoded Program data log lines to onEvent", async () => {
+    const { sha256 } = await import("@noble/hashes/sha2.js");
+    // Build a valid SubscriptionCancelled payload (shortest event).
+    const disc = Buffer.from(sha256(new TextEncoder().encode("event:SubscriptionCancelled"))).subarray(0, 8);
+    const id = Buffer.alloc(8);
+    id.writeBigUInt64LE(7n);
+    const payload = Buffer.concat([disc, id]).toString("base64");
+
     let captured: unknown;
     const subs: ((l: { err: null; logs: string[]; signature: string }, c: { slot: number }) => void)[] = [];
     const fakeConn = {
@@ -39,12 +46,15 @@ describe("solana-indexer listener", () => {
       onEvent: async (ev) => { captured = ev; },
     });
     subs[0]!(
-      { err: null, logs: ["Program data: AAAAAAAAAAA="], signature: "SIG" },
+      { err: null, logs: [`Program data: ${payload}`], signature: "SIG" },
       { slot: 100 },
     );
-    // Give the microtask queue a tick to flush
-    await new Promise((r) => setTimeout(r, 5));
+    await new Promise((r) => setTimeout(r, 10));
     expect(captured).toMatchObject({ signature: "SIG", slot: 100 });
+    // Narrowing: event.kind should be SubscriptionCancelled, id 7.
+    const ev = captured as { event: { kind: string; subscriptionId: bigint } };
+    expect(ev.event.kind).toBe("SubscriptionCancelled");
+    expect(ev.event.subscriptionId).toBe(7n);
     await h.stop();
   });
 });

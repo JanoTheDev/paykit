@@ -11,6 +11,23 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "./interfaces/IPermit2.sol";
 
+/// @dev DAI's legacy permit interface. Different shape from EIP-2612 —
+/// `allowed` bool instead of `value` uint256. Ethereum-mainnet DAI uses
+/// this pre-MakerDAO-MCD interface. Bridged DAI on L2s uses standard
+/// EIP-2612 (or goes through Permit2).
+interface IDaiLikePermit {
+    function permit(
+        address holder,
+        address spender,
+        uint256 nonce,
+        uint256 expiry,
+        bool allowed,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
+}
+
 /// @title PaymentVault
 /// @notice Non-custodial one-time USDC payment settlement. Supports direct
 ///         payments and gasless (relayer + permit) flows with EIP-712 intent binding.
@@ -314,6 +331,76 @@ contract PaymentVault is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
         if (fee > 0) {
             require(platformWallet != address(0), "Invalid platform wallet");
             IERC20(p.token).safeTransfer(platformWallet, fee);
+        }
+
+        emit PaymentReceived(p.buyer, p.merchant, p.token, p.amount, fee, p.productId, p.customerId, block.timestamp);
+    }
+
+    struct DaiPermitPayment {
+        address token;
+        address buyer;
+        address merchant;
+        uint256 amount;
+        bytes32 productId;
+        bytes32 customerId;
+        uint256 daiNonce;
+        uint256 permitExpiry;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        bytes intentSignature;
+    }
+
+    /// @notice Gasless payment via DAI's legacy `permit(holder, spender, nonce,
+    ///         expiry, allowed, v, r, s)` flow. Ethereum-mainnet DAI only.
+    ///         Buyer signs with `allowed=true` to grant max allowance; the
+    ///         vault then executes a normal safeTransferFrom.
+    function createPaymentWithDaiPermit(DaiPermitPayment calldata p)
+        external
+        nonReentrant
+        whenNotPaused
+    {
+        require(msg.sender == relayer, "Only relayer");
+        require(!gaslessPaused, "Gasless paused");
+        require(acceptedTokens[p.token], "Token not accepted");
+        require(p.amount > 0, "Amount must be > 0");
+        require(p.merchant != address(0), "Invalid merchant");
+        require(p.buyer != address(0), "Invalid buyer");
+        require(block.timestamp <= p.permitExpiry, "Intent expired");
+
+        _consumePaymentIntent(
+            p.buyer,
+            p.token,
+            p.merchant,
+            p.amount,
+            p.productId,
+            p.customerId,
+            p.permitExpiry,
+            p.intentSignature
+        );
+
+        // DAI permit with `allowed=true` grants uint(-1) allowance to spender.
+        // A previously-used nonce would make this revert; we swallow to stay
+        // idempotent on retries where allowance is already granted.
+        try IDaiLikePermit(p.token).permit(
+            p.buyer, address(this), p.daiNonce, p.permitExpiry, true, p.v, p.r, p.s
+        ) {
+        } catch {
+        }
+
+        uint256 fee = 0;
+        if (platformFee > 0 && platformWallet != address(0)) {
+            fee = (p.amount * platformFee) / 10000;
+        }
+        uint256 merchantAmount = p.amount - fee;
+        require(merchantAmount > 0, "Amount too small for fee");
+
+        // slither-disable-next-line arbitrary-send-erc20-permit
+        IERC20(p.token).safeTransferFrom(p.buyer, p.merchant, merchantAmount);
+        if (fee > 0) {
+            require(platformWallet != address(0), "Invalid platform wallet");
+            // slither-disable-next-line arbitrary-send-erc20-permit
+            IERC20(p.token).safeTransferFrom(p.buyer, platformWallet, fee);
         }
 
         emit PaymentReceived(p.buyer, p.merchant, p.token, p.amount, fee, p.productId, p.customerId, block.timestamp);

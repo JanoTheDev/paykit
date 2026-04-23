@@ -1,10 +1,11 @@
 import { Connection, PublicKey, type Logs } from "@solana/web3.js";
+import { decodeProgramData, type DecodedEvent } from "./decoder";
 
 export interface ListenerEvent {
-  kind: "PaymentReceived" | "SubscriptionCreated" | "SubscriptionCharged" | "SubscriptionCancelled";
   signature: string;
   slot: number;
-  data: Record<string, unknown>;
+  programId: string;
+  event: DecodedEvent;
 }
 
 export interface ListenerOptions {
@@ -22,22 +23,16 @@ export interface ListenerHandle {
 
 /**
  * Parse Anchor event logs. Anchor prepends `Program data: ` to the
- * base64-encoded event payload. We match on that prefix and decode per
- * emitter rather than decoding with the IDL — good enough for routing;
- * full field extraction is the indexer's job.
+ * base64-encoded event payload. The decoder module identifies each event
+ * via its 8-byte discriminator and Borsh-decodes the fields.
  */
-function parseLogs(logs: string[]): Array<{ kind: ListenerEvent["kind"]; payload: string }> {
-  const out: Array<{ kind: ListenerEvent["kind"]; payload: string }> = [];
+function parseLogs(logs: string[]): DecodedEvent[] {
+  const out: DecodedEvent[] = [];
   for (const line of logs) {
     if (!line.startsWith("Program data: ")) continue;
     const payload = line.slice("Program data: ".length).trim();
-    // Anchor event discriminators are the first 8 bytes of the base64 payload.
-    // We dispatch by decoding only enough to identify which event type it is.
-    // Real implementations should use the IDL's BorshCoder — for the skeleton
-    // we flag every "Program data" as "PaymentReceived" and let the DB writer
-    // use context from the event to classify. TODO in #57 follow-up: proper
-    // IDL-based decoding.
-    out.push({ kind: "PaymentReceived", payload });
+    const decoded = decodeProgramData(payload);
+    if (decoded) out.push(decoded);
   }
   return out;
 }
@@ -51,13 +46,13 @@ export async function startListener(opts: ListenerOptions): Promise<ListenerHand
       programId,
       async (logs: Logs, ctx) => {
         if (logs.err) return;
-        for (const { kind, payload } of parseLogs(logs.logs)) {
+        for (const event of parseLogs(logs.logs)) {
           try {
             await opts.onEvent({
-              kind,
               signature: logs.signature,
               slot: ctx.slot,
-              data: { payload, programId: programId.toBase58() },
+              programId: programId.toBase58(),
+              event,
             });
           } catch (err) {
             console.error("[solana-listener] onEvent threw:", err);

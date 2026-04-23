@@ -74,6 +74,32 @@ export const PAYMENT_VAULT_ABI = [
     outputs: [],
   },
   {
+    name: "createPaymentWithDaiPermit",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      {
+        name: "p",
+        type: "tuple",
+        components: [
+          { name: "token", type: "address" },
+          { name: "buyer", type: "address" },
+          { name: "merchant", type: "address" },
+          { name: "amount", type: "uint256" },
+          { name: "productId", type: "bytes32" },
+          { name: "customerId", type: "bytes32" },
+          { name: "daiNonce", type: "uint256" },
+          { name: "permitExpiry", type: "uint256" },
+          { name: "v", type: "uint8" },
+          { name: "r", type: "bytes32" },
+          { name: "s", type: "bytes32" },
+          { name: "intentSignature", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [],
+  },
+  {
     name: "createPaymentWithPermit2",
     type: "function",
     stateMutability: "nonpayable",

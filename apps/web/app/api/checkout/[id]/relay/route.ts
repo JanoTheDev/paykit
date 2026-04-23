@@ -116,6 +116,7 @@ export async function POST(
     permit2Nonce,
     permit2Signature,
     permit2Allowance,
+    daiPermit,
     intentSignature,
   } = parsed.value;
   // (networkKey and tokenSymbol also in parsed.value, validated below after session load)
@@ -504,14 +505,35 @@ export async function POST(
   const tokenAddress = resolveTokenAddress(tokenConfig);
   const scheme = tokenConfig.signatureScheme;
 
-  if (scheme === "none" || scheme === "dai-permit") {
+  if (scheme === "none") {
     await releaseRelayLock(db, sessionId).catch(() => {});
     return NextResponse.json(
       {
         error: {
           code: "scheme_not_supported",
-          message: `Token ${session.tokenSymbol} on ${session.networkKey} uses the '${scheme}' signature scheme, which the relay route doesn't execute yet. Track follow-up work in issue #56.`,
+          message: `Token ${session.tokenSymbol} on ${session.networkKey} has no gasless path configured.`,
         },
+      },
+      { status: 400 },
+    );
+  }
+  if (scheme === "dai-permit" && session.type === "subscription") {
+    await releaseRelayLock(db, sessionId).catch(() => {});
+    return NextResponse.json(
+      {
+        error: {
+          code: "scheme_not_supported",
+          message: "DAI-permit subscriptions aren't wired yet. Use DAI one-time or switch to a Permit2-compatible chain.",
+        },
+      },
+      { status: 400 },
+    );
+  }
+  if (scheme === "dai-permit" && daiPermit === null) {
+    await releaseRelayLock(db, sessionId).catch(() => {});
+    return NextResponse.json(
+      {
+        error: { code: "invalid_body", message: `Token ${session.tokenSymbol} uses DAI-permit; request must include daiPermit.` },
       },
       { status: 400 },
     );
@@ -687,6 +709,30 @@ export async function POST(
           ],
         }));
       }
+    } else if (scheme === "dai-permit") {
+      // Ethereum-mainnet DAI one-time only. Subscriptions rejected above.
+      const dp = daiPermit!;
+      txHash = await withRetry(() => relayer.writeContract({
+        address: deployment.paymentVault,
+        abi: PAYMENT_VAULT_ABI,
+        functionName: "createPaymentWithDaiPermit",
+        args: [
+          {
+            token: tokenAddress,
+            buyer,
+            merchant: session.merchantWallet as `0x${string}`,
+            amount: tokenAmount,
+            productId: productIdBytes,
+            customerId: customerIdBytes,
+            daiNonce: dp.nonce,
+            permitExpiry: deadline,
+            v: dp.v,
+            r: dp.r,
+            s: dp.s,
+            intentSignature,
+          },
+        ],
+      }));
     } else if (scheme === "permit2") {
       // Permit2 one-time: the buyer's Permit2 signature authorizes a single
       // transfer of `tokenAmount` of `tokenAddress`. The vault verifies the

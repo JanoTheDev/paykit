@@ -509,8 +509,8 @@ describe("isTokenUsable + getUsableTokens", () => {
     expect(isTokenUsable(NETWORKS.arbitrum.tokens.WBTC)).toBe(true);
   });
 
-  it("dai-permit tokens stay inert (contract path pending)", () => {
-    expect(isTokenUsable(NETWORKS.ethereum.tokens.DAI)).toBe(false);
+  it("dai-permit tokens are usable for one-time (wired in #64)", () => {
+    expect(isTokenUsable(NETWORKS.ethereum.tokens.DAI)).toBe(true);
   });
 
   it("none-scheme tokens are never usable", () => {
@@ -520,8 +520,8 @@ describe("isTokenUsable + getUsableTokens", () => {
   it("getUsableTokens filters to the active set per network", () => {
     const ethTokens = getUsableTokens(NETWORKS.ethereum);
     const symbols = ethTokens.map((t) => t.symbol).sort();
-    // DAI is dai-permit (inert). USDC + PYUSD are eip2612. USDT + WETH + WBTC are permit2.
-    expect(symbols).toEqual(["PYUSD", "USDC", "USDT", "WBTC", "WETH"]);
+    // DAI (dai-permit) + USDC + PYUSD (eip2612) + USDT + WETH + WBTC (permit2).
+    expect(symbols).toEqual(["DAI", "PYUSD", "USDC", "USDT", "WBTC", "WETH"]);
   });
 });
 

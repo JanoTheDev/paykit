@@ -9,7 +9,8 @@
     "./descriptors": "./src/descriptors.ts",
     "./hd": "./src/hd.ts",
     "./electrum": "./src/electrum.ts",
-    "./watcher": "./src/watcher.ts"
+    "./watcher": "./src/watcher.ts",
+    "./bridge": "./src/bridge.ts"
   },
   "scripts": {
     "test": "vitest run"

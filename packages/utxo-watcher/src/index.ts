@@ -25,3 +25,10 @@ export {
   type WatcherSession,
   type WatcherCallbacks,
 } from "./watcher";
+export {
+  startBridge,
+  type BridgeCallbacks,
+  type BridgeHandle,
+  type BridgeOptions,
+  type BridgeSessionRow,
+} from "./bridge";
