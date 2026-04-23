@@ -5,13 +5,20 @@ import "forge-std/Script.sol";
 import "../src/PaymentVault.sol";
 import "../src/SubscriptionManager.sol";
 
+/**
+ * Mainnet deploy. USDC address comes from the USDC_ADDRESS env var so the
+ * same script works for every EVM mainnet Paylix supports (Ethereum, Base,
+ * Arbitrum, Optimism, Polygon, Avalanche, and BNB once Permit2 lands).
+ *
+ * The outer deploy.sh sets USDC_ADDRESS from the active chain's canonical
+ * value in packages/config/src/network-registry.ts before invoking this.
+ */
 contract DeployMainnet is Script {
-    address constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address platformWallet = vm.envAddress("PLATFORM_WALLET");
         address relayer = vm.envAddress("RELAYER_ADDRESS");
+        address usdc = vm.envAddress("USDC_ADDRESS");
         uint256 platformFee = 50;
 
         vm.startBroadcast(deployerKey);
@@ -19,8 +26,8 @@ contract DeployMainnet is Script {
         PaymentVault vault = new PaymentVault(platformWallet, platformFee);
         SubscriptionManager subs = new SubscriptionManager(platformWallet, platformFee);
 
-        vault.setAcceptedToken(BASE_USDC, true);
-        subs.setAcceptedToken(BASE_USDC, true);
+        vault.setAcceptedToken(usdc, true);
+        subs.setAcceptedToken(usdc, true);
 
         vault.setRelayer(relayer);
         subs.setRelayer(relayer);
@@ -29,6 +36,7 @@ contract DeployMainnet is Script {
 
         console.log("PaymentVault:", address(vault));
         console.log("SubscriptionManager:", address(subs));
+        console.log("USDC:", usdc);
         console.log("Relayer set to:", relayer);
     }
 }
