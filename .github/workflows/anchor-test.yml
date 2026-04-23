@@ -1,0 +1,99 @@
+name: Anchor Test
+
+# Runs the Solana program test suite on every PR touching solana-program.
+# Covers:
+#   - Rust unit tests (#[cfg(test)] mods in each lib.rs)
+#   - `anchor build` — verifies the programs compile cleanly
+#   - `anchor test` — spins up a local validator + runs integration tests
+#     under tests/*.ts (when that suite lands via issue #63 follow-up)
+
+on:
+  pull_request:
+    paths:
+      - "packages/solana-program/**"
+      - ".github/workflows/anchor-test.yml"
+  push:
+    branches: [master]
+    paths:
+      - "packages/solana-program/**"
+      - ".github/workflows/anchor-test.yml"
+
+concurrency:
+  group: anchor-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOLANA_VERSION: "1.18.22"
+  ANCHOR_VERSION: "0.30.1"
+
+jobs:
+  rust-tests:
+    name: Rust unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/solana-program
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable
+        with:
+          toolchain: stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/solana-program/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('packages/solana-program/**/Cargo.lock', 'packages/solana-program/**/Cargo.toml') }}
+
+      - name: cargo test (workspace)
+        run: cargo test --workspace --all-features
+
+  anchor-build:
+    name: anchor build + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/solana-program
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable
+        with:
+          toolchain: stable
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor CLI
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --force --locked
+          avm install ${ANCHOR_VERSION}
+          avm use ${ANCHOR_VERSION}
+
+      - name: Generate local keypair
+        run: solana-keygen new --no-bip39-passphrase --force --silent --outfile ~/.config/solana/id.json
+
+      - name: anchor build
+        run: anchor build
+
+      # Integration tests (tests/*.ts) — enabled once issue #63's test harness
+      # lands. Until then, this job validates builds + Rust unit tests only.
+      - name: anchor test (if tests/*.ts exists)
+        run: |
+          if ls tests/*.ts >/dev/null 2>&1; then
+            anchor test --skip-build
+          else
+            echo "No tests/*.ts yet — skipping anchor test"
+          fi

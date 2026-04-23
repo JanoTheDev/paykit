@@ -115,6 +115,7 @@ export async function POST(
     permitValue,
     permit2Nonce,
     permit2Signature,
+    permit2Allowance,
     intentSignature,
   } = parsed.value;
   // (networkKey and tokenSymbol also in parsed.value, validated below after session load)
@@ -516,20 +517,28 @@ export async function POST(
     );
   }
 
-  // Body-shape guard: Permit2 tokens need permit2Nonce/permit2Signature,
-  // EIP-2612 tokens need v/r/s/permitValue. validation.ts accepts either
-  // but doesn't know which the session's token requires.
-  if (scheme === "permit2" && (permit2Nonce === null || permit2Signature === null)) {
-    await releaseRelayLock(db, sessionId).catch(() => {});
-    return NextResponse.json(
-      {
-        error: {
-          code: "invalid_body",
-          message: `Token ${session.tokenSymbol} uses Permit2; request must include permit2Nonce and permit2Signature.`,
-        },
-      },
-      { status: 400 },
-    );
+  // Body-shape guard: Permit2 tokens need either the one-time
+  // (permit2Nonce + permit2Signature) or AllowanceTransfer (permit2Allowance)
+  // payload. EIP-2612 tokens need v/r/s/permitValue. Validation.ts accepts
+  // any shape; here we check the one that matches the scheme + product type.
+  if (scheme === "permit2") {
+    const isSub = session.type === "subscription";
+    const hasOneTime = permit2Nonce !== null && permit2Signature !== null;
+    const hasAllowance = permit2Allowance !== null;
+    if (isSub && !hasAllowance) {
+      await releaseRelayLock(db, sessionId).catch(() => {});
+      return NextResponse.json(
+        { error: { code: "invalid_body", message: `Subscription with ${session.tokenSymbol} requires a Permit2 AllowanceTransfer payload (permit2Allowance).` } },
+        { status: 400 },
+      );
+    }
+    if (!isSub && !hasOneTime) {
+      await releaseRelayLock(db, sessionId).catch(() => {});
+      return NextResponse.json(
+        { error: { code: "invalid_body", message: `One-time payment with ${session.tokenSymbol} requires Permit2 SignatureTransfer (permit2Nonce/permit2Signature).` } },
+        { status: 400 },
+      );
+    }
   }
   if (scheme === "eip2612" && (v === null || r === null || s === null || permitValue === null)) {
     await releaseRelayLock(db, sessionId).catch(() => {});
@@ -546,21 +555,6 @@ export async function POST(
 
   try {
     if (isSubscription) {
-      // Permit2 subscriptions (#55 part 2) require an AllowanceTransfer
-      // PermitSingle grant which the checkout client would need to sign
-      // and this body shape would need to carry. Follow-up work.
-      if (scheme === "permit2") {
-        await releaseRelayLock(db, sessionId).catch(() => {});
-        return NextResponse.json(
-          {
-            error: {
-              code: "scheme_not_supported",
-              message: "Permit2 subscriptions are contract-ready (#55 part 2) but the relay payload wiring is follow-up work. One-time Permit2 payments work today.",
-            },
-          },
-          { status: 400 },
-        );
-      }
       const intervalSeconds = BigInt(intervalToSeconds(session.billingInterval));
       if (intervalSeconds <= BigInt(0)) {
         return NextResponse.json(
@@ -589,13 +583,62 @@ export async function POST(
         (couponRow.duration === "once" || couponRow.duration === "repeating") &&
         session.discountCents != null;
 
-      if (useDiscountPath) {
+      // Permit2 AllowanceTransfer path — buyer pre-granted the
+      // SubscriptionManager PDA an allowance covering N cycles. The keeper
+      // pulls per cycle via Permit2.transferFrom.
+      if (scheme === "permit2") {
+        // Discount coupons (once / repeating) aren't wired to Permit2 subs
+        // yet — the contract-side createSubscriptionWithPermit2Discount
+        // doesn't exist. Forever coupons pre-apply to amount so they're fine.
+        if (useDiscountPath) {
+          await releaseRelayLock(db, sessionId).catch(() => {});
+          return NextResponse.json(
+            {
+              error: {
+                code: "scheme_not_supported",
+                message:
+                  "Once/repeating coupons on Permit2 subscriptions aren't supported yet. Use a forever coupon or an EIP-2612 token for now.",
+              },
+            },
+            { status: 400 },
+          );
+        }
+        const allowance = permit2Allowance!;
+        txHash = await withRetry(() => relayer.writeContract({
+          address: deployment.subscriptionManager,
+          abi: SUBSCRIPTION_MANAGER_ABI,
+          functionName: "createSubscriptionWithPermit2",
+          args: [
+            {
+              token: tokenAddress,
+              buyer,
+              merchant: session.merchantWallet as `0x${string}`,
+              amount: tokenAmount,
+              interval: intervalSeconds,
+              productId: productIdBytes,
+              customerId: customerIdBytes,
+              deadline,
+            },
+            {
+              details: {
+                token: tokenAddress,
+                amount: allowance.amount,
+                expiration: allowance.expiration,
+                nonce: allowance.nonce,
+              },
+              spender: deployment.subscriptionManager,
+              sigDeadline: allowance.sigDeadline,
+            },
+            allowance.signature,
+            intentSignature,
+          ],
+        }));
+      } else if (useDiscountPath) {
         const discountAmount = BigInt(session.discountCents!);
         const discountCycles = BigInt(
           couponRow.duration === "once" ? 1 : couponRow.durationInCycles ?? 1,
         );
-        // Subscription path guarded at the top — scheme=permit2 subs are
-        // rejected before reaching here, so the ! asserts are sound.
+        // Subscription path with eip2612 + discount coupon.
         txHash = await withRetry(() => relayer.writeContract({
           address: deployment.subscriptionManager,
           abi: SUBSCRIPTION_MANAGER_ABI,

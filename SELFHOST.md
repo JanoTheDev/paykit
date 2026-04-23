@@ -213,7 +213,8 @@ Every EVM chain supports all Paylix features once deployed:
 | Feature                       | EVM chains        | Solana    | Bitcoin | Litecoin |
 |-------------------------------|-------------------|-----------|---------|----------|
 | One-time payments             | ✅                | 🚧 #57    | 🚧 #58  | 🚧 #59   |
-| Subscriptions                 | ✅                | 🚧 #57    | ❌ (UTXO model)  | ❌ (UTXO model) |
+| Subscriptions (EIP-2612)      | ✅                | ✅ (delegate) | ❌ (UTXO model)  | ❌ (UTXO model) |
+| Subscriptions (Permit2)       | ✅                | ✅ (delegate) | ❌ (UTXO model)  | ❌ (UTXO model) |
 | Free trials                   | ✅                | 🚧 #57    | ❌      | ❌       |
 | Refunds (full + partial)      | ✅                | 🚧 #57    | 🚧 #58  | 🚧 #59   |
 | Coupons                       | ✅                | 🚧 #57    | ❌      | ❌       |

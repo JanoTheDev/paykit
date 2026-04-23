@@ -18,12 +18,30 @@ export interface RelayRequestBody {
   r?: unknown;
   s?: unknown;
   permitValue?: unknown;
-  // Permit2 fields (required when the token's signatureScheme='permit2')
+  // Permit2 one-time fields (SignatureTransfer — used for one-time payments)
   permit2Nonce?: unknown;
   permit2Signature?: unknown;
+  // Permit2 AllowanceTransfer fields (used for subscriptions). Nested shape
+  // mirrors Permit2's PermitSingle struct so the relay route can forward it
+  // directly to SubscriptionManager.createSubscriptionWithPermit2.
+  permit2AllowanceSignature?: unknown;
+  permit2Allowance?: {
+    amount?: unknown;     // uint160 as string
+    expiration?: unknown; // uint48 as number/string
+    nonce?: unknown;      // uint48 as number/string
+    sigDeadline?: unknown;// uint256 as string/number
+  };
   intentSignature?: unknown;
   networkKey?: unknown;
   tokenSymbol?: unknown;
+}
+
+export interface Permit2AllowanceInput {
+  amount: bigint;
+  expiration: number;
+  nonce: number;
+  sigDeadline: bigint;
+  signature: `0x${string}`;
 }
 
 export interface ValidatedRelayInput {
@@ -34,9 +52,11 @@ export interface ValidatedRelayInput {
   r: `0x${string}` | null;
   s: `0x${string}` | null;
   permitValue: bigint | null;
-  // Permit2 path — optional, populated only for Permit2 tokens.
+  // Permit2 SignatureTransfer (one-time).
   permit2Nonce: bigint | null;
   permit2Signature: `0x${string}` | null;
+  // Permit2 AllowanceTransfer (subscriptions).
+  permit2Allowance: Permit2AllowanceInput | null;
   intentSignature: `0x${string}`;
   networkKey: string;
   tokenSymbol: string;
@@ -78,6 +98,8 @@ export function parseRelayBody(
     permitValue,
     permit2Nonce,
     permit2Signature,
+    permit2Allowance,
+    permit2AllowanceSignature,
     intentSignature,
     networkKey,
     tokenSymbol,
@@ -99,20 +121,26 @@ export function parseRelayBody(
     };
   }
 
-  // Scheme detection: if permit2Nonce + permit2Signature are both provided,
-  // the payload is a Permit2 request. Otherwise fall back to the EIP-2612
-  // v/r/s/permitValue shape. Exactly one shape must be present.
-  const hasPermit2 = permit2Nonce !== undefined || permit2Signature !== undefined;
+  // Scheme detection: exactly one of three shapes must be present.
+  //   A. EIP-2612   → v/r/s/permitValue
+  //   B. Permit2 SignatureTransfer (one-time) → permit2Nonce + permit2Signature
+  //   C. Permit2 AllowanceTransfer (subscriptions) → permit2Allowance + permit2AllowanceSignature
+  const hasPermit2One = permit2Nonce !== undefined || permit2Signature !== undefined;
+  const hasPermit2Allowance =
+    permit2Allowance !== undefined || permit2AllowanceSignature !== undefined;
   const has2612 = v !== undefined || r !== undefined || s !== undefined || permitValue !== undefined;
-  if (hasPermit2 && has2612) {
+  const shapeCount = [hasPermit2One, hasPermit2Allowance, has2612].filter(Boolean).length;
+  if (shapeCount > 1) {
     return {
       ok: false,
       error: {
         code: "invalid_body",
-        message: "Request cannot mix EIP-2612 (v/r/s/permitValue) and Permit2 (permit2Nonce/permit2Signature) fields",
+        message:
+          "Request must carry exactly one of: EIP-2612 (v/r/s/permitValue), Permit2 SignatureTransfer (permit2Nonce/permit2Signature), or Permit2 AllowanceTransfer (permit2Allowance/permit2AllowanceSignature)",
       },
     };
   }
+  const hasPermit2 = hasPermit2One; // legacy alias used below
 
   let deadlineBig: bigint;
   try {
@@ -156,7 +184,57 @@ export function parseRelayBody(
     sHex = s as `0x${string}`;
   }
 
-  // Permit2 fields — validated when not in 2612 mode.
+  // Permit2 AllowanceTransfer (subscriptions)
+  let permit2AllowanceVal: Permit2AllowanceInput | null = null;
+  if (hasPermit2Allowance) {
+    if (typeof permit2AllowanceSignature !== "string" || !/^0x[0-9a-fA-F]+$/.test(permit2AllowanceSignature)) {
+      return {
+        ok: false,
+        error: { code: "invalid_body", message: "permit2AllowanceSignature must be a 0x-prefixed hex string" },
+      };
+    }
+    if (!permit2Allowance || typeof permit2Allowance !== "object") {
+      return { ok: false, error: { code: "invalid_body", message: "permit2Allowance must be an object" } };
+    }
+    const { amount: pAmt, expiration: pExp, nonce: pNonce, sigDeadline: pSig } = permit2Allowance;
+    if (pAmt === undefined || pExp === undefined || pNonce === undefined || pSig === undefined) {
+      return {
+        ok: false,
+        error: { code: "invalid_body", message: "permit2Allowance requires amount, expiration, nonce, sigDeadline" },
+      };
+    }
+    let amt: bigint;
+    let sigDead: bigint;
+    try {
+      amt = BigInt(pAmt as string | number);
+      sigDead = BigInt(pSig as string | number);
+    } catch {
+      return { ok: false, error: { code: "invalid_body", message: "permit2Allowance.amount and .sigDeadline must be bigint-representable" } };
+    }
+    if (amt <= BigInt(0)) {
+      return { ok: false, error: { code: "invalid_body", message: "permit2Allowance.amount must be positive" } };
+    }
+    if (sigDead <= BigInt(0)) {
+      return { ok: false, error: { code: "invalid_body", message: "permit2Allowance.sigDeadline must be positive" } };
+    }
+    const exp = Number(pExp);
+    const nonce48 = Number(pNonce);
+    if (!Number.isInteger(exp) || exp < 0) {
+      return { ok: false, error: { code: "invalid_body", message: "permit2Allowance.expiration must be a non-negative integer" } };
+    }
+    if (!Number.isInteger(nonce48) || nonce48 < 0) {
+      return { ok: false, error: { code: "invalid_body", message: "permit2Allowance.nonce must be a non-negative integer" } };
+    }
+    permit2AllowanceVal = {
+      amount: amt,
+      expiration: exp,
+      nonce: nonce48,
+      sigDeadline: sigDead,
+      signature: permit2AllowanceSignature as `0x${string}`,
+    };
+  }
+
+  // Permit2 SignatureTransfer (one-time) fields — validated when selected.
   let permit2NonceBig: bigint | null = null;
   let permit2SignatureHex: `0x${string}` | null = null;
   if (hasPermit2) {
@@ -233,6 +311,7 @@ export function parseRelayBody(
       permitValue: permitValueBig,
       permit2Nonce: permit2NonceBig,
       permit2Signature: permit2SignatureHex,
+      permit2Allowance: permit2AllowanceVal,
       intentSignature: intentSignature as `0x${string}`,
       networkKey: networkKey,
       tokenSymbol: tokenSymbol,

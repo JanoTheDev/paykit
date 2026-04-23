@@ -205,6 +205,16 @@ Anchor (Solana) tests need `anchor-cli` installed:
 cd packages/solana-program && anchor test
 ```
 
+## Open follow-up issues
+
+Closed the main rollout (#54–#60 + tracker #28). Remaining scoped work:
+
+- **#62** — DAI-permit variant for Ethereum-mainnet DAI (niche; Permit2 covers every L2)
+- **#63** — Anchor CI workflow lands the Rust + build pass; integration test harness (`tests/*.ts`) still needed
+- **#65** — Postgres bindings to wire Solana indexer + UTXO watcher to the shared schema (migration landed in `0030_add_utxo_support.sql`; writer layer is the remaining glue)
+
+Rollout tracker is closed. Open issues are independent follow-ups.
+
 ## Architecture deep-dive
 
 - [CLAUDE.md](CLAUDE.md) — architecture, invariants, gotchas

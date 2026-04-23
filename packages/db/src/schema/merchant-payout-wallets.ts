@@ -28,6 +28,10 @@ export const merchantPayoutWallets = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     networkKey: text("network_key").notNull(),
     walletAddress: text("wallet_address"), // nullable: NULL means "use default"
+    // Extended public key for UTXO chains (Bitcoin / Litecoin). NULL on EVM
+    // rows. When set, the watcher derives per-session receive addresses
+    // from this key; Paylix never sees the matching private key.
+    xpub: text("xpub"),
     enabled: boolean("enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

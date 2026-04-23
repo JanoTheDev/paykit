@@ -48,6 +48,12 @@ export const checkoutSessions = pgTable("checkout_sessions", {
   relayInFlightAt: timestamp("relay_in_flight_at", { withTimezone: true }),
   recoveryEmailSentAt: timestamp("recovery_email_sent_at", { withTimezone: true }),
   livemode: boolean("livemode").notNull().default(false),
+  // UTXO-chain (Bitcoin / Litecoin) session fields. NULL for EVM sessions.
+  // `btcReceiveAddress` is the BIP32-derived per-session address the buyer
+  // sends to; `btcSessionIndex` is the index under the merchant's xpub so
+  // future sessions never re-derive the same address.
+  btcReceiveAddress: text("btc_receive_address"),
+  btcSessionIndex: bigint("btc_session_index", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

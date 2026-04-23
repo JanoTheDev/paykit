@@ -179,6 +179,48 @@ export const SUBSCRIPTION_MANAGER_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    name: "createSubscriptionWithPermit2",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      {
+        name: "p",
+        type: "tuple",
+        components: [
+          { name: "token", type: "address" },
+          { name: "buyer", type: "address" },
+          { name: "merchant", type: "address" },
+          { name: "amount", type: "uint256" },
+          { name: "interval", type: "uint256" },
+          { name: "productId", type: "bytes32" },
+          { name: "customerId", type: "bytes32" },
+          { name: "deadline", type: "uint256" },
+        ],
+      },
+      {
+        name: "permit2Permit",
+        type: "tuple",
+        components: [
+          {
+            name: "details",
+            type: "tuple",
+            components: [
+              { name: "token", type: "address" },
+              { name: "amount", type: "uint160" },
+              { name: "expiration", type: "uint48" },
+              { name: "nonce", type: "uint48" },
+            ],
+          },
+          { name: "spender", type: "address" },
+          { name: "sigDeadline", type: "uint256" },
+        ],
+      },
+      { name: "permit2Signature", type: "bytes" },
+      { name: "intentSignature", type: "bytes" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     name: "subscriptionDiscounts",
     type: "function",
     stateMutability: "view",

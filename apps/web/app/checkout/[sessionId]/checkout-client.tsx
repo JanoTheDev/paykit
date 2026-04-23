@@ -460,16 +460,152 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
       const tokenName = activeToken.name;
 
       // ──────────────────────────────────────────────────────────────────
-      // Permit2 branch (USDT / WETH / DAI on L2s / WBTC / etc.)
+      // Permit2 SUBSCRIPTION branch (AllowanceTransfer)
+      // ──────────────────────────────────────────────────────────────────
+      // Buyer signs a PermitSingle granting SubscriptionManager an allowance
+      // covering many cycles. Keeper pulls per cycle via Permit2.transferFrom.
+      if (activeToken.signatureScheme === "permit2" && isSubscription) {
+        const PERMIT2_ADDR = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
+        const tokenAddress = (activeToken.address ?? usdcAddress) as `0x${string}`;
+
+        // uint160 max = (1 << 160) - 1 ≈ 1.46e48. We ask for usdcAmount * 1000
+        // which comfortably covers years of recurring charges for any
+        // reasonable subscription amount.
+        const allowanceAmount = usdcAmount * BigInt(1000);
+        // Permit2 AllowanceTransfer expiration is uint48 (max ~year 8921000
+        // AD). Set to 5 years from now.
+        const expiration = Math.floor(Date.now() / 1000) + 5 * 365 * 24 * 60 * 60;
+
+        // Permit2 AllowanceTransfer nonces are uint48 per (owner, token, spender)
+        // tuple. Starting from 0 is safe for first-time grants; a merchant
+        // may want to increment on subsequent subscriptions. Read real
+        // allowance state once issue #62's follow-up adds onchain nonce query.
+        const allowanceNonce = 0;
+        const sigDeadline = deadline;
+
+        const intervalSecondsSub = BigInt(intervalToSeconds(session.billingInterval));
+
+        setPayStep("approving");
+        const permit2AllowanceSignature = await signTypedDataAsync({
+          domain: {
+            name: "Permit2",
+            chainId,
+            verifyingContract: PERMIT2_ADDR,
+          },
+          types: {
+            PermitSingle: [
+              { name: "details", type: "PermitDetails" },
+              { name: "spender", type: "address" },
+              { name: "sigDeadline", type: "uint256" },
+            ],
+            PermitDetails: [
+              { name: "token", type: "address" },
+              { name: "amount", type: "uint160" },
+              { name: "expiration", type: "uint48" },
+              { name: "nonce", type: "uint48" },
+            ],
+          },
+          primaryType: "PermitSingle",
+          message: {
+            details: {
+              token: tokenAddress,
+              amount: allowanceAmount,
+              expiration,
+              nonce: allowanceNonce,
+            },
+            spender: subscriptionManagerAddress,
+            sigDeadline,
+          },
+        });
+
+        // Paylix SubscriptionIntent binding. Reuses the SubscriptionIntent
+        // typehash used by the EIP-2612 path; permitValue = allowance amount
+        // so the buyer still commits to a concrete upper bound in the intent.
+        const productIdBytes = keccak256(stringToBytes(session.productId));
+        const customerIdBytes = keccak256(stringToBytes(session.id));
+        const intentNonceSub = (await publicClient.readContract({
+          address: subscriptionManagerAddress,
+          abi: SUBSCRIPTION_MANAGER_ABI,
+          functionName: "getIntentNonce",
+          args: [address as `0x${string}`],
+        })) as bigint;
+
+        const intentSignatureSub = await signTypedDataAsync({
+          domain: {
+            name: "Paylix SubscriptionManager",
+            version: "1",
+            chainId,
+            verifyingContract: subscriptionManagerAddress,
+          },
+          types: {
+            SubscriptionIntent: [
+              { name: "buyer", type: "address" },
+              { name: "token", type: "address" },
+              { name: "merchant", type: "address" },
+              { name: "amount", type: "uint256" },
+              { name: "interval", type: "uint256" },
+              { name: "productId", type: "bytes32" },
+              { name: "customerId", type: "bytes32" },
+              { name: "permitValue", type: "uint256" },
+              { name: "nonce", type: "uint256" },
+              { name: "deadline", type: "uint256" },
+            ],
+          },
+          primaryType: "SubscriptionIntent",
+          message: {
+            buyer: address as `0x${string}`,
+            token: tokenAddress,
+            merchant: session.merchantWallet as `0x${string}`,
+            amount: usdcAmount,
+            interval: intervalSecondsSub,
+            productId: productIdBytes,
+            customerId: customerIdBytes,
+            permitValue: allowanceAmount,
+            nonce: intentNonceSub,
+            deadline,
+          },
+        });
+
+        setPayStep("paying");
+        const relayResSub = await fetch(`/api/checkout/${session.id}/relay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            buyer: address,
+            deadline: deadline.toString(),
+            permit2Allowance: {
+              amount: allowanceAmount.toString(),
+              expiration,
+              nonce: allowanceNonce,
+              sigDeadline: sigDeadline.toString(),
+            },
+            permit2AllowanceSignature,
+            intentSignature: intentSignatureSub,
+            networkKey: session.networkKey,
+            tokenSymbol: session.tokenSymbol,
+          }),
+        });
+        if (!relayResSub.ok) {
+          const errBody = await relayResSub.json().catch(() => ({}));
+          const errMsg =
+            errBody?.error?.message ||
+            errBody?.error?.code ||
+            `Relay failed (${relayResSub.status})`;
+          throw new Error(errMsg);
+        }
+        const relayBodySub = (await relayResSub.json()) as { txHash?: `0x${string}` };
+        if (relayBodySub.txHash) setTxHash(relayBodySub.txHash);
+        setStatus("completed");
+        return;
+      }
+
+      // ──────────────────────────────────────────────────────────────────
+      // Permit2 ONE-TIME branch (SignatureTransfer)
       // ──────────────────────────────────────────────────────────────────
       // Tokens without native EIP-2612 are routed through Uniswap's Permit2
       // singleton at 0x000000000022D473030F116dDEE9F6B43aC78BA3 (same address
       // on every EVM chain). The buyer signs a PermitTransferFrom authorizing
       // a one-shot pull; the vault's createPaymentWithPermit2 CPIs Permit2.
-      //
-      // Subscriptions on Permit2 (AllowanceTransfer) are contract-ready
-      // (#55 part 2) but the relay payload wiring is follow-up — so we only
-      // take this branch for one-time payments today.
       if (activeToken.signatureScheme === "permit2" && !isSubscription) {
         const PERMIT2_ADDR = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
 
