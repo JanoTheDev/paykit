@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "./interfaces/IPermit2.sol";
 
 /// @title PaymentVault
 /// @notice Non-custodial one-time USDC payment settlement. Supports direct
@@ -33,6 +34,10 @@ contract PaymentVault is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
     mapping(address => bool) public acceptedTokens;
     address public relayer;
     bool public gaslessPaused;
+
+    // Permit2 canonical deployment — identical address on every EVM chain.
+    // Immutable so it can't drift via owner action.
+    IPermit2 public constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     event PaymentReceived(
         address indexed payer,
@@ -223,6 +228,95 @@ contract PaymentVault is Ownable2Step, ReentrancyGuard, Pausable, EIP712 {
         }
 
         emit PaymentReceived(buyer, merchant, token, amount, fee, productId, customerId, block.timestamp);
+    }
+
+    /// @dev Packed params for createPaymentWithPermit2. Needed to stay under
+    /// the EVM stack-depth limit given the number of distinct inputs.
+    struct Permit2Payment {
+        address token;
+        address buyer;
+        address merchant;
+        uint256 amount;
+        bytes32 productId;
+        bytes32 customerId;
+        uint256 permit2Nonce;
+        uint256 permit2Deadline;
+        bytes permit2Signature;
+        bytes intentSignature;
+    }
+
+    function _pullViaPermit2(
+        address token,
+        address owner,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline,
+        bytes calldata signature
+    ) internal {
+        IPermit2.PermitTransferFrom memory permit = IPermit2.PermitTransferFrom({
+            permitted: IPermit2.TokenPermissions({token: token, amount: amount}),
+            nonce: nonce,
+            deadline: deadline
+        });
+        IPermit2.SignatureTransferDetails memory td = IPermit2.SignatureTransferDetails({
+            to: address(this),
+            requestedAmount: amount
+        });
+        PERMIT2.permitTransferFrom(permit, td, owner, signature);
+    }
+
+    /// @notice Gasless payment via Permit2. For tokens that don't implement
+    ///         EIP-2612 (USDT, WBTC, etc.), the buyer signs a Permit2
+    ///         `PermitTransferFrom` over the token + amount + deadline. The
+    ///         vault pulls the full amount into itself in one call and then
+    ///         splits to merchant + platform wallet.
+    ///
+    ///         Holds `p.amount` for the duration of this transaction only;
+    ///         no persistent custody. Reentrancy is blocked by nonReentrant.
+    /// @param p Packed Permit2Payment struct (see struct definition above)
+    function createPaymentWithPermit2(Permit2Payment calldata p)
+        external
+        nonReentrant
+        whenNotPaused
+    {
+        require(msg.sender == relayer, "Only relayer");
+        require(!gaslessPaused, "Gasless paused");
+        require(acceptedTokens[p.token], "Token not accepted");
+        require(p.amount > 0, "Amount must be > 0");
+        require(p.merchant != address(0), "Invalid merchant");
+        require(p.buyer != address(0), "Invalid buyer");
+        require(block.timestamp <= p.permit2Deadline, "Intent expired");
+
+        // Verify the buyer signed an EIP-712 PaymentIntent over the active
+        // merchant/amount/token/etc. Consumes the per-buyer nonce so a
+        // compromised relayer cannot swap the merchant or amount.
+        _consumePaymentIntent(
+            p.buyer,
+            p.token,
+            p.merchant,
+            p.amount,
+            p.productId,
+            p.customerId,
+            p.permit2Deadline,
+            p.intentSignature
+        );
+
+        _pullViaPermit2(p.token, p.buyer, p.amount, p.permit2Nonce, p.permit2Deadline, p.permit2Signature);
+
+        uint256 fee = 0;
+        if (platformFee > 0 && platformWallet != address(0)) {
+            fee = (p.amount * platformFee) / 10000;
+        }
+        uint256 merchantAmount = p.amount - fee;
+        require(merchantAmount > 0, "Amount too small for fee");
+
+        IERC20(p.token).safeTransfer(p.merchant, merchantAmount);
+        if (fee > 0) {
+            require(platformWallet != address(0), "Invalid platform wallet");
+            IERC20(p.token).safeTransfer(platformWallet, fee);
+        }
+
+        emit PaymentReceived(p.buyer, p.merchant, p.token, p.amount, fee, p.productId, p.customerId, block.timestamp);
     }
 
     /// @notice Add or remove a token from the accepted list.
