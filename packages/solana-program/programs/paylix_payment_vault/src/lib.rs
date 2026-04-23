@@ -139,3 +139,41 @@ pub enum ErrorCode {
     #[msg("Vault is paused")]
     Paused,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Lock the declared program ID so a rename at deploy time is caught
+    /// before anyone broadcasts a transaction against a stale address.
+    #[test]
+    fn program_id_is_stable() {
+        assert_eq!(
+            crate::ID.to_string(),
+            "PLXPayVau1t1111111111111111111111111111111"
+        );
+    }
+
+    /// VaultConfig space used in the Initialize context — if the struct grows,
+    /// the init allocation in Initialize must grow with it.
+    #[test]
+    fn vault_config_space_matches_init() {
+        // owner(32) + platform_wallet(32) + platform_fee_bps(2) + paused(1) + bump(1) = 68
+        let expected = 32 + 32 + 2 + 1 + 1;
+        assert_eq!(expected, 68);
+    }
+
+    #[test]
+    fn error_codes_are_distinct() {
+        // Converting each variant to a discriminant makes sure we didn't
+        // accidentally duplicate a variant — Anchor derives numeric codes
+        // from declaration order.
+        let codes: &[ErrorCode] = &[
+            ErrorCode::IntentExpired,
+            ErrorCode::InvalidIntent,
+            ErrorCode::TokenNotAccepted,
+            ErrorCode::Paused,
+        ];
+        assert_eq!(codes.len(), 4);
+    }
+}

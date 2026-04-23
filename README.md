@@ -1,28 +1,58 @@
 # Paylix
 
-> Open-source crypto payments infrastructure. Accept USDC payments and subscriptions on Base with a few lines of TypeScript.
+> Open-source crypto payments infrastructure. Accept one-time and recurring crypto payments across 7 EVM chains (and more coming), with gasless checkout and non-custodial settlement.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ## What is Paylix?
 
-Paylix is a self-hostable payments stack for one-time and recurring USDC billing:
+Self-hostable payments stack for one-time and recurring crypto billing:
 
 - TypeScript SDK (`@paylix/sdk`)
-- Hosted checkout + dashboard (Next.js)
-- On-chain settlement contracts (Foundry)
+- Hosted checkout + merchant dashboard (Next.js)
+- On-chain settlement contracts (Foundry — Solidity)
 - Indexer + keeper for event sync and subscription charging
+- Multi-chain registry + deploy tooling
 
-## Non-Custodial by Design
+Designed to replace Stripe-like subscription billing with crypto-native
+settlement — without custody, without sending funds through an intermediary,
+and without requiring buyers to hold gas.
 
-Paylix is **non-custodial** with **direct settlement**:
+## Supported chains and coins
 
-- Customer funds are transferred on-chain **directly from buyer wallet to merchant wallet**
-- Paylix does **not** hold user balances in intermediary wallets
-- The platform fee (if enabled) is split during the same on-chain payment flow
-- Buyers can pay gaslessly (relayer pays gas) while USDC still settles directly to the merchant
+Live at the code level; per-chain mainnet deploys require the operator to
+fund a deployer wallet and run `./deploy.sh <chain> mainnet`.
 
-## Quick Start (SDK)
+| Chain              | Testnet                  | Mainnet | USDC | USDT | DAI  | WETH | WBTC | PYUSD |
+|--------------------|--------------------------|---------|------|------|------|------|------|-------|
+| Ethereum           | Sepolia                  | ✅      | ✅   | ✅   | ✅*  | ✅   | ✅   | ✅    |
+| Base               | Base Sepolia             | ✅      | ✅   | —    | ✅   | ✅   | —    | —     |
+| Arbitrum One       | Arbitrum Sepolia         | ✅      | ✅   | ✅   | ✅   | ✅   | ✅   | —     |
+| Optimism           | OP Sepolia               | ✅      | ✅   | ✅   | ✅   | ✅   | ✅   | —     |
+| Polygon PoS        | Polygon Amoy             | ✅      | ✅   | ✅   | ✅   | ✅†  | ✅   | —     |
+| BNB Chain          | BNB Testnet              | ✅      | ✅†‡ | ✅†  | ✅†  | ✅†  | —    | —     |
+| Avalanche C-Chain  | Avalanche Fuji           | ✅      | ✅   | ✅   | ✅†  | ✅†  | ✅   | —     |
+
+`*` Ethereum DAI uses the legacy DAI-permit variant
+`†` Bridged token (flagged in UI as non-canonical)
+`‡` BNB USDC (Binance-Peg) is 18-decimal and inert pending Permit2 wiring (#56)
+
+Non-EVM chains (scaffolded, live implementation tracked in open issues):
+
+| Chain     | Testnet     | Mainnet | Model           | Subscriptions |
+|-----------|-------------|---------|-----------------|---------------|
+| Solana    | Devnet      | Scaffold | SPL + Anchor    | ✅ (delegate authority) |
+| Bitcoin   | Testnet     | Scaffold | UTXO watch-addr  | ❌ (no on-chain auth)   |
+| Litecoin  | Testnet     | Scaffold | UTXO watch-addr  | ❌ (no on-chain auth)   |
+
+## Non-custodial by design
+
+- Customer funds transfer on-chain **directly from buyer wallet to merchant wallet**
+- Paylix never holds user balances in intermediary wallets
+- The platform fee (if enabled) is split during the same on-chain payment
+- Gasless flows still settle directly — the relayer pays gas, not custody
+
+## Quick start (SDK)
 
 ```bash
 npm install @paylix/sdk
@@ -33,36 +63,10 @@ import { Paylix } from "@paylix/sdk";
 
 const paylix = new Paylix({
   apiKey: "sk_test_...",
-  network: "base-sepolia",
+  network: "base-sepolia",  // any supported network key
   backendUrl: "http://localhost:3000",
 });
 
-const { checkoutUrl, checkoutId } = await paylix.createCheckout({
-  productId: "prod_abc",
-  customerId: "user_123",
-  successUrl: "https://myapp.com/success",
-  cancelUrl: "https://myapp.com/cancel",
-});
-
-// Redirect the customer to checkoutUrl
-```
-
-## Gasless Checkout
-
-Buyers never need ETH. Paylix's hosted checkout takes two off-chain signatures from the buyer's wallet and the relayer pays gas on-chain.
-
-Merchant integration stays one call — gasless is the default when the buyer lands on the hosted page:
-
-```ts
-import { Paylix } from "@paylix/sdk";
-
-const paylix = new Paylix({
-  apiKey: "sk_test_...",
-  network: "base-sepolia",
-  backendUrl: "http://localhost:3000",
-});
-
-// One-time payment. Amount lives on the product (integer cents of USDC).
 const { checkoutUrl } = await paylix.createCheckout({
   productId: "prod_abc",
   customerId: "user_123",
@@ -70,109 +74,146 @@ const { checkoutUrl } = await paylix.createCheckout({
   cancelUrl: "https://myapp.com/cancel",
 });
 
-// Or a subscription with the same API:
-const { checkoutUrl: subUrl } = await paylix.createSubscription({
+// Redirect the buyer. Hosted checkout handles wallet + signatures.
+```
+
+Subscriptions use the same shape:
+
+```ts
+const { checkoutUrl } = await paylix.createSubscription({
   productId: "prod_monthly",
   customerId: "user_123",
   successUrl: "https://myapp.com/success",
   cancelUrl: "https://myapp.com/cancel",
 });
-
-// Redirect the buyer. The hosted page collects the two signatures
-// and posts them to the relay endpoint for on-chain settlement.
 ```
 
-On the hosted checkout, the buyer signs:
+## Gasless checkout
 
-1. **EIP-2612 permit** — authorises the `PaymentVault` (or `SubscriptionManager`) to pull exactly the amount of USDC needed.
-2. **Paylix `PaymentIntent`** (or `SubscriptionIntent` for subscriptions) — binds the merchant, amount, and a per-session nonce so the signed permit can only be used for *this* payment.
+Buyers never need gas to pay. The hosted checkout takes two signatures:
 
-The relayer then submits the transaction and pays gas. The contract's `_consumePaymentIntent` check runs **before** `safeTransferFrom`, which means a compromised relayer cannot redirect funds or double-spend a signature — the intent pins the exact destination and amount. Buyer funds settle directly from buyer wallet to merchant wallet on-chain; Paylix never custody anything in between.
+1. **EIP-2612 permit** (or Uniswap Permit2 for non-permit tokens like USDT /
+   DAI / WETH) — authorises the vault to pull exactly the amount of tokens
+   the checkout needs
+2. **Paylix `PaymentIntent`** (or `SubscriptionIntent`) — EIP-712 binding to
+   the exact merchant + amount + nonce so a compromised relayer cannot
+   redirect funds
 
-## Core Features
+The relayer submits the transaction and pays gas. The contract's
+`_consumePaymentIntent` runs **before** `safeTransferFrom` — this is the
+invariant that makes the design non-catastrophic against a compromised relay.
 
-- **One-time payments** in USDC
-- **Subscriptions** with keeper-driven recurring charges
+## Core features
+
+- **One-time payments** on every supported chain/token pair
+- **Subscriptions** with keeper-driven recurring charges (EIP-2612 + Permit2)
 - **Free trials** with trialing and trial-conversion lifecycle states
+- **Refunds** (full and partial, merchant-initiated or customer-requested)
+- **Coupons** (one-off, repeating, and forever discounts)
 - **Gasless checkout** via relayer (no ETH required for buyers)
-- **Invoices + receipts** (hosted pages and on-demand PDFs)
+- **Multi-wallet customers** (primary + backup payers for subscription resilience)
+- **Tax collection** (EU VAT, US state headline rates)
+- **Invoices + receipts** (hosted pages + on-demand PDF)
 - **Webhooks** for payment and subscription lifecycle events
-- **Customer + product APIs** in the SDK
-- **Checkout links** from the dashboard
-- **Testnet support** on Base Sepolia with MockUSDC
-- **Self-hosting** with Docker Compose and full data ownership
+- **Customer portal** (view history, manage subs, add wallets)
+- **Dashboard + checkout links** (no-code launches)
+- **Testnet + mainnet parity** on every supported chain
+- **Self-hosting** with Docker Compose, full data ownership
 
-## Monorepo Layout
+## Monorepo layout
 
-```text
+```
 apps/
-  web/          Next.js dashboard + API + checkout
-  docs/         Next.js docs site
+  web/            Next.js dashboard + API + checkout
+  docs/           Next.js docs site
+
 packages/
-  sdk/          @paylix/sdk
-  contracts/    Solidity contracts (PaymentVault, SubscriptionManager, MockUSDC)
-  db/           Drizzle schema + migrations
-  indexer/      Event listener + subscription keeper
-  mailer/       Invoice email delivery
-  config/       Shared network/tsconfig utilities
+  sdk/            @paylix/sdk
+  contracts/      Solidity (PaymentVault, SubscriptionManager, MockUSDC)
+  db/             Drizzle schema + migrations
+  indexer/        EVM event listener + subscription keeper
+  mailer/         Invoice email delivery
+  config/         Network registry (7 EVM chains) + tsconfig utilities
+  utxo-watcher/   Bitcoin + Litecoin UTXO watch-address service (skeleton)
+  solana-program/ Anchor workspace (payment_vault + subscription_manager)
+  solana-indexer/ Solana log listener + keeper (skeleton)
 ```
 
-## Self-Hosting
+## Self-hosting
 
-1) Create environment file:
+See **[SELFHOST.md](SELFHOST.md)** for the full guide.
 
-```bash
-cp .env.example .env
-```
-
-2) Fill required values in `.env` (RPC, keys, contract addresses, auth secrets).
-
-3) Start services:
+Quick version:
 
 ```bash
+# 1. Clone + install
+git clone https://github.com/JanoTheDev/paylix.git && cd paylix
+cp .env.example .env                 # fill in keys (see SELFHOST)
+pnpm install
+
+# 2. Deploy contracts on your chain of choice
+# (deploy.sh lives outside the repo — copy it up one level first)
+./deploy.sh base testnet             # or any chain × testnet/mainnet
+
+# 3. Start everything
 docker compose up -d
+pnpm --filter @paylix/web dev
+pnpm --filter @paylix/indexer dev
 ```
 
-4) Visit `http://localhost:3000` and create your account.
+### Deploying to a new chain
 
-### What `docker compose` starts
+`./deploy.sh <chain> <testnet|mainnet>` handles everything:
 
-- `web` - dashboard + API
-- `indexer` - blockchain listener + keeper
-- `postgres` - application database
+```
+./deploy.sh ethereum testnet         # Ethereum Sepolia
+./deploy.sh arbitrum mainnet         # Arbitrum One
+./deploy.sh all testnet              # fan out to every configured chain
+./deploy.sh base testnet --mint-only 0xYourBuyer 1000000000  # faucet test USDC
+```
 
-## Local Development
+Testnet and mainnet deployer / relayer / keeper / platform wallets are
+**separate** — `TESTNET_*` and `MAINNET_*` env groups enforce the split.
+
+## Local development
 
 ```bash
 pnpm install
 docker compose up -d postgres
 pnpm --filter @paylix/db db:push
-pnpm dev
-```
-
-Useful app-specific dev commands:
-
-```bash
-pnpm --filter @paylix/web dev   # dashboard + API on :3000
-pnpm --filter @paylix/docs dev  # docs site on :3001
-pnpm --filter @paylix/indexer dev
+pnpm dev                              # all apps + packages via turbo
 ```
 
 ## Testing
 
 ```bash
-pnpm test
-pnpm --filter @paylix/sdk test
-pnpm --filter @paylix/web test
-pnpm --filter @paylix/indexer test
+pnpm test                             # all packages (527+ tests)
+pnpm --filter @paylix/sdk test        # single package
+pnpm --filter @paylix/config test     # network registry
+pnpm --filter @paylix/utxo-watcher test
 ```
 
-Contract tests (Foundry via WSL):
+Solidity / Foundry tests run under WSL on Windows:
 
 ```bash
 wsl bash -lc "cd /mnt/c/path/to/paykit/packages/contracts && ~/.foundry/bin/forge test"
 ```
 
+Anchor (Solana) tests need `anchor-cli` installed:
+
+```bash
+cd packages/solana-program && anchor test
+```
+
+## Architecture deep-dive
+
+- [CLAUDE.md](CLAUDE.md) — architecture, invariants, gotchas
+- [docs/superpowers/specs/](docs/superpowers/specs/) — design specs for each major feature
+- [docs/superpowers/specs/2026-04-11-multi-chain-multi-token-design.md](docs/superpowers/specs/2026-04-11-multi-chain-multi-token-design.md) — multi-chain architecture
+- [docs/superpowers/specs/2026-04-23-bitcoin-integration.md](docs/superpowers/specs/2026-04-23-bitcoin-integration.md) — UTXO watcher design
+- [docs/superpowers/specs/2026-04-23-solana-integration.md](docs/superpowers/specs/2026-04-23-solana-integration.md) — Solana / Anchor design
+
 ## License
 
-[AGPL-3.0](LICENSE) - Free to use, self-host, and modify. If you offer a modified version as a hosted service, you must open-source your changes.
+[AGPL-3.0](LICENSE) — Free to use, self-host, modify. If you offer a modified
+version as a hosted service, you must open-source your changes.

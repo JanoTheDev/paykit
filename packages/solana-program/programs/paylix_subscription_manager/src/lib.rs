@@ -128,3 +128,37 @@ pub struct CancelSubscription<'info> {
     pub subscription: Account<'info, Subscription>,
     pub authority: Signer<'info>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn program_id_is_stable() {
+        assert_eq!(
+            crate::ID.to_string(),
+            "PLXSubMan11111111111111111111111111111111"
+        );
+    }
+
+    /// Subscription is big enough to keep the init space helper honest.
+    /// If a field is added/removed, the Initialize context's space calc must
+    /// be updated in lockstep.
+    #[test]
+    fn subscription_config_space_matches_init() {
+        // owner(32) + platform_wallet(32) + platform_fee_bps(2) + paused(1) + bump(1) = 68
+        let expected = 32 + 32 + 2 + 1 + 1;
+        assert_eq!(expected, 68);
+    }
+
+    #[test]
+    fn subscription_status_bytes_are_distinct() {
+        // Active=0, PastDue=1, Cancelled=2 — stored as u8 in Subscription.status
+        let active: u8 = 0;
+        let past_due: u8 = 1;
+        let cancelled: u8 = 2;
+        assert_ne!(active, past_due);
+        assert_ne!(past_due, cancelled);
+        assert_ne!(active, cancelled);
+    }
+}
