@@ -202,6 +202,106 @@ describe("NETWORKS data — token specifics", () => {
   });
 });
 
+describe("NETWORKS data — signatureScheme invariants", () => {
+  it("every token has a valid signatureScheme", () => {
+    const valid = new Set(["eip2612", "permit2", "dai-permit", "none"]);
+    for (const network of Object.values(NETWORKS)) {
+      for (const token of Object.values(network.tokens)) {
+        expect(valid.has(token.signatureScheme)).toBe(true);
+      }
+    }
+  });
+
+  it("signatureScheme=eip2612 ⇔ supportsPermit=true", () => {
+    for (const network of Object.values(NETWORKS)) {
+      for (const token of Object.values(network.tokens)) {
+        const is2612 = token.signatureScheme === "eip2612";
+        expect(is2612).toBe(token.supportsPermit);
+      }
+    }
+  });
+
+  it("USDC on major EVM mainnets uses eip2612", () => {
+    const keys: NetworkKey[] = [
+      "ethereum",
+      "base",
+      "arbitrum",
+      "optimism",
+      "polygon",
+      "avalanche",
+    ];
+    for (const k of keys) {
+      expect(NETWORKS[k].tokens.USDC.signatureScheme).toBe("eip2612");
+    }
+  });
+
+  it("USDT across all supported chains uses permit2", () => {
+    const chainsWithUSDT = Object.values(NETWORKS).filter((n) => n.tokens.USDT);
+    expect(chainsWithUSDT.length).toBeGreaterThan(0);
+    for (const n of chainsWithUSDT) {
+      expect(n.tokens.USDT.signatureScheme).toBe("permit2");
+    }
+  });
+
+  it("DAI on Ethereum mainnet uses dai-permit", () => {
+    expect(NETWORKS.ethereum.tokens.DAI.signatureScheme).toBe("dai-permit");
+  });
+
+  it("DAI on L2s uses permit2 (not dai-permit)", () => {
+    const l2Keys: NetworkKey[] = ["base", "arbitrum", "optimism", "polygon", "avalanche"];
+    for (const k of l2Keys) {
+      const dai = NETWORKS[k].tokens.DAI;
+      if (dai) expect(dai.signatureScheme).toBe("permit2");
+    }
+  });
+
+  it("bridged tokens are explicitly flagged", () => {
+    const bridgedEntries = Object.values(NETWORKS).flatMap((n) =>
+      Object.values(n.tokens).filter((t) => t.bridged),
+    );
+    // We've got bridged USDC on BNB plus bridged WETH/DAI on several L2s.
+    expect(bridgedEntries.length).toBeGreaterThan(0);
+  });
+
+  it("WETH canonical deployments have the expected addresses", () => {
+    expect(NETWORKS.ethereum.tokens.WETH.address).toBe(
+      "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    );
+    expect(NETWORKS.base.tokens.WETH.address).toBe(
+      "0x4200000000000000000000000000000000000006",
+    );
+    expect(NETWORKS.optimism.tokens.WETH.address).toBe(
+      "0x4200000000000000000000000000000000000006",
+    );
+  });
+
+  it("WBTC deployments have 8 decimals", () => {
+    for (const n of Object.values(NETWORKS)) {
+      const wbtc = n.tokens.WBTC;
+      if (wbtc) expect(wbtc.decimals).toBe(8);
+    }
+  });
+
+  it("every non-stable token on a mainnet can eventually be used (scheme != 'none')", () => {
+    for (const n of Object.values(NETWORKS)) {
+      if (n.environment !== "mainnet") continue;
+      for (const t of Object.values(n.tokens)) {
+        // Everything we've added except the BNB bridged USDC should be routable.
+        if (n.key === "bnb" && t.symbol === "USDC") continue;
+        expect(t.signatureScheme).not.toBe("none");
+      }
+    }
+  });
+
+  it("Ethereum hosts the expected core stablecoins", () => {
+    const eth = NETWORKS.ethereum;
+    expect(eth.tokens.USDC).toBeDefined();
+    expect(eth.tokens.USDT).toBeDefined();
+    expect(eth.tokens.DAI).toBeDefined();
+    expect(eth.tokens.PYUSD).toBeDefined();
+  });
+});
+
 describe("getActiveNetwork", () => {
   const originalEnv = process.env.NEXT_PUBLIC_NETWORK;
   afterEach(() => {
