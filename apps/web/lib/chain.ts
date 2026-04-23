@@ -11,6 +11,7 @@ import {
   NETWORKS,
   type NetworkConfig,
   type NetworkKey,
+  type TokenConfig,
 } from "@paylix/config/networks";
 
 const network = getActiveNetwork();
@@ -21,11 +22,10 @@ export const CHAIN_ID: number = network.chainId;
 export const CHAIN = network.viemChain;
 export const IS_MAINNET: boolean = network.environment === "mainnet";
 
-// The active network's default stablecoin. Today that's always USDC on both
-// Base and Base Sepolia. When adding a network that doesn't have USDC, make
-// sure it still has a "USDC" entry (or update the readers to pick another
-// token — but for the current refactor USDC is the load-bearing default).
-export const USDC_TOKEN = network.tokens.USDC;
+// The active network's default stablecoin. Every supported chain has a USDC
+// entry (bridged on BNB). Widened to TokenConfig so callers can read the
+// `address`/`addressEnvVar` XOR without the per-chain const narrowing.
+export const USDC_TOKEN: TokenConfig = network.tokens.USDC;
 
 // We DON'T use resolveTokenAddress() here even though it exists in the
 // registry. Reason: Next.js only statically inlines direct literal

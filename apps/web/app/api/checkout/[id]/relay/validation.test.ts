@@ -108,7 +108,7 @@ describe("parseRelayBody", () => {
   });
 
   it("rejects unknown networkKey", () => {
-    const result = parseRelayBody({ ...validBody, networkKey: "polygon" });
+    const result = parseRelayBody({ ...validBody, networkKey: "solana" });
     expect(result.ok).toBe(false);
   });
 

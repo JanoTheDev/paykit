@@ -10,23 +10,57 @@ import {
   assertValidTokenSymbol,
   getToken,
 } from "../networks";
-import { base, baseSepolia } from "viem/chains";
+import {
+  arbitrum,
+  arbitrumSepolia,
+  avalanche,
+  avalancheFuji,
+  base,
+  baseSepolia,
+  bsc,
+  bscTestnet,
+  mainnet,
+  optimism,
+  optimismSepolia,
+  polygon,
+  polygonAmoy,
+  sepolia,
+} from "viem/chains";
 
 describe("registry types", () => {
-  it("NetworkKey is exactly 'base' | 'base-sepolia'", () => {
-    // toEqualTypeOf catches BOTH widening and narrowing — if a future edit
-    // either broadens to `string` or drops an entry from the union, this
-    // test fails to compile.
-    expectTypeOf<NetworkKey>().toEqualTypeOf<"base" | "base-sepolia">();
-  });
-
   it("Environment is exactly 'mainnet' | 'testnet'", () => {
     expectTypeOf<Environment>().toEqualTypeOf<"mainnet" | "testnet">();
   });
 
+  it("NetworkKey is a string literal union, not `string`", () => {
+    // Assigning a plain string must fail — if NetworkKey ever widens to
+    // `string` this line starts compiling and the check is dead.
+    // @ts-expect-error — arbitrary string is not a NetworkKey
+    const _impossible: NetworkKey = "not-a-real-network";
+    void _impossible;
+  });
+
+  it("NetworkKey contains the known chain keys", () => {
+    const sample: NetworkKey[] = [
+      "ethereum",
+      "base",
+      "arbitrum",
+      "optimism",
+      "polygon",
+      "bnb",
+      "avalanche",
+      "ethereum-sepolia",
+      "base-sepolia",
+      "arbitrum-sepolia",
+      "op-sepolia",
+      "polygon-amoy",
+      "bnb-testnet",
+      "avalanche-fuji",
+    ];
+    for (const k of sample) expect(NETWORKS[k]).toBeDefined();
+  });
+
   it("TokenConfig has the expected required + optional shape", () => {
-    // Construction assignment does the real work — all required fields must
-    // be present or this fails to compile.
     const _t: TokenConfig = {
       symbol: "USDC",
       name: "USD Coin",
@@ -37,7 +71,6 @@ describe("registry types", () => {
       address: "0x0000000000000000000000000000000000000000",
     };
     void _t;
-    // Additional shape assertions that would fail if optionality changes:
     expectTypeOf<TokenConfig["decimals"]>().toEqualTypeOf<number>();
     expectTypeOf<TokenConfig["address"]>().toEqualTypeOf<
       `0x${string}` | undefined
@@ -45,6 +78,7 @@ describe("registry types", () => {
     expectTypeOf<TokenConfig["addressEnvVar"]>().toEqualTypeOf<
       string | undefined
     >();
+    expectTypeOf<TokenConfig["bridged"]>().toEqualTypeOf<boolean | undefined>();
   });
 
   it("NetworkConfig.environment is Environment", () => {
@@ -52,44 +86,41 @@ describe("registry types", () => {
   });
 });
 
-describe("NETWORKS data", () => {
-  it("has a base entry", () => {
-    expect(NETWORKS.base).toBeDefined();
-    expect(NETWORKS.base.chainId).toBe(8453);
-    expect(NETWORKS.base.environment).toBe("mainnet");
-    expect(NETWORKS.base.viemChain).toBe(base);
-  });
+describe("NETWORKS data — chain identity", () => {
+  const expectedChains: Array<[NetworkKey, number, Environment, unknown]> = [
+    ["ethereum", 1, "mainnet", mainnet],
+    ["base", 8453, "mainnet", base],
+    ["arbitrum", 42161, "mainnet", arbitrum],
+    ["optimism", 10, "mainnet", optimism],
+    ["polygon", 137, "mainnet", polygon],
+    ["bnb", 56, "mainnet", bsc],
+    ["avalanche", 43114, "mainnet", avalanche],
+    ["ethereum-sepolia", 11155111, "testnet", sepolia],
+    ["base-sepolia", 84532, "testnet", baseSepolia],
+    ["arbitrum-sepolia", 421614, "testnet", arbitrumSepolia],
+    ["op-sepolia", 11155420, "testnet", optimismSepolia],
+    ["polygon-amoy", 80002, "testnet", polygonAmoy],
+    ["bnb-testnet", 97, "testnet", bscTestnet],
+    ["avalanche-fuji", 43113, "testnet", avalancheFuji],
+  ];
 
-  it("has a base-sepolia entry", () => {
-    expect(NETWORKS["base-sepolia"]).toBeDefined();
-    expect(NETWORKS["base-sepolia"].chainId).toBe(84532);
-    expect(NETWORKS["base-sepolia"].environment).toBe("testnet");
-    expect(NETWORKS["base-sepolia"].viemChain).toBe(baseSepolia);
-  });
-
-  it("base USDC is Circle's canonical address with version 2", () => {
-    const usdc = NETWORKS.base.tokens.USDC;
-    expect(usdc).toBeDefined();
-    expect(usdc.address).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
-    expect(usdc.decimals).toBe(6);
-    expect(usdc.supportsPermit).toBe(true);
-    expect(usdc.eip712Version).toBe("2");
-  });
-
-  it("base-sepolia USDC is env-driven with version 1", () => {
-    // Cast through TokenConfig so we can assert the optional `address` is absent
-    // — the `as const` map narrows the type to a shape without that field, which
-    // trips strict tsc even though vitest would pass without the cast.
-    const usdc: TokenConfig = NETWORKS["base-sepolia"].tokens.USDC;
-    expect(usdc).toBeDefined();
-    expect(usdc.address).toBeUndefined();
-    expect(usdc.addressEnvVar).toBe("NEXT_PUBLIC_MOCK_USDC_ADDRESS");
-    expect(usdc.eip712Version).toBe("1");
-  });
+  for (const [key, chainId, environment, viemChain] of expectedChains) {
+    it(`${key} has the correct chainId, environment, viemChain`, () => {
+      expect(NETWORKS[key].chainId).toBe(chainId);
+      expect(NETWORKS[key].environment).toBe(environment);
+      expect(NETWORKS[key].viemChain).toBe(viemChain);
+    });
+  }
 
   it("every network has a unique chainId", () => {
     const chainIds = Object.values(NETWORKS).map((n) => n.chainId);
     expect(new Set(chainIds).size).toBe(chainIds.length);
+  });
+
+  it("every network has at least one token", () => {
+    for (const network of Object.values(NETWORKS)) {
+      expect(Object.keys(network.tokens).length).toBeGreaterThan(0);
+    }
   });
 
   it("every token has exactly one of address or addressEnvVar", () => {
@@ -110,6 +141,65 @@ describe("NETWORKS data", () => {
       }
     }
   });
+
+  it("every canonical address passes the 0x+40 hex regex", () => {
+    for (const network of Object.values(NETWORKS)) {
+      for (const token of Object.values(network.tokens)) {
+        if (token.address) {
+          expect(token.address).toMatch(/^0x[a-fA-F0-9]{40}$/);
+        }
+      }
+    }
+  });
+});
+
+describe("NETWORKS data — token specifics", () => {
+  it("base USDC is Circle's canonical address with version 2", () => {
+    const usdc = NETWORKS.base.tokens.USDC;
+    expect(usdc.address).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+    expect(usdc.decimals).toBe(6);
+    expect(usdc.supportsPermit).toBe(true);
+    expect(usdc.eip712Version).toBe("2");
+  });
+
+  it("base-sepolia USDC is env-driven with version 1", () => {
+    const usdc: TokenConfig = NETWORKS["base-sepolia"].tokens.USDC;
+    expect(usdc.address).toBeUndefined();
+    expect(usdc.addressEnvVar).toBe("NEXT_PUBLIC_MOCK_USDC_ADDRESS");
+    expect(usdc.eip712Version).toBe("1");
+  });
+
+  it("bnb USDC is flagged bridged and non-permit (18 decimals)", () => {
+    const usdc = NETWORKS.bnb.tokens.USDC;
+    expect(usdc.bridged).toBe(true);
+    expect(usdc.supportsPermit).toBe(false);
+    expect(usdc.decimals).toBe(18);
+  });
+
+  it("all mainnet USDC entries (except BNB) are permit-capable 6-decimal", () => {
+    const mainnetKeys: NetworkKey[] = [
+      "ethereum",
+      "base",
+      "arbitrum",
+      "optimism",
+      "polygon",
+      "avalanche",
+    ];
+    for (const k of mainnetKeys) {
+      const usdc = NETWORKS[k].tokens.USDC;
+      expect(usdc.supportsPermit).toBe(true);
+      expect(usdc.decimals).toBe(6);
+      expect(usdc.address).toBeDefined();
+    }
+  });
+
+  it("every testnet USDC uses a distinct addressEnvVar", () => {
+    const envVars = Object.values(NETWORKS)
+      .filter((n) => n.environment === "testnet")
+      .map((n) => n.tokens.USDC.addressEnvVar);
+    expect(envVars.every((v) => v !== undefined)).toBe(true);
+    expect(new Set(envVars).size).toBe(envVars.length);
+  });
 });
 
 describe("getActiveNetwork", () => {
@@ -120,19 +210,19 @@ describe("getActiveNetwork", () => {
 
   it("returns the network matching NEXT_PUBLIC_NETWORK", () => {
     process.env.NEXT_PUBLIC_NETWORK = "base";
-    const n = getActiveNetwork();
-    expect(n.key).toBe("base");
+    expect(getActiveNetwork().key).toBe("base");
   });
 
-  it("returns base-sepolia when NEXT_PUBLIC_NETWORK is base-sepolia", () => {
-    process.env.NEXT_PUBLIC_NETWORK = "base-sepolia";
-    const n = getActiveNetwork();
-    expect(n.key).toBe("base-sepolia");
+  it("works for newly-added chains", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "arbitrum";
+    expect(getActiveNetwork().key).toBe("arbitrum");
+    process.env.NEXT_PUBLIC_NETWORK = "polygon-amoy";
+    expect(getActiveNetwork().key).toBe("polygon-amoy");
   });
 
   it("throws with a clear message on unknown key", () => {
-    process.env.NEXT_PUBLIC_NETWORK = "polygon";
-    expect(() => getActiveNetwork()).toThrow(/polygon/);
+    process.env.NEXT_PUBLIC_NETWORK = "solana";
+    expect(() => getActiveNetwork()).toThrow(/solana/);
     expect(() => getActiveNetwork()).toThrow(/base/);
   });
 
@@ -166,12 +256,47 @@ describe("getAvailableNetworks", () => {
     process.env.NEXT_PUBLIC_NETWORK = "base-sepolia";
     const keys = getAvailableNetworks().map((n) => n.key);
     expect(keys).not.toContain("base");
+    expect(keys).not.toContain("arbitrum");
+    expect(keys).not.toContain("polygon");
   });
 
   it("mainnet deploy never sees testnet entries", () => {
     process.env.NEXT_PUBLIC_NETWORK = "base";
     const keys = getAvailableNetworks().map((n) => n.key);
     expect(keys).not.toContain("base-sepolia");
+    expect(keys).not.toContain("polygon-amoy");
+  });
+
+  it("mainnet deploy surfaces all 7 mainnet chains", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "base";
+    const keys = getAvailableNetworks().map((n) => n.key).sort();
+    expect(keys).toEqual(
+      [
+        "arbitrum",
+        "avalanche",
+        "base",
+        "bnb",
+        "ethereum",
+        "optimism",
+        "polygon",
+      ].sort(),
+    );
+  });
+
+  it("testnet deploy surfaces all 7 testnet chains", () => {
+    process.env.NEXT_PUBLIC_NETWORK = "base-sepolia";
+    const keys = getAvailableNetworks().map((n) => n.key).sort();
+    expect(keys).toEqual(
+      [
+        "arbitrum-sepolia",
+        "avalanche-fuji",
+        "base-sepolia",
+        "bnb-testnet",
+        "ethereum-sepolia",
+        "op-sepolia",
+        "polygon-amoy",
+      ].sort(),
+    );
   });
 });
 
@@ -218,11 +343,12 @@ describe("resolveTokenAddress", () => {
 describe("assertValidNetworkKey", () => {
   it("passes for known keys", () => {
     expect(() => assertValidNetworkKey("base")).not.toThrow();
-    expect(() => assertValidNetworkKey("base-sepolia")).not.toThrow();
+    expect(() => assertValidNetworkKey("arbitrum")).not.toThrow();
+    expect(() => assertValidNetworkKey("polygon-amoy")).not.toThrow();
   });
 
   it("throws on unknown keys", () => {
-    expect(() => assertValidNetworkKey("polygon")).toThrow(/polygon/);
+    expect(() => assertValidNetworkKey("solana")).toThrow(/solana/);
     expect(() => assertValidNetworkKey("")).toThrow();
   });
 
@@ -255,6 +381,11 @@ describe("getToken", () => {
     expect(t.decimals).toBe(6);
   });
 
+  it("works for newly-added chains", () => {
+    const t = getToken("arbitrum", "USDC");
+    expect(t.address).toBe("0xaf88d065e77c8cC2239327C5EDb3A432268e5831");
+  });
+
   it("throws on unknown network", () => {
     expect(() => getToken("solana" as NetworkKey, "USDC")).toThrow();
   });
@@ -265,18 +396,21 @@ describe("getToken", () => {
 });
 
 describe("getAllNetworks", () => {
-  it("returns every network regardless of active environment", () => {
+  it("returns every network (14 after the EVM-7 expansion)", () => {
     const result = getAllNetworks();
-    expect(result.length).toBeGreaterThanOrEqual(2);
-    const keys = result.map((n) => n.key).sort();
-    expect(keys).toContain("base");
-    expect(keys).toContain("base-sepolia");
+    expect(result.length).toBe(14);
   });
 
   it("includes both mainnet and testnet networks", () => {
-    const result = getAllNetworks();
-    const envs = new Set(result.map((n) => n.environment));
+    const envs = new Set(getAllNetworks().map((n) => n.environment));
     expect(envs.has("mainnet")).toBe(true);
     expect(envs.has("testnet")).toBe(true);
+  });
+
+  it("has equal counts of mainnet and testnet entries", () => {
+    const list = getAllNetworks();
+    const mainnets = list.filter((n) => n.environment === "mainnet");
+    const testnets = list.filter((n) => n.environment === "testnet");
+    expect(mainnets.length).toBe(testnets.length);
   });
 });

@@ -1,6 +1,21 @@
 // No 'use client' directive — this file is imported by server components
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { base, baseSepolia } from "@reown/appkit/networks";
+import {
+  arbitrum,
+  arbitrumSepolia,
+  avalanche,
+  avalancheFuji,
+  base,
+  baseSepolia,
+  bsc,
+  bscTestnet,
+  mainnet,
+  optimism,
+  optimismSepolia,
+  polygon,
+  polygonAmoy,
+  sepolia,
+} from "@reown/appkit/networks";
 import type { AppKitNetwork } from "@reown/appkit/networks";
 import { getAllNetworks } from "@paylix/config/networks";
 
@@ -9,16 +24,25 @@ export const projectId =
   "b56e18d47c72ab683b10814fe9495694"; // public fallback for localhost testing
 
 /**
- * Build the AppKit network list from the registry. Includes ALL registered
- * networks (both testnet and mainnet) so the wallet can switch chains at
- * runtime based on the current checkout session's mode. Reown's AppKit uses
- * its own Chain shape that happens to match viem's for Base and Base Sepolia,
- * so we map by chainId. If you add a network to the registry that AppKit
- * doesn't support natively, this mapping needs updating.
+ * Map chainId → AppKit chain object. Every chain registered in
+ * packages/config/src/network-registry.ts must have a corresponding entry
+ * here, otherwise the wallet won't be able to switch to it.
  */
 const APPKIT_CHAINS: Record<number, AppKitNetwork> = {
+  [mainnet.id]: mainnet,
+  [sepolia.id]: sepolia,
   [base.id]: base,
   [baseSepolia.id]: baseSepolia,
+  [arbitrum.id]: arbitrum,
+  [arbitrumSepolia.id]: arbitrumSepolia,
+  [optimism.id]: optimism,
+  [optimismSepolia.id]: optimismSepolia,
+  [polygon.id]: polygon,
+  [polygonAmoy.id]: polygonAmoy,
+  [bsc.id]: bsc,
+  [bscTestnet.id]: bscTestnet,
+  [avalanche.id]: avalanche,
+  [avalancheFuji.id]: avalancheFuji,
 };
 
 const allNetworks = getAllNetworks();

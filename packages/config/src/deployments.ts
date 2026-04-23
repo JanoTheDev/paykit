@@ -1,5 +1,5 @@
 import { type Chain } from "viem";
-import { NETWORKS, type NetworkKey } from "./networks";
+import { NETWORKS, type NetworkKey } from "./network-registry";
 
 export interface Deployment {
   networkKey: NetworkKey;
@@ -11,6 +11,19 @@ export interface Deployment {
 }
 
 type Env = Record<string, string | undefined>;
+
+function envPrefix(networkKey: NetworkKey): string {
+  return networkKey.replace(/-/g, "_").toUpperCase();
+}
+
+function envKeys(networkKey: NetworkKey) {
+  const p = envPrefix(networkKey);
+  return {
+    rpcUrl: `${p}_RPC_URL`,
+    paymentVault: `${p}_PAYMENT_VAULT`,
+    subscriptionManager: `${p}_SUBSCRIPTION_MANAGER`,
+  };
+}
 
 function required(env: Env, key: string): string {
   const v = env[key];
@@ -24,9 +37,7 @@ function isAddress(v: string): v is `0x${string}` {
 
 function requireAddress(env: Env, key: string): `0x${string}` {
   const v = required(env, key);
-  if (!isAddress(v)) {
-    throw new Error(`${key} is not a valid Ethereum address: ${v}`);
-  }
+  if (!isAddress(v)) throw new Error(`${key} is not a valid Ethereum address: ${v}`);
   return v;
 }
 
@@ -34,47 +45,35 @@ function hasAny(env: Env, ...keys: string[]): boolean {
   return keys.some((k) => env[k] !== undefined && env[k] !== "");
 }
 
+/**
+ * Parse per-chain deployment groups from env. A group is "active" if any of
+ * its three env vars is set; once active, all three are required.
+ *
+ * Env naming scheme: `${NETWORK_KEY_UPPER}_RPC_URL` / `_PAYMENT_VAULT` /
+ * `_SUBSCRIPTION_MANAGER`, with hyphens replaced by underscores. Examples:
+ *   BASE_SEPOLIA_RPC_URL, ARBITRUM_PAYMENT_VAULT, POLYGON_AMOY_SUBSCRIPTION_MANAGER.
+ */
 export function parseDeployments(env: Env): Deployment[] {
   const out: Deployment[] = [];
 
-  const hasTest = hasAny(
-    env,
-    "BASE_SEPOLIA_RPC_URL",
-    "BASE_SEPOLIA_PAYMENT_VAULT",
-    "BASE_SEPOLIA_SUBSCRIPTION_MANAGER",
-  );
-  const hasLive = hasAny(
-    env,
-    "BASE_RPC_URL",
-    "BASE_PAYMENT_VAULT",
-    "BASE_SUBSCRIPTION_MANAGER",
-  );
+  for (const [key, network] of Object.entries(NETWORKS)) {
+    const k = envKeys(key as NetworkKey);
+    if (!hasAny(env, k.rpcUrl, k.paymentVault, k.subscriptionManager)) continue;
 
-  if (hasTest) {
     out.push({
-      networkKey: "base-sepolia",
-      livemode: false,
-      rpcUrl: required(env, "BASE_SEPOLIA_RPC_URL"),
-      paymentVault: requireAddress(env, "BASE_SEPOLIA_PAYMENT_VAULT"),
-      subscriptionManager: requireAddress(env, "BASE_SEPOLIA_SUBSCRIPTION_MANAGER"),
-      chain: NETWORKS["base-sepolia"].viemChain,
-    });
-  }
-
-  if (hasLive) {
-    out.push({
-      networkKey: "base",
-      livemode: true,
-      rpcUrl: required(env, "BASE_RPC_URL"),
-      paymentVault: requireAddress(env, "BASE_PAYMENT_VAULT"),
-      subscriptionManager: requireAddress(env, "BASE_SUBSCRIPTION_MANAGER"),
-      chain: NETWORKS["base"].viemChain,
+      networkKey: key as NetworkKey,
+      livemode: network.environment === "mainnet",
+      rpcUrl: required(env, k.rpcUrl),
+      paymentVault: requireAddress(env, k.paymentVault),
+      subscriptionManager: requireAddress(env, k.subscriptionManager),
+      chain: network.viemChain,
     });
   }
 
   if (out.length === 0) {
+    const sample = envKeys("base-sepolia" as NetworkKey);
     throw new Error(
-      "No deployments could be parsed — set BASE_SEPOLIA_* and/or BASE_* env vars",
+      `No deployments could be parsed — set at least one group of ${sample.rpcUrl} / ${sample.paymentVault} / ${sample.subscriptionManager} (or the equivalents for any other supported chain)`,
     );
   }
 
