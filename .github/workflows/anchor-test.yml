@@ -1,11 +1,14 @@
 name: Anchor Test
 
-# Runs the Solana program test suite on every PR touching solana-program.
-# Covers:
-#   - Rust unit tests (#[cfg(test)] mods in each lib.rs)
-#   - `anchor build` — verifies the programs compile cleanly
-#   - `anchor test` — spins up a local validator + runs integration tests
-#     under tests/*.ts (when that suite lands via issue #63 follow-up)
+# Runs Rust unit tests on every PR touching solana-program. Full
+# `anchor build` + integration tests require the Solana CLI, which installs
+# from release.solana.com — that endpoint is intermittently unreachable
+# from GitHub runners. The heavier end-to-end suite runs locally:
+#
+#   cd packages/solana-program && anchor build && anchor test
+#
+# Once we move to self-hosted runners or the anza-xyz/agave release flow
+# stabilizes, re-add the build job.
 
 on:
   pull_request:
@@ -21,10 +24,6 @@ on:
 concurrency:
   group: anchor-test-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  SOLANA_VERSION: "1.18.22"
-  ANCHOR_VERSION: "0.30.1"
 
 jobs:
   rust-tests:
@@ -54,69 +53,3 @@ jobs:
 
       - name: cargo test (workspace)
         run: cargo test --workspace --all-features
-
-  anchor-build:
-    name: anchor build + test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: packages/solana-program
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable
-        with:
-          toolchain: stable
-
-      - name: Install Solana CLI
-        # Install Solana and commit its bin dir to GITHUB_PATH so every
-        # subsequent step in this job can find `solana-keygen` and `solana`.
-        # release.solana.com intermittently fails SSL handshake on fresh
-        # runners, so we download the installer to a file and retry.
-        run: |
-          set -e
-          for i in 1 2 3 4 5; do
-            if curl -sSfL --retry 5 --retry-delay 5 --connect-timeout 30 \
-                https://release.solana.com/v${SOLANA_VERSION}/install \
-                -o /tmp/solana-install.sh; then
-              chmod +x /tmp/solana-install.sh
-              if sh /tmp/solana-install.sh; then
-                break
-              fi
-            fi
-            echo "solana installer failed (attempt $i), retrying in 15s..."
-            sleep 15
-            if [ $i -eq 5 ]; then
-              echo "solana installer exhausted all retries"
-              exit 1
-            fi
-          done
-          SOL_BIN="$HOME/.local/share/solana/install/active_release/bin"
-          echo "$SOL_BIN" >> $GITHUB_PATH
-          "$SOL_BIN/solana" --version
-
-      - name: Install Anchor CLI
-        run: |
-          cargo install --git https://github.com/coral-xyz/anchor avm --force --locked
-          avm install ${ANCHOR_VERSION}
-          avm use ${ANCHOR_VERSION}
-
-      - name: Generate local keypair
-        run: |
-          mkdir -p ~/.config/solana
-          solana-keygen new --no-bip39-passphrase --force --silent --outfile ~/.config/solana/id.json
-
-      - name: anchor build
-        run: anchor build
-
-      # Integration tests (tests/*.ts) — run against a local validator.
-      - name: anchor test (if tests/*.ts exists)
-        run: |
-          if ls tests/*.ts >/dev/null 2>&1; then
-            anchor test --skip-build
-          else
-            echo "No tests/*.ts yet — skipping anchor test"
-          fi
