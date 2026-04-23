@@ -22,7 +22,9 @@ describe("Paylix", () => {
   });
 
   it("throws if network is unsupported", () => {
-    expect(() => new Paylix({ ...validConfig, network: "polygon" as any })).toThrow("unsupported network");
+    // "solana-fake" isn't in the SDK's NETWORKS table; polygon is now a
+    // real entry so using it wouldn't trigger the error path any more.
+    expect(() => new Paylix({ ...validConfig, network: "solana-fake" as any })).toThrow("unsupported network");
   });
 
   it("exposes network config", () => {

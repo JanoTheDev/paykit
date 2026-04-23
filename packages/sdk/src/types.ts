@@ -6,9 +6,37 @@ export type SubscriptionStatus =
   | "trialing"
   | "trial_conversion_failed";
 
+/**
+ * Supported network keys. Must stay in sync with the server-side registry
+ * at `packages/config/src/network-registry.ts`. The SDK has no runtime dep
+ * on the config package (it's consumer-published); adding a chain means
+ * extending this union and adding a row to `./networks.ts`.
+ */
+export type PaylixNetwork =
+  | "ethereum"
+  | "base"
+  | "arbitrum"
+  | "optimism"
+  | "polygon"
+  | "bnb"
+  | "avalanche"
+  | "ethereum-sepolia"
+  | "base-sepolia"
+  | "arbitrum-sepolia"
+  | "op-sepolia"
+  | "polygon-amoy"
+  | "bnb-testnet"
+  | "avalanche-fuji"
+  | "solana"
+  | "solana-devnet"
+  | "bitcoin"
+  | "bitcoin-testnet"
+  | "litecoin"
+  | "litecoin-testnet";
+
 export interface PaylixConfig {
   apiKey: string;
-  network: "base" | "base-sepolia";
+  network: PaylixNetwork;
   backendUrl: string;
 }
 

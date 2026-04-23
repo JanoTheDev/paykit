@@ -35,7 +35,7 @@ export default function GettingStarted() {
     <>
       <PageHeading
         title="Getting Started"
-        description="Paylix lets you accept USDC payments and subscriptions on Base with a few lines of TypeScript. No custodial wallets, no payment processors — funds move directly from customer wallets to yours. Buyers don't need to hold ETH — the platform relayer pays gas on their behalf while USDC still flows directly from buyer to merchant."
+        description="Paylix lets you accept one-time and recurring crypto payments across 7 EVM chains (Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche) with a few lines of TypeScript. No custodial wallets, no payment processors — funds move directly from customer wallets to yours. Buyers don't need to hold gas — the platform relayer pays it on their behalf while tokens still flow directly from buyer to merchant."
       />
 
       <p className="text-sm leading-relaxed text-foreground-muted">
@@ -76,9 +76,22 @@ export default function GettingStarted() {
 
 const paylix = new Paylix({
   apiKey: "sk_live_...",
-  network: "base",           // "base" or "base-sepolia"
+  // EVM mainnets: ethereum | base | arbitrum | optimism | polygon | bnb | avalanche
+  // EVM testnets: ethereum-sepolia | base-sepolia | arbitrum-sepolia |
+  //               op-sepolia | polygon-amoy | bnb-testnet | avalanche-fuji
+  // Non-EVM:      solana | solana-devnet | bitcoin | bitcoin-testnet |
+  //               litecoin | litecoin-testnet
+  network: "base",
   backendUrl: "https://your-paylix-instance.com",
 });`}</CodeBlock>
+
+      <p className="text-sm leading-relaxed text-foreground-muted">
+        Supported tokens per chain: USDC everywhere, USDT / WETH / WBTC / DAI
+        via Uniswap&apos;s Permit2 on most chains, PYUSD on Ethereum, and
+        Ethereum-mainnet DAI via the legacy DAI-permit path. The hosted
+        checkout picks the right signing flow automatically — merchants just
+        configure prices per (network, token) pair.
+      </p>
 
       <SectionHeading>3. Create a Checkout</SectionHeading>
       <p className="text-sm leading-relaxed text-foreground-muted">

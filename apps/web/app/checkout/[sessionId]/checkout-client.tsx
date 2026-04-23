@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useChainId, useSwitchChain, usePublicClient, useSignTypedData } from "wagmi";
 import { CheckCircle2, Clock } from "lucide-react";
@@ -10,7 +10,7 @@ import {
   PAYMENT_VAULT_ABI,
   SUBSCRIPTION_MANAGER_ABI,
 } from "@/lib/contracts";
-import { NETWORKS } from "@paylix/config/networks";
+import { NETWORKS, type TokenConfig } from "@paylix/config/networks";
 import { intervalToSeconds, formatInterval } from "@/lib/billing-intervals";
 import { formatTrialDuration } from "@/lib/format-trial";
 import { fromNativeUnits, formatNativeAmount } from "@/lib/amounts";
@@ -87,6 +87,14 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
   const address = wagmiAddress ?? appkitAddress;
   const isConnected = appkitConnected;
   const [status, setStatus] = useState<CheckoutStatus>(session.status);
+  // Resolve the active token's config (scheme, name, decimals) up front so
+  // render-time hints can read it without duplicating the lookup in handlePay.
+  const activeToken = useMemo(() => {
+    if (!session.networkKey || !session.tokenSymbol) return null;
+    const n = NETWORKS[session.networkKey as keyof typeof NETWORKS];
+    if (!n) return null;
+    return (n.tokens as Record<string, TokenConfig>)[session.tokenSymbol] ?? null;
+  }, [session.networkKey, session.tokenSymbol]);
   const [customerFields, setCustomerFields] = useState({
     firstName: "",
     lastName: "",
@@ -1725,7 +1733,7 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
                           .replace("per ", "/")
                           .replace("every 2 weeks", "/2 weeks")}`
                       : `Pay $${displayAmount} ${session.tokenSymbol ?? "USDC"}`)}
-                  {payStep === "approving" && "Approving USDC..."}
+                  {payStep === "approving" && `Approving ${session.tokenSymbol ?? "USDC"}...`}
                   {payStep === "paying" && "Confirm payment..."}
                   {payStep === "confirming" && "Processing..."}
                 </Button>
@@ -1733,6 +1741,21 @@ export function CheckoutClient({ session, availablePrices, chainId, paymentVault
                 {isTrial && payStep === "idle" && (
                   <p className="text-center text-xs text-muted-foreground">
                     No charge today. Cancel anytime before the trial ends.
+                  </p>
+                )}
+
+                {payStep === "idle" && activeToken?.signatureScheme === "permit2" && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Your wallet will ask for two signatures — one authorizing
+                    this payment, one confirming the amount. Neither costs
+                    gas.
+                  </p>
+                )}
+                {payStep === "idle" && activeToken?.signatureScheme === "dai-permit" && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Your wallet will ask for two signatures — DAI&apos;s
+                    legacy allowance grant, then the payment amount. Both are
+                    gasless.
                   </p>
                 )}
 

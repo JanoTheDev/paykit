@@ -1,7 +1,7 @@
 [
   {
     "title": "Getting Started",
-    "description": "Paylix lets you accept USDC payments and subscriptions on Base with a few lines of TypeScript. No custodial wallets, no payment processors — funds move directly from customer wallets to yours. Buyers don",
+    "description": "Paylix lets you accept one-time and recurring crypto payments across 7 EVM chains (Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche) with a few lines of TypeScript. No custodial wallets, no payment processors — funds move directly from customer wallets to yours. Buyers don",
     "path": "/",
     "headings": [
       {
@@ -1451,6 +1451,25 @@
       {
         "text": "Webhooks",
         "anchor": "webhooks"
+      }
+    ]
+  },
+  {
+    "title": "Supported Chains & Tokens",
+    "description": "Paylix runs across every major EVM chain plus scaffolded Solana, Bitcoin, and Litecoin. Merchants configure which combinations to accept; the hosted checkout routes automatically.",
+    "path": "/supported-chains",
+    "headings": [
+      {
+        "text": "EVM Chains",
+        "anchor": "evm-chains"
+      },
+      {
+        "text": "Non-EVM Chains",
+        "anchor": "non-evm-chains"
+      },
+      {
+        "text": "Signing schemes",
+        "anchor": "signing-schemes"
       }
     ]
   },
