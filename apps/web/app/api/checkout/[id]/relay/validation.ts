@@ -176,7 +176,10 @@ export function parseRelayBody(
   let rHex: `0x${string}` | null = null;
   let sHex: `0x${string}` | null = null;
   let permitValueBig: bigint | null = null;
-  if (!hasPermit2) {
+  // EIP-2612 validation only runs when no alternate shape was provided.
+  // Permit2 / DAI-permit paths carry their own fields and leave v/r/s null.
+  const use2612 = !hasPermit2One && !hasPermit2Allowance && !hasDaiPermit;
+  if (use2612) {
     if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 255) {
       return { ok: false, error: { code: "invalid_body", message: "v must be a uint8 (0-255)" } };
     }

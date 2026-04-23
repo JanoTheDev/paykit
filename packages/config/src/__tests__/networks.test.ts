@@ -498,30 +498,42 @@ describe("getToken", () => {
 });
 
 describe("isTokenUsable + getUsableTokens", () => {
-  it("eip2612 tokens are usable", () => {
+  it("eip2612 tokens usable for both one-time and subscription", () => {
+    expect(isTokenUsable(NETWORKS.base.tokens.USDC, "one_time")).toBe(true);
+    expect(isTokenUsable(NETWORKS.base.tokens.USDC, "subscription")).toBe(true);
+    expect(isTokenUsable(NETWORKS.ethereum.tokens.PYUSD, "subscription")).toBe(true);
+  });
+
+  it("permit2 tokens usable for both one-time and subscription (#56 part 2 + #62)", () => {
+    expect(isTokenUsable(NETWORKS.ethereum.tokens.USDT, "one_time")).toBe(true);
+    expect(isTokenUsable(NETWORKS.ethereum.tokens.USDT, "subscription")).toBe(true);
+    expect(isTokenUsable(NETWORKS.ethereum.tokens.WETH, "subscription")).toBe(true);
+    expect(isTokenUsable(NETWORKS.arbitrum.tokens.WBTC, "subscription")).toBe(true);
+  });
+
+  it("dai-permit usable for one-time only (#64)", () => {
+    expect(isTokenUsable(NETWORKS.ethereum.tokens.DAI, "one_time")).toBe(true);
+    expect(isTokenUsable(NETWORKS.ethereum.tokens.DAI, "subscription")).toBe(false);
+  });
+
+  it("none-scheme tokens never usable", () => {
+    expect(isTokenUsable(NETWORKS.bnb.tokens.USDC, "one_time")).toBe(false);
+    expect(isTokenUsable(NETWORKS.bnb.tokens.USDC, "subscription")).toBe(false);
+  });
+
+  it("isTokenUsable defaults to one-time for backwards compat", () => {
     expect(isTokenUsable(NETWORKS.base.tokens.USDC)).toBe(true);
-    expect(isTokenUsable(NETWORKS.ethereum.tokens.PYUSD)).toBe(true);
-  });
-
-  it("permit2 tokens are usable for one-time payments (#56 part 2 wired)", () => {
-    expect(isTokenUsable(NETWORKS.ethereum.tokens.USDT)).toBe(true);
-    expect(isTokenUsable(NETWORKS.ethereum.tokens.WETH)).toBe(true);
-    expect(isTokenUsable(NETWORKS.arbitrum.tokens.WBTC)).toBe(true);
-  });
-
-  it("dai-permit tokens are usable for one-time (wired in #64)", () => {
     expect(isTokenUsable(NETWORKS.ethereum.tokens.DAI)).toBe(true);
   });
 
-  it("none-scheme tokens are never usable", () => {
-    expect(isTokenUsable(NETWORKS.bnb.tokens.USDC)).toBe(false);
+  it("getUsableTokens(network, 'one_time') returns every wired scheme", () => {
+    const syms = getUsableTokens(NETWORKS.ethereum, "one_time").map((t) => t.symbol).sort();
+    expect(syms).toEqual(["DAI", "PYUSD", "USDC", "USDT", "WBTC", "WETH"]);
   });
 
-  it("getUsableTokens filters to the active set per network", () => {
-    const ethTokens = getUsableTokens(NETWORKS.ethereum);
-    const symbols = ethTokens.map((t) => t.symbol).sort();
-    // DAI (dai-permit) + USDC + PYUSD (eip2612) + USDT + WETH + WBTC (permit2).
-    expect(symbols).toEqual(["DAI", "PYUSD", "USDC", "USDT", "WBTC", "WETH"]);
+  it("getUsableTokens(network, 'subscription') excludes dai-permit", () => {
+    const syms = getUsableTokens(NETWORKS.ethereum, "subscription").map((t) => t.symbol).sort();
+    expect(syms).toEqual(["PYUSD", "USDC", "USDT", "WBTC", "WETH"]);
   });
 });
 

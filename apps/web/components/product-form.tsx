@@ -249,15 +249,17 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
 
   useEffect(() => {
     // Load merchant's enabled networks from /api/settings. For each network
-    // we surface every registered token, filtered to those currently usable
-    // by the relay route (`isTokenUsable`), with bridged-token flags the
-    // dropdown uses to show a warning badge.
+    // we surface every registered token, filtered to those usable for the
+    // chosen payment type. DAI-permit is gated from subscription products
+    // here (contract + relay reject it further down the stack, but the UI
+    // should never show an option that would 400 at submit time).
     let cancelled = false;
     fetch("/api/settings")
       .then((r) => (r.ok ? r.json() : null))
       .then(async (data) => {
         if (cancelled || !data?.networks) return;
         const { NETWORKS, isTokenUsable } = await import("@paylix/config/networks");
+        const paymentType = type === "subscription" ? "subscription" : "one_time";
         const enabled = data.networks
           .filter((n: { enabled: boolean }) => n.enabled)
           .map((n: { networkKey: string; chainName: string; displayLabel: string }) => {
@@ -266,7 +268,7 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
               symbol: t.symbol,
               name: t.name,
               bridged: Boolean(t.bridged),
-              usable: isTokenUsable(t),
+              usable: isTokenUsable(t, paymentType),
             }));
             return {
               networkKey: n.networkKey,
@@ -280,7 +282,7 @@ export function ProductForm({ initialData, mode }: ProductFormProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [type]);
 
   function updatePrice(
     index: number,

@@ -25,7 +25,7 @@ fund a deployer wallet and run `./deploy.sh <chain> mainnet`.
 
 | Chain              | Testnet                  | Mainnet | USDC | USDT | DAI  | WETH | WBTC | PYUSD |
 |--------------------|--------------------------|---------|------|------|------|------|------|-------|
-| Ethereum           | Sepolia                  | ✅      | ✅   | ✅   | ✅*  | ✅   | ✅   | ✅    |
+| Ethereum           | Sepolia                  | ✅      | ✅   | ✅   | ✅*  | ✅†  | ✅†  | ✅    |
 | Base               | Base Sepolia             | ✅      | ✅   | —    | ✅   | ✅   | —    | —     |
 | Arbitrum One       | Arbitrum Sepolia         | ✅      | ✅   | ✅   | ✅   | ✅   | ✅   | —     |
 | Optimism           | OP Sepolia               | ✅      | ✅   | ✅   | ✅   | ✅   | ✅   | —     |
@@ -205,15 +205,26 @@ Anchor (Solana) tests need `anchor-cli` installed:
 cd packages/solana-program && anchor test
 ```
 
-## Open follow-up issues
+## Rollout status
 
-Closed the main rollout (#54–#60 + tracker #28). Remaining scoped work:
+The multi-chain rollout (tracker #28 + #54–#65) is **fully closed**. Every
+EVM chain, token, signature scheme, and non-EVM scaffold is landed.
 
-- **#62** — DAI-permit variant for Ethereum-mainnet DAI (niche; Permit2 covers every L2)
-- **#63** — Anchor CI workflow lands the Rust + build pass; integration test harness (`tests/*.ts`) still needed
-- **#65** — Postgres bindings to wire Solana indexer + UTXO watcher to the shared schema (migration landed in `0030_add_utxo_support.sql`; writer layer is the remaining glue)
+What buyers can pay with today via the hosted checkout:
 
-Rollout tracker is closed. Open issues are independent follow-ups.
+| Scheme       | Tokens                         | One-time | Subscriptions |
+|--------------|--------------------------------|----------|---------------|
+| EIP-2612     | USDC (all EVM mainnets), PYUSD | ✅       | ✅            |
+| Permit2      | USDT, WETH, WBTC, bridged DAI  | ✅       | ✅            |
+| DAI-permit   | DAI on Ethereum mainnet        | ✅       | —             |
+| SPL delegate | USDC / USDT / PYUSD on Solana  | ✅       | ✅ (scaffold)  |
+| UTXO watch   | BTC, LTC                       | ✅       | — (model)     |
+
+Everything above is wired end-to-end for EVM (checkout client → relay →
+contract). Non-EVM (Solana / Bitcoin / Litecoin) has contract/program/
+service implementations; operator deploys + Postgres writer plug-in to
+complete. Writer interfaces are callback-based so you can drop Drizzle or
+any other ORM in without changing the packages.
 
 ## Architecture deep-dive
 

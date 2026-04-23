@@ -23,4 +23,5 @@ export {
   getToken,
   isTokenUsable,
   getUsableTokens,
+  type PaymentType,
 } from "./network-helpers";

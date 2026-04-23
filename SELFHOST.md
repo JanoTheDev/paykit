@@ -123,17 +123,32 @@ The script:
 - Avalanche: ~1 AVAX
 - Testnets: free — grab from the chain's faucet
 
-### Non-EVM deploys (scaffolded)
+### Non-EVM deploys
 
 ```bash
-./deploy.sh solana devnet        # tracked in #57
-./deploy.sh bitcoin testnet      # tracked in #58
-./deploy.sh litecoin testnet     # tracked in #59
+./deploy.sh solana devnet
+./deploy.sh solana mainnet
+./deploy.sh bitcoin testnet
+./deploy.sh litecoin testnet
 ```
 
-These subscripts dispatch the right tool (`anchor deploy`, Electrum config
-write, etc.) but require the full package implementations from their
-respective tracking issues before they're production-usable.
+**Solana.** The Anchor programs are in `packages/solana-program/`. Run
+`anchor build` first — it generates a real keypair for each program at
+`target/deploy/*.json` and writes the matching pubkey back into each
+program's `declare_id!`. Then `./deploy.sh solana <network>` runs
+`anchor deploy` and saves the program IDs into your `.env`.
+
+Before you ship to mainnet-beta, swap the placeholder IDs in
+`programs/*/src/lib.rs` and `Anchor.toml` with `anchor keys list` output —
+the hardcoded `Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS` +
+`7xeFzZAtyq5uSVMAbx6N3LBhWFDCimbYhYdLdLg8EMmv` values are placeholders
+used so the workspace compiles cleanly in CI.
+
+**Bitcoin / Litecoin.** UTXO watcher (`@paylix/utxo-watcher`) is callback-
+driven; wire your `loadSessions` / `persistDerivedAddress` / `onPayment` /
+`onExpire` / `nextSessionIndex` against whatever storage you run. Default
+Electrum endpoints are baked into the descriptors; override per merchant
+via `${CHAIN}_ELECTRUM_URL` env.
 
 ## Step 4 — Start services
 
@@ -215,6 +230,7 @@ Every EVM chain supports all Paylix features once deployed:
 | One-time payments             | ✅                | 🚧 #57    | 🚧 #58  | 🚧 #59   |
 | Subscriptions (EIP-2612)      | ✅                | ✅ (delegate) | ❌ (UTXO model)  | ❌ (UTXO model) |
 | Subscriptions (Permit2)       | ✅                | ✅ (delegate) | ❌ (UTXO model)  | ❌ (UTXO model) |
+| Subscriptions (DAI-permit)    | — (Ethereum DAI one-time only) | — | ❌ | ❌ |
 | Free trials                   | ✅                | 🚧 #57    | ❌      | ❌       |
 | Refunds (full + partial)      | ✅                | 🚧 #57    | 🚧 #58  | 🚧 #59   |
 | Coupons                       | ✅                | 🚧 #57    | ❌      | ❌       |

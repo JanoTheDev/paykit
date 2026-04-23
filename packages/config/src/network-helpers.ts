@@ -103,25 +103,45 @@ export function getToken(networkKey: NetworkKey, tokenSymbol: string): TokenConf
  * UIs that list selectable tokens MUST filter via `isTokenUsable` so they
  * don't show options that would fail at relay time.
  */
-const SCHEME_USABLE = {
-  eip2612: true,
-  // Permit2 one-time + subscriptions wired end-to-end as of #56 part 2 + #62.
-  permit2: true,
-  // DAI-permit wired for one-time payments in #64. Subscription-side DAI
-  // still routes through standard paths (bridged DAI on L2s uses Permit2;
-  // Ethereum-mainnet DAI subs are out of scope for now).
-  "dai-permit": true,
-  none: false,
-} as const;
+export type PaymentType = "one_time" | "subscription";
 
-export function isTokenUsable(token: TokenConfig): boolean {
-  return SCHEME_USABLE[token.signatureScheme];
+/**
+ * Per-scheme support matrix. `true` means the full end-to-end path
+ * (checkout client + relay + contract) is wired for that combo. UIs
+ * read this through `isTokenUsable(token, paymentType)` so they never
+ * surface options the backend would reject.
+ */
+const SCHEME_SUPPORT: Record<
+  TokenConfig["signatureScheme"],
+  Record<PaymentType, boolean>
+> = {
+  eip2612: { one_time: true, subscription: true },
+  // Permit2 one-time + subs wired via #56 part 2 + #62.
+  permit2: { one_time: true, subscription: true },
+  // DAI-permit one-time only (#64). Subscription-side DAI is deferred —
+  // bridged DAI on L2s goes through Permit2, and Ethereum-mainnet DAI
+  // subs are rare enough that the bespoke contract + client flow isn't
+  // worth the maintenance surface today.
+  "dai-permit": { one_time: true, subscription: false },
+  none: { one_time: false, subscription: false },
+};
+
+/**
+ * Is this token usable for the given payment type? Overloaded for
+ * backwards compatibility — calling with a single arg defaults to the
+ * one-time answer. New code should always pass the type explicitly.
+ */
+export function isTokenUsable(token: TokenConfig, paymentType: PaymentType = "one_time"): boolean {
+  return SCHEME_SUPPORT[token.signatureScheme][paymentType];
 }
 
 /**
- * Returns the tokens on a network that can currently be used for checkout.
- * Thin wrapper so call sites don't have to repeat the filter everywhere.
+ * Tokens on a network usable for a given payment type. Thin wrapper so
+ * call sites don't have to repeat the filter everywhere.
  */
-export function getUsableTokens(network: NetworkConfig): TokenConfig[] {
-  return Object.values(network.tokens).filter(isTokenUsable);
+export function getUsableTokens(
+  network: NetworkConfig,
+  paymentType: PaymentType = "one_time",
+): TokenConfig[] {
+  return Object.values(network.tokens).filter((t) => isTokenUsable(t, paymentType));
 }

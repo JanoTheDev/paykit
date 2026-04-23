@@ -118,6 +118,142 @@ describe("parseRelayBody", () => {
   });
 });
 
+// Alternative signature schemes — Permit2 one-time, Permit2 AllowanceTransfer,
+// and DAI-permit. Each body shape must parse cleanly on its own and reject
+// when mixed with another.
+
+describe("parseRelayBody — Permit2 SignatureTransfer (one-time)", () => {
+  const base = {
+    buyer: "0x" + "a".repeat(40),
+    deadline: "1800000000",
+    intentSignature: "0x" + "3".repeat(128) + "1b",
+    networkKey: "base-sepolia",
+    tokenSymbol: "USDC",
+    permit2Nonce: "1",
+    permit2Signature: "0x" + "4".repeat(130),
+  };
+
+  it("accepts a Permit2 SignatureTransfer body", () => {
+    const result = parseRelayBody(base);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.permit2Nonce).toBe(BigInt(1));
+      expect(result.value.permit2Signature).toBe(base.permit2Signature);
+      expect(result.value.v).toBeNull();
+    }
+  });
+
+  it("rejects mixing with EIP-2612 fields", () => {
+    const result = parseRelayBody({ ...base, v: 27, r: "0x" + "1".repeat(64), s: "0x" + "2".repeat(64), permitValue: "1000" });
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("parseRelayBody — Permit2 AllowanceTransfer (subscription)", () => {
+  const base = {
+    buyer: "0x" + "a".repeat(40),
+    deadline: "1800000000",
+    intentSignature: "0x" + "3".repeat(128) + "1b",
+    networkKey: "base-sepolia",
+    tokenSymbol: "USDC",
+    permit2Allowance: {
+      amount: "1000000000",
+      expiration: 1900000000,
+      nonce: 0,
+      sigDeadline: "1800000000",
+    },
+    permit2AllowanceSignature: "0x" + "5".repeat(130),
+  };
+
+  it("accepts an AllowanceTransfer body", () => {
+    const result = parseRelayBody(base);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.permit2Allowance?.amount).toBe(BigInt("1000000000"));
+      expect(result.value.permit2Allowance?.expiration).toBe(1900000000);
+    }
+  });
+
+  it("rejects when expiration is negative", () => {
+    const bad = { ...base, permit2Allowance: { ...base.permit2Allowance, expiration: -1 } };
+    const result = parseRelayBody(bad);
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects mixing with SignatureTransfer", () => {
+    const result = parseRelayBody({ ...base, permit2Nonce: "1", permit2Signature: "0x00" });
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("parseRelayBody — DAI-permit (Ethereum-mainnet DAI)", () => {
+  const base = {
+    buyer: "0x" + "a".repeat(40),
+    deadline: "1800000000",
+    intentSignature: "0x" + "3".repeat(128) + "1b",
+    networkKey: "base-sepolia",
+    tokenSymbol: "USDC",
+    daiPermit: {
+      nonce: "0",
+      v: 27,
+      r: "0x" + "1".repeat(64),
+      s: "0x" + "2".repeat(64),
+    },
+  };
+
+  it("accepts a DAI-permit body", () => {
+    const result = parseRelayBody(base);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.daiPermit?.nonce).toBe(BigInt(0));
+      expect(result.value.daiPermit?.v).toBe(27);
+      expect(result.value.v).toBeNull();
+    }
+  });
+
+  it("normalizes DAI-permit v = 0/1 to 27/28", () => {
+    const result = parseRelayBody({ ...base, daiPermit: { ...base.daiPermit, v: 0 } });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.daiPermit?.v).toBe(27);
+  });
+
+  it("rejects when daiPermit.nonce is missing", () => {
+    const result = parseRelayBody({
+      ...base,
+      daiPermit: { v: 27, r: base.daiPermit.r, s: base.daiPermit.s },
+    } as unknown as Parameters<typeof parseRelayBody>[0]);
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects when daiPermit.r is not 32-byte hex", () => {
+    const result = parseRelayBody({
+      ...base,
+      daiPermit: { ...base.daiPermit, r: "0xabc" },
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects mixing with EIP-2612 fields", () => {
+    const result = parseRelayBody({
+      ...base,
+      v: 27,
+      r: "0x" + "1".repeat(64),
+      s: "0x" + "2".repeat(64),
+      permitValue: "1000",
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects mixing with Permit2", () => {
+    const result = parseRelayBody({
+      ...base,
+      permit2Nonce: "1",
+      permit2Signature: "0x" + "4".repeat(130),
+    });
+    expect(result.ok).toBe(false);
+  });
+});
+
 describe("validateSessionForRelay", () => {
   const future = new Date(Date.now() + 10 * 60 * 1000);
   const past = new Date(Date.now() - 1000);
