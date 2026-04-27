@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Need full history so gitleaks can scan all incoming commits on a
           # push, not just the tip. PRs auto-fetch enough context via the
